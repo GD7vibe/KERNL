@@ -1,10 +1,7 @@
 {
   "name": "kernl",
   "version": "1.0.0",
-  "description": "KERNL — The kernel of every story",
   "private": true,
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {}
+  "engines": { "node": ">=18" },
+  "type": "module"
 }
