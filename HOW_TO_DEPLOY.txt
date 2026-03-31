@@ -1,0 +1,129 @@
+# KERNL — Deployment Guide
+## How to get your app live on the internet for free
+
+This guide takes you from zero to a live website in about 15 minutes.
+No coding experience needed — just follow each step in order.
+
+---
+
+## What you need
+- A free GitHub account (github.com)
+- A free Vercel account (vercel.com)
+- Your Anthropic API key (from console.anthropic.com)
+
+---
+
+## STEP 1 — Put your files on GitHub
+
+GitHub is where your code lives. Think of it as Dropbox for app files.
+
+1. Go to **github.com** and sign in (or create a free account)
+2. Click the **+** button (top right) → **New repository**
+3. Name it: `kernl`
+4. Make sure it's set to **Public**
+5. Click **Create repository**
+6. On the next page, click **uploading an existing file**
+7. Drag and drop ALL the files from this folder into the upload area.
+   You need to keep the folder structure exactly like this:
+
+```
+kernl/
+├── vercel.json
+├── package.json
+├── api/
+│   └── summarise.js
+└── public/
+    ├── index.html
+    └── app.js
+```
+
+   Upload them maintaining this structure (GitHub lets you drag whole folders)
+8. Click **Commit changes**
+
+---
+
+## STEP 2 — Deploy to Vercel
+
+Vercel is free hosting that runs your app on the internet.
+
+1. Go to **vercel.com** and sign up using your GitHub account
+   (Click "Continue with GitHub" — this links the two accounts)
+2. Once logged in, click **Add New** → **Project**
+3. You'll see your GitHub repositories listed — click **Import** next to `kernl`
+4. On the configuration screen, leave everything as default
+5. Click **Deploy**
+6. Wait about 60 seconds — Vercel builds and deploys your app
+7. You'll see a success screen with a URL like: `kernl.vercel.app`
+
+Your app is now live! But it won't work yet — you need to add your API key.
+
+---
+
+## STEP 3 — Add your Anthropic API key (the secret sauce)
+
+This is what lets the app generate summaries. The key is stored securely
+on Vercel's servers — it never appears in your code or the browser.
+
+1. Go to **console.anthropic.com**
+2. Click **API Keys** in the left sidebar
+3. Click **Create Key**, give it a name like "KERNL"
+4. Copy the key (it starts with `sk-ant-...`) — save it somewhere safe,
+   you can only see it once
+
+5. Go back to **vercel.com** → your `kernl` project
+6. Click **Settings** (top navigation)
+7. Click **Environment Variables** (left sidebar)
+8. Click **Add New**:
+   - Name: `ANTHROPIC_API_KEY`
+   - Value: paste your `sk-ant-...` key here
+   - Leave environment as **All**
+9. Click **Save**
+
+10. Go to **Deployments** → click the three dots on your latest deployment
+    → click **Redeploy** (this restarts the app with your new key)
+
+---
+
+## STEP 4 — Use your app!
+
+Go to your Vercel URL (e.g. `kernl.vercel.app`) — type a book title,
+hit Summarise, and it should work perfectly.
+
+Save the URL as a bookmark or home screen shortcut on your iPhone.
+
+---
+
+## Your free limits on Vercel
+
+Vercel's free "Hobby" plan gives you:
+- Unlimited deployments
+- 100GB bandwidth per month
+- Serverless functions: 100,000 executions per month
+
+That's enough for hundreds of summaries per month easily.
+
+The only cost you'll pay is Anthropic API usage — roughly $0.01–0.03
+per summary generated. Summaries loaded from the archive are free.
+
+---
+
+## To update the app in future
+
+1. Edit the files on your computer
+2. Go to GitHub → your kernl repository → click the file → edit
+3. Vercel automatically redeploys within 60 seconds
+
+---
+
+## Your app URL
+
+Once deployed, share it with anyone. It will be something like:
+`https://kernl.vercel.app`
+
+You can also set a custom domain (e.g. kernl.app) from the Vercel
+Settings → Domains page — domain registration costs about £10/year.
+
+---
+
+Questions? The files in this folder are everything you need.
+Nothing else is required.
