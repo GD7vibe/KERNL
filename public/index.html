@@ -82,17 +82,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .pvb{height:30px;padding:0 12px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
 .pvb.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb:hover:not(.on){border-color:var(--accent-light);color:var(--accent)}
+.summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink)}
 @media(max-width:560px){.summary-body{padding:1.5rem}}
 .summary-body h2{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--accent);margin:2rem 0 0.75rem;padding-bottom:8px;border-bottom:1px solid var(--border)}
 .summary-body h2:first-child{margin-top:0}
 .summary-body p{margin-bottom:1.1rem}
 .summary-body p:last-child{margin-bottom:0}
-.summary-footer{padding:1.25rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.summary-footer{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end}
 .btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:#fff}
 .btn-action.danger:hover{color:var(--error-fg);border-color:rgba(139,26,26,0.3)}
-.footer-spacer{flex:1}
 </style>
 </head>
 <body>
@@ -165,16 +165,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
         <button class="pvb" id="pvm" onclick="setVoice('male')">&#9794;</button>
       </div>
     </div>
-    <div class="summary-body" id="summary-body"></div>
-    <div class="summary-footer">
+    <div class="summary-actions">
       <button class="btn-action" onclick="downloadTxt()">&#8595; Text file</button>
       <button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
-      <div class="footer-spacer"></div>
+    </div>
+    <div class="summary-body" id="summary-body"></div>
+    <div class="summary-footer">
       <button class="btn-action danger" onclick="closeSummary()">&#10005; Close</button>
     </div>
   </div>
 </div>
-<script src="/app.js?v=4"></script>
+<script src="/app.js?v=7"></script>
 </body>
 </html>
