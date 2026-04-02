@@ -15,16 +15,19 @@ async function getFromSupabase(key) {
 }
 
 async function saveToSupabase(title, author, key, html, plain) {
-  await fetch(`${SUPABASE_URL}/rest/v1/summaries`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/summaries`, {
     method: 'POST',
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'resolution=merge-duplicates'
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ title, author, lookup_key: key, html, plain })
   });
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('Supabase insert failed:', err);
+  }
 }
 
 module.exports = async (req, res) => {
@@ -44,7 +47,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({ html: cached.html, plain: cached.plain, source: 'cache' });
     }
   } catch (e) {
-    // Supabase down — fall through to Anthropic
+    console.error('Supabase read failed:', e.message);
   }
 
   // Not in database — generate with Anthropic
@@ -98,8 +101,8 @@ Format rules:
       .replace(/\n{3,}/g, '\n\n')
       .trim();
 
-    // Save to Supabase in background — don't block the response
-    saveToSupabase(title, author, key, html, plain).catch(() => {});
+    // Save to Supabase — now logs errors if it fails
+    await saveToSupabase(title, author, key, html, plain);
 
     res.status(200).json({ html, plain, source: 'generated' });
 
