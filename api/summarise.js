@@ -64,7 +64,7 @@ Format rules:
 - Use <p> tags for paragraphs
 - No <html>, <body>, or <head> tags — return only the inner content
 - Write in an engaging, intelligent tone
-- Aim for exactly 1,500 words of actual text content`;
+- Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. Be concise and disciplined — cut padding, not content`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
