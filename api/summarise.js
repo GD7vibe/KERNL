@@ -9,20 +9,17 @@ module.exports = async (req, res) => {
   const prompt = `Write a comprehensive 1,500-word summary of the book "${title}"${author ? ` by ${author}` : ''}.
 
 Structure it with clear sections using HTML formatting:
-- Opening paragraph introducing the book and its significance
+- An opening paragraph introducing the book and its significance
 - 4-6 sections with <h2> headings covering key themes, arguments, and insights
 - Each section should be 2-3 substantial paragraphs
-- A closing section on legacy/impact
+- A closing section on legacy and impact
 
 Format rules:
 - Use <h2> for section headings
 - Use <p> tags for paragraphs
-- No <html>, <body>, or <head> tags
+- No <html>, <body>, or <head> tags — return only the inner content
 - Write in an engaging, intelligent tone
-- Aim for exactly 1,500 words
-
-After the HTML, on a new line write: PLAINTEXT_START
-Then write the entire summary as plain text with no HTML tags.`;
+- Aim for exactly 1,500 words of actual text content`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -45,10 +42,20 @@ Then write the entire summary as plain text with no HTML tags.`;
       return res.status(500).json({ error: data.error?.message || 'Anthropic API error' });
     }
 
-    const raw = data.content[0].text;
-    const splitIdx = raw.indexOf('PLAINTEXT_START');
-    const html = splitIdx > -1 ? raw.slice(0, splitIdx).trim() : raw;
-    const plain = splitIdx > -1 ? raw.slice(splitIdx + 15).trim() : raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const html = data.content[0].text.trim();
+    const plain = html
+      .replace(/<h2[^>]*>/gi, '\n\n')
+      .replace(/<\/h2>/gi, '\n\n')
+      .replace(/<p[^>]*>/gi, '')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
     res.status(200).json({ html, plain });
 
