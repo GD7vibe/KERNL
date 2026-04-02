@@ -1,10 +1,3 @@
-/* ═══════════════════════════════════════════
-   KERNL app.js
-   Calls /api/summarise  (Vercel serverless)
-   Archive: localStorage
-   Audio: Web Speech API
-   ═══════════════════════════════════════════ */
-
 const STORAGE_KEY = 'kernl_v2';
 let currentVoice = 'female';
 let currentSummary = null;
@@ -12,10 +5,10 @@ let synth = window.speechSynthesis;
 let utterance = null;
 let isPlaying = false;
 let playTimer = null;
+let resumeTimer = null;
 let playStart = 0;
 let estimatedSecs = 600;
 
-/* ── Archive helpers ── */
 function getArchive() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
   catch (e) { return []; }
@@ -38,31 +31,25 @@ function clearArchive() {
 function norm(s) { return String(s || '').toLowerCase().trim().replace(/\s+/g, ' '); }
 
 function esc(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function fmtDate(ts) {
   if (!ts) return '';
-  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
 }
 
-/* ── Render archive ── */
 function renderArchive() {
   const arc = getArchive();
   const container = document.getElementById('archive-container');
   const countEl = document.getElementById('archive-count');
   const clearBtn = document.getElementById('clear-btn');
-
   countEl.textContent = arc.length + ' summar' + (arc.length === 1 ? 'y' : 'ies');
   clearBtn.style.display = arc.length ? 'inline' : 'none';
-
   if (!arc.length) {
     container.innerHTML = '<div class="archive-empty">Your library is empty — summarise a book above to begin.</div>';
     return;
   }
-
   container.innerHTML = '<div class="archive-grid">' +
     arc.map((e, i) => `
       <div class="archive-item" onclick="loadEntry(${i})">
@@ -80,19 +67,18 @@ function loadEntry(idx) {
   if (e) displaySummary(e.title, e.author, e.html, e.plain, true);
 }
 
-/* ── UI helpers ── */
 function setStatus(msg, show) {
   const bar = document.getElementById('status-bar');
   document.getElementById('status-text').textContent = msg;
   bar.classList.toggle('show', !!show);
 }
+
 function setError(msg) {
   const bar = document.getElementById('error-bar');
   bar.textContent = msg;
   bar.classList.toggle('show', !!msg);
 }
 
-/* ── Voice ── */
 function setVoice(v) {
   currentVoice = v;
   document.getElementById('vbf').classList.toggle('active', v === 'female');
@@ -100,36 +86,26 @@ function setVoice(v) {
   document.getElementById('pvf').classList.toggle('on', v === 'female');
   document.getElementById('pvm').classList.toggle('on', v === 'male');
   if (currentSummary) {
-    document.getElementById('player-sub').textContent =
-      v === 'female' ? 'Female voice selected' : 'Male voice selected';
+    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice selected' : 'Male voice selected';
   }
   if (isPlaying) { stopAudio(); setTimeout(startAudio, 150); }
 }
 
-/* ── Generate ── */
 async function handleGenerate() {
   const title = document.getElementById('book-input').value.trim();
   const author = document.getElementById('author-input').value.trim();
   setError('');
-
   if (!title) { setError('Please enter a book title to continue.'); return; }
 
-  // Check local archive first
   const cached = getArchive().find(e =>
-    norm(e.title) === norm(title) &&
-    (!author || norm(e.author) === norm(author))
+    norm(e.title) === norm(title) && (!author || norm(e.author) === norm(author))
   );
-
   if (cached) {
     setStatus('Found in your library — loading instantly!', true);
-    setTimeout(() => {
-      setStatus('', false);
-      displaySummary(cached.title, cached.author, cached.html, cached.plain, true);
-    }, 600);
+    setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, true); }, 600);
     return;
   }
 
-  // Call our secure backend
   document.getElementById('gen-btn').disabled = true;
   setStatus('Generating summary with AI — please wait about 30 seconds...', true);
 
@@ -141,12 +117,10 @@ async function handleGenerate() {
     });
 
     const data = await res.json();
-
-    if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
 
     const { html, plain } = data;
     const displayAuthor = author || 'Unknown author';
-
     saveEntry({ title, author: displayAuthor, html, plain, savedAt: Date.now() });
     setStatus('', false);
     renderArchive();
@@ -160,23 +134,23 @@ async function handleGenerate() {
   }
 }
 
-/* ── Display ── */
+function countWords(plain) {
+  return plain.split(/\s+/).filter(w => w.length > 0).length;
+}
+
 function displaySummary(title, author, html, plain, fromArchive) {
   stopAudio();
   currentSummary = { title, author, html, plain };
-
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
-  const wc = plain.split(/\s+/).filter(Boolean).length;
+  const wc = countWords(plain);
   document.getElementById('s-words').textContent = wc.toLocaleString() + ' words';
   document.getElementById('s-source').textContent = fromArchive ? 'From library' : 'Just generated';
   document.getElementById('summary-body').innerHTML = html;
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent =
-    currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
   document.getElementById('progress-fill').style.width = '0%';
   document.getElementById('progress-time').textContent = '0:00';
-
   document.getElementById('summary-card').classList.add('show');
   document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -187,36 +161,42 @@ function closeSummary() {
   currentSummary = null;
 }
 
-/* ── Audio ── */
 function getBestVoice(gender) {
   const voices = synth.getVoices();
   const en = voices.filter(v => v.lang.startsWith('en'));
   const fTerms = ['female','woman','zira','samantha','victoria','karen','moira','tessa','fiona','veena','ava','allison','kate','serena'];
   const mTerms = ['male','man','david','alex','daniel','lee','tom','oliver','mark','aaron','arthur','james'];
   const terms = gender === 'female' ? fTerms : mTerms;
-  return en.find(v => terms.some(t => v.name.toLowerCase().includes(t)))
-      || en.find(v => v.default) || en[0] || voices[0] || null;
+  return en.find(v => terms.some(t => v.name.toLowerCase().includes(t))) || en.find(v => v.default) || en[0] || voices[0] || null;
+}
+
+// Chrome bug fix: pause/resume every 10 seconds to prevent silent cutoff
+function startChromeKeepAlive() {
+  stopChromeKeepAlive();
+  resumeTimer = setInterval(() => {
+    if (synth.speaking && !synth.paused) {
+      synth.pause();
+      synth.resume();
+    }
+  }, 10000);
+}
+
+function stopChromeKeepAlive() {
+  if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
 }
 
 function startAudio() {
   if (!currentSummary || !synth) return;
   synth.cancel();
-
   utterance = new SpeechSynthesisUtterance(currentSummary.plain);
-  utterance.rate  = currentVoice === 'female' ? 0.94 : 0.90;
+  utterance.rate = currentVoice === 'female' ? 0.94 : 0.90;
   utterance.pitch = currentVoice === 'female' ? 1.05 : 0.82;
   utterance.volume = 1;
-
   const voices = synth.getVoices();
-  if (voices.length) {
-    const v = getBestVoice(currentVoice);
-    if (v) utterance.voice = v;
-  }
-
+  if (voices.length) { const v = getBestVoice(currentVoice); if (v) utterance.voice = v; }
   estimatedSecs = Math.round(currentSummary.plain.length / 13);
   playStart = Date.now();
   clearInterval(playTimer);
-
   playTimer = setInterval(() => {
     if (!isPlaying) return;
     const elapsed = (Date.now() - playStart) / 1000;
@@ -226,10 +206,10 @@ function startAudio() {
     const s = Math.floor(elapsed % 60);
     document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
   }, 500);
-
   utterance.onend = () => {
     isPlaying = false;
     clearInterval(playTimer);
+    stopChromeKeepAlive();
     document.getElementById('play-icon').innerHTML = '<polygon points="6,3 20,12 6,21"/>';
     document.getElementById('progress-fill').style.width = '100%';
     document.getElementById('player-sub').textContent = 'Finished — press play to replay';
@@ -237,21 +217,21 @@ function startAudio() {
   utterance.onerror = () => {
     isPlaying = false;
     clearInterval(playTimer);
+    stopChromeKeepAlive();
     document.getElementById('play-icon').innerHTML = '<polygon points="6,3 20,12 6,21"/>';
   };
-
   synth.speak(utterance);
   isPlaying = true;
-  document.getElementById('play-icon').innerHTML =
-    '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>';
-  document.getElementById('player-sub').textContent =
-    'Now playing — ' + (currentVoice === 'female' ? 'female' : 'male') + ' voice';
+  startChromeKeepAlive();
+  document.getElementById('play-icon').innerHTML = '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>';
+  document.getElementById('player-sub').textContent = 'Now playing — ' + (currentVoice === 'female' ? 'female' : 'male') + ' voice';
 }
 
 function stopAudio() {
   synth.cancel();
   isPlaying = false;
   clearInterval(playTimer);
+  stopChromeKeepAlive();
   document.getElementById('play-icon').innerHTML = '<polygon points="6,3 20,12 6,21"/>';
 }
 
@@ -264,33 +244,20 @@ function togglePlay() {
   } else { startAudio(); }
 }
 
-/* ── Downloads ── */
 function downloadTxt() {
   if (!currentSummary) return;
-  const header = `KERNL — "${currentSummary.title}" by ${currentSummary.author}\n${'─'.repeat(60)}\n\n`;
-  triggerDownload(new Blob([header + currentSummary.plain], { type: 'text/plain;charset=utf-8' }),
-    safe(currentSummary.title) + '_KERNL.txt');
+  const header = 'KERNL — "' + currentSummary.title + '" by ' + currentSummary.author + '\n' + '─'.repeat(60) + '\n\n';
+  triggerDownload(new Blob([header + currentSummary.plain], { type: 'text/plain;charset=utf-8' }), safe(currentSummary.title) + '_KERNL.txt');
 }
 
 function downloadEpub() {
   if (!currentSummary) return;
   const id = 'kernl-' + Date.now();
   const t = esc(currentSummary.title), a = esc(currentSummary.author);
-  const contentHtml = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${t}</title>
-<style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}
-h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}
-h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}
-p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style>
-</head><body><h1>${t}</h1><div class="byline">by ${a} — KERNL Deep Summary</div>
-${currentSummary.html}
-<div class="footer">Generated by KERNL — the kernel of every story.</div></body></html>`;
-
-  const opf = `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>${t} — KERNL</dc:title><dc:creator>${a}</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">${id}</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>`;
-  const ncx = `<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="${id}"/></head><docTitle><text>${t}</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>`;
-  const container = `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`;
-
+  const contentHtml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + t + '</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>' + t + '</h1><div class="byline">by ' + a + ' — KERNL Deep Summary</div>' + currentSummary.html + '<div class="footer">Generated by KERNL — the kernel of every story.</div></body></html>';
+  const opf = '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + t + ' — KERNL</dc:title><dc:creator>' + a + '</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">' + id + '</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
+  const ncx = '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="' + id + '"/></head><docTitle><text>' + t + '</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
+  const container = '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
   const script = document.createElement('script');
   script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
   script.onload = () => {
@@ -311,17 +278,7 @@ ${currentSummary.html}
 function printSummary() {
   if (!currentSummary) return;
   const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>${esc(currentSummary.title)} — KERNL</title>
-<style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}
-h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}
-h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}
-p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}
-</style></head><body>
-<h1>${esc(currentSummary.title)}</h1>
-<div class="byline">by ${esc(currentSummary.author)} — KERNL Deep Summary</div>
-${currentSummary.html}
-<div class="footer">Generated by KERNL — the kernel of every story.</div>
-</body></html>`);
+  w.document.write('<!DOCTYPE html><html><head><title>' + esc(currentSummary.title) + ' — KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>' + esc(currentSummary.title) + '</h1><div class="byline">by ' + esc(currentSummary.author) + ' — KERNL Deep Summary</div>' + currentSummary.html + '<div class="footer">Generated by KERNL — the kernel of every story.</div></body></html>');
   w.document.close();
   setTimeout(() => w.print(), 400);
 }
@@ -337,10 +294,10 @@ function triggerDownload(blob, filename) {
 
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').slice(0, 60); }
 
-/* ── Init ── */
 document.getElementById('book-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });
 document.getElementById('author-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });
 setVoice('female');
 renderArchive();
 if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => {};
 synth.getVoices();
+// v7
