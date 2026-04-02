@@ -1,3 +1,32 @@
+const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
+
+function makeKey(title, author) {
+  return (title + '||' + (author || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+async function getFromSupabase(key) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/summaries?lookup_key=eq.${encodeURIComponent(key)}&select=html,plain`,
+    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+  );
+  const data = await res.json();
+  return data && data.length > 0 ? data[0] : null;
+}
+
+async function saveToSupabase(title, author, key, html, plain) {
+  await fetch(`${SUPABASE_URL}/rest/v1/summaries`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify({ title, author, lookup_key: key, html, plain })
+  });
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -6,6 +35,19 @@ module.exports = async (req, res) => {
   const { title, author } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
+  const key = makeKey(title, author);
+
+  // Check Supabase first
+  try {
+    const cached = await getFromSupabase(key);
+    if (cached) {
+      return res.status(200).json({ html: cached.html, plain: cached.plain, source: 'cache' });
+    }
+  } catch (e) {
+    // Supabase down — fall through to Anthropic
+  }
+
+  // Not in database — generate with Anthropic
   const prompt = `Write a comprehensive 1,500-word summary of the book "${title}"${author ? ` by ${author}` : ''}.
 
 Structure it with clear sections using HTML formatting:
@@ -37,7 +79,6 @@ Format rules:
     });
 
     const data = await response.json();
-
     if (!response.ok) {
       return res.status(500).json({ error: data.error?.message || 'Anthropic API error' });
     }
@@ -57,7 +98,10 @@ Format rules:
       .replace(/\n{3,}/g, '\n\n')
       .trim();
 
-    res.status(200).json({ html, plain });
+    // Save to Supabase in background — don't block the response
+    saveToSupabase(title, author, key, html, plain).catch(() => {});
+
+    res.status(200).json({ html, plain, source: 'generated' });
 
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to generate summary' });
