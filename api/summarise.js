@@ -53,8 +53,12 @@ module.exports = async (req, res) => {
   }
 
   const spoilerInstruction = spoilers
-    ? `This is a full summary — include all major plot points, character arcs, twists, and the ending. Hold nothing back.`
-    : `This is a spoiler-free summary — do NOT reveal major plot twists, the ending, or key surprises. Focus on themes, writing style, characters and why the book is worth reading. Give the reader a feel for the book without ruining the experience of reading it themselves.`;
+    ? `The user has requested spoilers. Include all major plot points, character arcs, twists, and the ending. Hold nothing back.`
+    : `First, determine whether this book is fiction (novel, short story collection) or non-fiction (biography, memoir, history, business, self-help, science, etc).
+
+If it is NON-FICTION: ignore the spoiler setting entirely and write a full, comprehensive summary covering all key arguments, insights, data, conclusions and takeaways. Non-fiction has no spoilers.
+
+If it is FICTION: write a spoiler-free summary. Do NOT reveal major plot twists, the ending, or key surprises. Focus on themes, writing style, the world of the book, characters and why it is worth reading. Give the reader a feel for the book without ruining the experience of reading it themselves.`;
 
   const prompt = `Write a comprehensive 1,500-word summary of the book "${title}"${author ? ` by ${author}` : ''}.
 
