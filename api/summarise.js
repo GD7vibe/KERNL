@@ -1,8 +1,9 @@
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
-function makeKey(title, author) {
-  return (title + '||' + (author || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+function makeKey(title, author, spoilers) {
+  const base = (title + '||' + (author || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+  return base + '||' + (spoilers ? 'spoilers' : 'nospoilers');
 }
 
 async function getFromSupabase(key) {
@@ -35,10 +36,10 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { title, author } = req.body;
+  const { title, author, spoilers } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
-  const key = makeKey(title, author);
+  const key = makeKey(title, author, spoilers);
 
   // Check Supabase first
   try {
@@ -51,11 +52,17 @@ module.exports = async (req, res) => {
     console.error('Supabase read failed:', e.message);
   }
 
+  const spoilerInstruction = spoilers
+    ? `This is a full summary — include all major plot points, character arcs, twists, and the ending. Hold nothing back.`
+    : `This is a spoiler-free summary — do NOT reveal major plot twists, the ending, or key surprises. Focus on themes, writing style, characters and why the book is worth reading. Give the reader a feel for the book without ruining the experience of reading it themselves.`;
+
   const prompt = `Write a comprehensive 1,500-word summary of the book "${title}"${author ? ` by ${author}` : ''}.
+
+${spoilerInstruction}
 
 Structure it with clear sections using HTML formatting:
 - An opening paragraph introducing the book and its significance
-- 4-6 sections with <h2> headings covering key themes, arguments, and insights
+- 4-6 sections with <h2> headings covering key themes, characters, and insights
 - Each section should be 2-3 substantial paragraphs
 - A closing section on legacy and impact
 
