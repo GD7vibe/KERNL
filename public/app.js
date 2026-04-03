@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'kernl_v2';
+const AMAZON_TAG = 'kernl-21'; // Replace with your actual Amazon Associates tag
 let currentVoice = 'female';
 let currentSummary = null;
 let synth = window.speechSynthesis;
@@ -112,6 +113,11 @@ function esc(s) {
 function fmtDate(ts) {
   if (!ts) return '';
   return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function makeAmazonUrl(title, author) {
+  const query = encodeURIComponent(title + (author ? ' ' + author : ''));
+  return `https://www.amazon.co.uk/s?k=${query}&tag=${AMAZON_TAG}`;
 }
 
 function renderArchive() {
@@ -251,6 +257,13 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   spoilerChip.textContent = spoilers ? 'Spoilers included' : 'Spoiler-free';
   spoilerChip.className = 'chip' + (spoilers ? ' chip-spoiler' : '');
   document.getElementById('summary-body').innerHTML = html;
+
+  // Amazon affiliate link
+  const amazonUrl = makeAmazonUrl(title, author);
+  const buyBtn = document.getElementById('buy-btn');
+  buyBtn.href = amazonUrl;
+  buyBtn.style.display = 'flex';
+
   document.getElementById('player-title').textContent = title;
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
   document.getElementById('progress-fill').style.width = '0%';
@@ -436,4 +449,4 @@ setVoice('female');
 renderArchive();
 if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => {};
 synth.getVoices();
-// v13
+// v14
