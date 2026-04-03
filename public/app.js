@@ -91,8 +91,8 @@ function getArchive() {
 
 function saveEntry(entry) {
   const arc = getArchive();
-  const key = norm(entry.title) + '||' + norm(entry.author);
-  const idx = arc.findIndex(e => norm(e.title) + '||' + norm(e.author) === key);
+  const key = norm(entry.title) + '||' + norm(entry.author) + '||' + (entry.spoilers ? 'spoilers' : 'nospoilers');
+  const idx = arc.findIndex(e => norm(e.title) + '||' + norm(e.author) + '||' + (e.spoilers ? 'spoilers' : 'nospoilers') === key);
   if (idx >= 0) arc[idx] = entry; else arc.unshift(entry);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(arc.slice(0, 300)));
 }
@@ -132,14 +132,17 @@ function renderArchive() {
         <div class="archive-book-author">by ${esc(e.author)}</div>
         <div class="archive-footer">
           <div class="archive-date">${fmtDate(e.savedAt)}</div>
-          <div class="archive-chip">Archived</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${e.spoilers ? '<div class="archive-chip spoiler-chip">Spoilers</div>' : '<div class="archive-chip">No spoilers</div>'}
+            <div class="archive-chip">Archived</div>
+          </div>
         </div>
       </div>`).join('') + '</div>';
 }
 
 function loadEntry(idx) {
   const e = getArchive()[idx];
-  if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], true);
+  if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], e.spoilers || false, true);
 }
 
 function setStatus(msg, show) {
@@ -169,16 +172,19 @@ function setVoice(v) {
 async function handleGenerate() {
   const title = document.getElementById('book-input').value.trim();
   const author = document.getElementById('author-input').value.trim();
+  const spoilers = document.getElementById('spoiler-toggle').checked;
   setError('');
   hideDropdown();
   if (!title) { setError('Please enter a book title to continue.'); return; }
 
   const cached = getArchive().find(e =>
-    norm(e.title) === norm(title) && (!author || norm(e.author) === norm(author))
+    norm(e.title) === norm(title) &&
+    (!author || norm(e.author) === norm(author)) &&
+    (e.spoilers || false) === spoilers
   );
   if (cached) {
     setStatus('Found in your library — loading instantly!', true);
-    setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], true); }, 600);
+    setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
 
@@ -189,7 +195,7 @@ async function handleGenerate() {
     const res = await fetch('/api/summarise', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, author })
+      body: JSON.stringify({ title, author, spoilers })
     });
 
     const data = await res.json();
@@ -197,10 +203,10 @@ async function handleGenerate() {
 
     const { html, plain, words } = data;
     const displayAuthor = author || 'Unknown author';
-    saveEntry({ title, author: displayAuthor, html, plain, words: words || [], savedAt: Date.now() });
+    saveEntry({ title, author: displayAuthor, html, plain, words: words || [], spoilers, savedAt: Date.now() });
     setStatus('', false);
     renderArchive();
-    displaySummary(title, displayAuthor, html, plain, words || [], false);
+    displaySummary(title, displayAuthor, html, plain, words || [], spoilers, false);
 
   } catch (err) {
     setStatus('', false);
@@ -233,14 +239,17 @@ function toggleMeganWords() {
   arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
-function displaySummary(title, author, html, plain, words, fromArchive) {
+function displaySummary(title, author, html, plain, words, spoilers, fromArchive) {
   stopAudio();
-  currentSummary = { title, author, html, plain, words };
+  currentSummary = { title, author, html, plain, words, spoilers };
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
   const wc = countWords(plain);
   document.getElementById('s-words').textContent = wc.toLocaleString() + ' words';
   document.getElementById('s-source').textContent = fromArchive ? 'From library' : 'Just generated';
+  const spoilerChip = document.getElementById('s-spoiler');
+  spoilerChip.textContent = spoilers ? 'Spoilers included' : 'Spoiler-free';
+  spoilerChip.className = 'chip' + (spoilers ? ' chip-spoiler' : '');
   document.getElementById('summary-body').innerHTML = html;
   document.getElementById('player-title').textContent = title;
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
@@ -355,7 +364,7 @@ function downloadEpub() {
   const t = esc(currentSummary.title), a = esc(currentSummary.author);
   const contentHtml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + t + '</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>' + t + '</h1><div class="byline">by ' + a + ' — KERNL Deep Summary</div>' + currentSummary.html + '<div class="footer">Generated by KERNL — Read less. Know more.</div></body></html>';
   const opf = '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + t + ' — KERNL</dc:title><dc:creator>' + a + '</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">' + id + '</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
-  const ncx = '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="' + id + '"/></head><docTitle><text>' + t + '</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
+  const ncx = '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3998/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="' + id + '"/></head><docTitle><text>' + t + '</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
   const container = '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
   const script = document.createElement('script');
   script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
@@ -376,24 +385,16 @@ function downloadEpub() {
 
 function printSummary() {
   if (!currentSummary) return;
-
-  // Check if Megan Words is expanded
   const meganGrid = document.getElementById('megan-words-grid');
   const meganOpen = meganGrid && meganGrid.classList.contains('open');
   const words = currentSummary.words || [];
-
   let meganSection = '';
   if (meganOpen && words.length) {
     const wordRows = words.map(w =>
       `<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">${esc(w.word)}</td><td style="padding:5pt 0;color:#444;line-height:1.5">${esc(w.definition)}</td></tr>`
     ).join('');
-    meganSection = `
-      <div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em">
-        <h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">📖 Megan Words — Interesting vocabulary from this book</h2>
-        <table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table>
-      </div>`;
+    meganSection = `<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">📖 Mega Words — Interesting vocabulary from this book</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`;
   }
-
   const w = window.open('', '_blank');
   w.document.write('<!DOCTYPE html><html><head><title>' + esc(currentSummary.title) + ' — KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>' + esc(currentSummary.title) + '</h1><div class="byline">by ' + esc(currentSummary.author) + ' — KERNL Deep Summary</div>' + currentSummary.html + meganSection + '<div class="footer">Generated by KERNL — Read less. Know more.</div></body></html>');
   w.document.close();
@@ -411,7 +412,6 @@ function triggerDownload(blob, filename) {
 
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').slice(0, 60); }
 
-// Event listeners
 document.getElementById('book-input').addEventListener('input', e => {
   selectedFromDropdown = false;
   clearTimeout(autocompleteTimer);
@@ -436,4 +436,4 @@ setVoice('female');
 renderArchive();
 if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => {};
 synth.getVoices();
-// v12
+// v13
