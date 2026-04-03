@@ -39,14 +39,24 @@ module.exports = async (req, res) => {
   const { title, author, spoilers } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
-  const key = makeKey(title, author, spoilers);
+  // For lookup, try the requested key first
+  const requestedKey = makeKey(title, author, spoilers);
+  const nonfictionKey = makeKey(title, author, false);
 
-  // Check Supabase first
+  // Check Supabase — for spoilers=true also check nospoilers key in case it's non-fiction
   try {
-    const cached = await getFromSupabase(key);
+    const cached = await getFromSupabase(requestedKey);
     if (cached) {
       const words = cached.words ? JSON.parse(cached.words) : [];
       return res.status(200).json({ html: cached.html, plain: cached.plain, words, source: 'cache' });
+    }
+    // If spoilers requested but not found, also check nospoilers (covers non-fiction cached without spoilers key)
+    if (spoilers) {
+      const cachedNonFiction = await getFromSupabase(nonfictionKey);
+      if (cachedNonFiction) {
+        const words = cachedNonFiction.words ? JSON.parse(cachedNonFiction.words) : [];
+        return res.status(200).json({ html: cachedNonFiction.html, plain: cachedNonFiction.plain, words, source: 'cache' });
+      }
     }
   } catch (e) {
     console.error('Supabase read failed:', e.message);
@@ -63,6 +73,8 @@ If it is FICTION: write a spoiler-free summary. Do NOT reveal major plot twists,
   const prompt = `Write a comprehensive 1,500-word summary of the book "${title}"${author ? ` by ${author}` : ''}.
 
 ${spoilerInstruction}
+
+IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line.
 
 Structure it with clear sections using HTML formatting:
 - An opening paragraph introducing the book and its significance
@@ -103,7 +115,18 @@ Then on a new line write: WORDS_END`;
       return res.status(500).json({ error: data.error?.message || 'Anthropic API error' });
     }
 
-    const raw = data.content[0].text.trim();
+    let raw = data.content[0].text.trim();
+
+    // Extract genre declaration from first line
+    const firstLine = raw.split('\n')[0].trim();
+    const isNonFiction = firstLine.toUpperCase().includes('NONFICTION');
+    // Strip the genre line from the content
+    if (firstLine.toUpperCase().startsWith('GENRE:')) {
+      raw = raw.slice(firstLine.length).trim();
+    }
+
+    // Non-fiction always saves under nospoilers key so it's shared across both toggle states
+    const saveKey = isNonFiction ? nonfictionKey : requestedKey;
 
     const wordsStart = raw.indexOf('WORDS_START');
     const wordsEnd = raw.indexOf('WORDS_END');
@@ -133,7 +156,7 @@ Then on a new line write: WORDS_END`;
       .replace(/\n{3,}/g, '\n\n')
       .trim();
 
-    await saveToSupabase(title, author, key, html, plain, words);
+    await saveToSupabase(title, author, saveKey, html, plain, words);
 
     res.status(200).json({ html, plain, words, source: 'generated' });
 
