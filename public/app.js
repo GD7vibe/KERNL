@@ -139,7 +139,7 @@ function renderArchive() {
 
 function loadEntry(idx) {
   const e = getArchive()[idx];
-  if (e) displaySummary(e.title, e.author, e.html, e.plain, true);
+  if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], true);
 }
 
 function setStatus(msg, show) {
@@ -178,7 +178,7 @@ async function handleGenerate() {
   );
   if (cached) {
     setStatus('Found in your library — loading instantly!', true);
-    setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, true); }, 600);
+    setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], true); }, 600);
     return;
   }
 
@@ -195,12 +195,12 @@ async function handleGenerate() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
 
-    const { html, plain } = data;
+    const { html, plain, words } = data;
     const displayAuthor = author || 'Unknown author';
-    saveEntry({ title, author: displayAuthor, html, plain, savedAt: Date.now() });
+    saveEntry({ title, author: displayAuthor, html, plain, words: words || [], savedAt: Date.now() });
     setStatus('', false);
     renderArchive();
-    displaySummary(title, displayAuthor, html, plain, false);
+    displaySummary(title, displayAuthor, html, plain, words || [], false);
 
   } catch (err) {
     setStatus('', false);
@@ -214,9 +214,28 @@ function countWords(plain) {
   return plain.split(/\s+/).filter(w => w.length > 0).length;
 }
 
-function displaySummary(title, author, html, plain, fromArchive) {
+function renderMeganWords(words) {
+  const section = document.getElementById('megan-words-section');
+  if (!words || !words.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  const grid = document.getElementById('megan-words-grid');
+  grid.innerHTML = words.map(w => `
+    <div class="megan-word-item">
+      <div class="megan-word">${esc(w.word)}</div>
+      <div class="megan-definition">${esc(w.definition)}</div>
+    </div>`).join('');
+}
+
+function toggleMeganWords() {
+  const grid = document.getElementById('megan-words-grid');
+  const arrow = document.getElementById('megan-arrow');
+  const isOpen = grid.classList.toggle('open');
+  arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+function displaySummary(title, author, html, plain, words, fromArchive) {
   stopAudio();
-  currentSummary = { title, author, html, plain };
+  currentSummary = { title, author, html, plain, words };
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
   const wc = countWords(plain);
@@ -227,6 +246,12 @@ function displaySummary(title, author, html, plain, fromArchive) {
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
   document.getElementById('progress-fill').style.width = '0%';
   document.getElementById('progress-time').textContent = '0:00';
+  // Reset Megan Words to collapsed
+  const grid = document.getElementById('megan-words-grid');
+  const arrow = document.getElementById('megan-arrow');
+  grid.classList.remove('open');
+  arrow.style.transform = 'rotate(0deg)';
+  renderMeganWords(words);
   document.getElementById('summary-card').classList.add('show');
   document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -394,4 +419,4 @@ setVoice('female');
 renderArchive();
 if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => {};
 synth.getVoices();
-// v10
+// v11
