@@ -8,6 +8,8 @@ let playTimer = null;
 let resumeTimer = null;
 let playStart = 0;
 let estimatedSecs = 600;
+let autocompleteTimer = null;
+let selectedFromDropdown = false;
 
 // Dark mode
 function toggleDark() {
@@ -26,6 +28,60 @@ function initDark() {
     document.getElementById('dark-icon').textContent = '☀️';
     document.getElementById('dark-label').textContent = 'Light';
   }
+}
+
+// Autocomplete
+async function fetchBookSuggestions(query) {
+  if (!query || query.length < 3) { hideDropdown(); return; }
+  try {
+    const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(query)}&limit=6&fields=title,author_name,first_publish_year`);
+    const data = await res.json();
+    if (!data.docs || !data.docs.length) { hideDropdown(); return; }
+    const results = data.docs
+      .filter(d => d.title && d.author_name && d.author_name.length)
+      .slice(0, 5)
+      .map(d => ({ title: d.title, author: d.author_name[0], year: d.first_publish_year || '' }));
+    if (results.length) showDropdown(results); else hideDropdown();
+  } catch (e) {
+    hideDropdown();
+  }
+}
+
+function showDropdown(results) {
+  let dropdown = document.getElementById('book-dropdown');
+  if (!dropdown) {
+    dropdown = document.createElement('div');
+    dropdown.id = 'book-dropdown';
+    dropdown.className = 'book-dropdown';
+    document.getElementById('book-input').parentNode.appendChild(dropdown);
+  }
+  dropdown.innerHTML = results.map((r, i) => `
+    <div class="dropdown-item" onmousedown="selectBook(${i})" data-title="${esc(r.title)}" data-author="${esc(r.author)}">
+      <div class="dropdown-title">${esc(r.title)}</div>
+      <div class="dropdown-author">${esc(r.author)}${r.year ? ' · ' + r.year : ''}</div>
+    </div>`).join('');
+  dropdown.style.display = 'block';
+}
+
+function hideDropdown() {
+  const dropdown = document.getElementById('book-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+function selectBook(idx) {
+  const dropdown = document.getElementById('book-dropdown');
+  if (!dropdown) return;
+  const items = dropdown.querySelectorAll('.dropdown-item');
+  if (!items[idx]) return;
+  const title = items[idx].getAttribute('data-title');
+  const author = items[idx].getAttribute('data-author');
+  document.getElementById('book-input').value = title;
+  const authorInput = document.getElementById('author-input');
+  authorInput.value = author;
+  authorInput.classList.add('author-autofilled');
+  setTimeout(() => authorInput.classList.remove('author-autofilled'), 1500);
+  selectedFromDropdown = true;
+  hideDropdown();
 }
 
 function getArchive() {
@@ -114,6 +170,7 @@ async function handleGenerate() {
   const title = document.getElementById('book-input').value.trim();
   const author = document.getElementById('author-input').value.trim();
   setError('');
+  hideDropdown();
   if (!title) { setError('Please enter a book title to continue.'); return; }
 
   const cached = getArchive().find(e =>
@@ -312,11 +369,29 @@ function triggerDownload(blob, filename) {
 
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').slice(0, 60); }
 
-document.getElementById('book-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });
-document.getElementById('author-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });
+// Event listeners
+document.getElementById('book-input').addEventListener('input', e => {
+  selectedFromDropdown = false;
+  clearTimeout(autocompleteTimer);
+  autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 500);
+});
+
+document.getElementById('book-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { hideDropdown(); handleGenerate(); }
+  if (e.key === 'Escape') hideDropdown();
+});
+
+document.getElementById('author-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleGenerate();
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#book-input') && !e.target.closest('#book-dropdown')) hideDropdown();
+});
+
 initDark();
 setVoice('female');
 renderArchive();
 if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => {};
 synth.getVoices();
-// v9
+// v10
