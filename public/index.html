@@ -92,21 +92,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-body h2:first-child{margin-top:0}
 .summary-body p{margin-bottom:1.1rem}
 .summary-body p:last-child{margin-bottom:0}
-/* Mega Words */
-.Mega-words-section{border-top:1px solid var(--border);transition:border-color var(--transition)}
-.Mega-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm);transition:background var(--transition)}
-.Mega-words-header:hover{background:var(--accent-pale)}
-.Mega-words-title{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent)}
-.Mega-words-title-icon{font-size:1.1rem}
-.Mega-words-subtitle{font-size:0.75rem;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400;font-style:italic;margin-left:4px}
-.Mega-arrow{font-size:0.75rem;color:var(--muted);transition:transform 0.3s ease}
-.Mega-words-grid{display:none;padding:1.5rem 2rem 2rem;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;background:var(--card);transition:background var(--transition)}
-.Mega-words-grid.open{display:grid}
-.Mega-word-item{background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.9rem 1.1rem;transition:all var(--transition)}
-.Mega-word-item:hover{border-color:var(--accent-light);transform:translateY(-1px)}
-.Mega-word{font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent);margin-bottom:4px}
-.Mega-definition{font-size:0.82rem;color:var(--muted);line-height:1.5}
-/* Footer */
+.megan-words-section{border-top:1px solid var(--border);transition:border-color var(--transition)}
+.megan-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm);transition:background var(--transition)}
+.megan-words-header:hover{background:var(--accent-pale)}
+.megan-words-title{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent)}
+.megan-words-title-icon{font-size:1.1rem}
+.megan-words-subtitle{font-size:0.75rem;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400;font-style:italic;margin-left:4px}
+.megan-arrow{font-size:0.75rem;color:var(--muted);transition:transform 0.3s ease}
+.megan-words-grid{display:none;padding:1.5rem 2rem 2rem;grid-template-columns:repeat(3,1fr);gap:12px;background:var(--card);transition:background var(--transition)}
+.megan-words-grid.open{display:grid}
+.megan-word-item{background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.9rem 1.1rem;transition:all var(--transition)}
+.megan-word-item:hover{border-color:var(--accent-light);transform:translateY(-1px)}
+.megan-word{font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent);margin-bottom:4px}
+.megan-definition{font-size:0.82rem;color:var(--muted);line-height:1.5}
 .summary-footer{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end;transition:background var(--transition),border-color var(--transition)}
 .btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
@@ -202,16 +200,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
     </div>
     <div class="summary-body" id="summary-body"></div>
-    <div class="Mega-words-section" id="Mega-words-section" style="display:none">
-      <div class="Mega-words-header" onclick="toggleMegaWords()">
-        <div class="Mega-words-title">
-          <span class="Mega-words-title-icon">📖</span>
+    <div class="megan-words-section" id="megan-words-section" style="display:none">
+      <div class="megan-words-header" onclick="toggleMeganWords()">
+        <div class="megan-words-title">
+          <span class="megan-words-title-icon">📖</span>
           Mega Words
-          <span class="Mega-words-subtitle">— interesting words from this book</span>
+          <span class="megan-words-subtitle">— interesting words from this book</span>
         </div>
-        <span class="Mega-arrow" id="Mega-arrow">▼</span>
+        <span class="megan-arrow" id="megan-arrow">▼</span>
       </div>
-      <div class="Mega-words-grid" id="Mega-words-grid"></div>
+      <div class="megan-words-grid" id="megan-words-grid"></div>
     </div>
     <div class="summary-footer">
       <button class="btn-action danger" onclick="closeSummary()">&#10005; Close</button>
@@ -226,6 +224,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
   <div id="archive-container"></div>
 </div>
-<script src="/app.js?v=11"></script>
+<script src="/app.js?v=12"></script>
 </body>
 </html>
