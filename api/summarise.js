@@ -67,7 +67,7 @@ Format rules:
 - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. Be concise and disciplined — cut padding, not content
 
 After the summary, on a new line write: WORDS_START
-Then provide exactly 20 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. Include rare English words, domain-specific vocabulary, and words unique to the book's setting or era.
+Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. Include rare English words, domain-specific vocabulary, and words unique to the book's setting or era.
 Format each word as JSON on its own line like this:
 {"word":"example","definition":"the meaning of the word in plain English"}
 Then on a new line write: WORDS_END`;
@@ -94,19 +94,17 @@ Then on a new line write: WORDS_END`;
 
     const raw = data.content[0].text.trim();
 
-    // Split out summary and words
     const wordsStart = raw.indexOf('WORDS_START');
     const wordsEnd = raw.indexOf('WORDS_END');
     const summaryRaw = wordsStart > -1 ? raw.slice(0, wordsStart).trim() : raw;
 
-    // Parse words
     let words = [];
     if (wordsStart > -1 && wordsEnd > -1) {
       const wordsBlock = raw.slice(wordsStart + 11, wordsEnd).trim();
       words = wordsBlock.split('\n')
         .map(line => { try { return JSON.parse(line.trim()); } catch (e) { return null; } })
         .filter(w => w && w.word && w.definition)
-        .slice(0, 20);
+        .slice(0, 21);
     }
 
     const html = summaryRaw;
