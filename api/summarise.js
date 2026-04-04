@@ -91,6 +91,7 @@ Format rules:
 
 After the summary, on a new line write: WORDS_START
 Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. Include rare English words, domain-specific vocabulary, and words unique to the book's setting or era.
+CRITICAL: Every word must be completely unique — no word may appear more than once in the list. Double-check your list before finalising it.
 Format each word as JSON on its own line like this:
 {"word":"example","definition":"the meaning of the word in plain English"}
 Then on a new line write: WORDS_END`;
@@ -135,9 +136,16 @@ Then on a new line write: WORDS_END`;
     let words = [];
     if (wordsStart > -1 && wordsEnd > -1) {
       const wordsBlock = raw.slice(wordsStart + 11, wordsEnd).trim();
+      const seen = new Set();
       words = wordsBlock.split('\n')
         .map(line => { try { return JSON.parse(line.trim()); } catch (e) { return null; } })
         .filter(w => w && w.word && w.definition)
+        .filter(w => {
+          const key = w.word.toLowerCase().trim();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
         .slice(0, 21);
     }
 
