@@ -308,19 +308,43 @@ function setPlayerState(playing, subText) {
 }
 
 function stopAudio() {
-  // Stop HTML5 audio
+  // Fully stop and discard everything — called when closing summary or switching book/voice
   if (audioEl) {
     audioEl.pause();
     audioEl.src = '';
     audioEl = null;
   }
-  // Stop Web Speech fallback
   if (synth) synth.cancel();
   if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
   clearInterval(playTimer);
   playTimer = null;
   usingFallback = false;
   setPlayerState(false, null);
+}
+
+function pauseAudio() {
+  // Pause without discarding — OpenAI audio can resume from same position
+  if (audioEl && !audioEl.paused) {
+    audioEl.pause();
+  } else if (usingFallback && synth) {
+    synth.pause();
+  }
+  setPlayerState(false, 'Paused — press play to continue');
+}
+
+function resumeAudio() {
+  // Resume from paused position
+  if (audioEl) {
+    audioEl.play();
+    setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+    return true;
+  }
+  if (usingFallback && synth && synth.paused) {
+    synth.resume();
+    setPlayerState(true, 'Now playing — browser voice (fallback)');
+    return true;
+  }
+  return false;
 }
 
 async function startOpenAIAudio() {
@@ -434,10 +458,26 @@ function startFallbackAudio() {
 
 function togglePlay() {
   if (!currentSummary) return;
+
+  // If currently playing — pause (don't stop)
   if (isPlaying) {
-    stopAudio();
+    pauseAudio();
     return;
   }
+
+  // If audio element exists and is paused — resume from position
+  if (audioEl && audioEl.paused && audioEl.src) {
+    resumeAudio();
+    return;
+  }
+
+  // If fallback is paused — resume
+  if (usingFallback && synth && synth.paused) {
+    resumeAudio();
+    return;
+  }
+
+  // Otherwise start fresh
   startOpenAIAudio();
 }
 
