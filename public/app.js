@@ -172,10 +172,25 @@ function setVoice(v) {
   document.getElementById('vbm').classList.toggle('active', v === 'male');
   document.getElementById('pvf').classList.toggle('on', v === 'female');
   document.getElementById('pvm').classList.toggle('on', v === 'male');
-  if (currentSummary) {
-    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice selected' : 'Male voice selected';
+
+  const wasPlaying = isPlaying;
+
+  // Always discard existing audio — it's the wrong voice
+  if (audioEl) {
+    audioEl.pause();
+    audioEl.src = '';
+    audioEl = null;
   }
-  if (isPlaying) { stopAudio(); setTimeout(togglePlay, 150); }
+  if (synth) synth.cancel();
+  if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+  isPlaying = false;
+  usingFallback = false;
+
+  if (currentSummary) {
+    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+    // If it was playing, restart with new voice automatically
+    if (wasPlaying) setTimeout(startOpenAIAudio, 150);
+  }
 }
 
 async function handleGenerate() {
@@ -356,15 +371,33 @@ async function startOpenAIAudio() {
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice })
+      body: JSON.stringify({
+        text: currentSummary.plain,
+        voice: currentVoice,
+        title: currentSummary.title,
+        author: currentSummary.author
+      })
     });
 
     if (!res.ok) throw new Error('TTS request failed');
 
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    // Response is either JSON (cached URL) or raw MP3 bytes (freshly generated)
+    const contentType = res.headers.get('content-type') || '';
+    let audioUrl;
+    let blobUrl = null;
 
-    audioEl = new Audio(url);
+    if (contentType.includes('application/json')) {
+      // Cache hit — use the Supabase Storage URL directly
+      const data = await res.json();
+      audioUrl = data.url;
+    } else {
+      // Fresh generation — create a local blob URL
+      const blob = await res.blob();
+      blobUrl = URL.createObjectURL(blob);
+      audioUrl = blobUrl;
+    }
+
+    audioEl = new Audio(audioUrl);
     usingFallback = false;
 
     audioEl.addEventListener('timeupdate', () => {
@@ -379,12 +412,12 @@ async function startOpenAIAudio() {
     audioEl.addEventListener('ended', () => {
       document.getElementById('progress-fill').style.width = '100%';
       setPlayerState(false, 'Finished — press play to replay');
-      URL.revokeObjectURL(url);
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
       audioEl = null;
     });
 
     audioEl.addEventListener('error', () => {
-      URL.revokeObjectURL(url);
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
       audioEl = null;
       startFallbackAudio();
     });
