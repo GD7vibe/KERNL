@@ -94,7 +94,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .player-voice-btns{display:flex;gap:6px}
 .pvb{height:30px;padding:0 12px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
 .pvb.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.pvb:hover:not(.on){border-color:var(--accent-light);color:var(--accent)}
+.pvb.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.pvb:hover:not(.on):not(.active){border-color:var(--accent-light);color:var(--accent)}
 .summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center;transition:background var(--transition),border-color var(--transition)}
 .summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink);transition:color var(--transition)}
 @media(max-width:560px){.summary-body{padding:1.5rem}}
@@ -102,14 +103,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-body h2:first-child{margin-top:0}
 .summary-body p{margin-bottom:1.1rem}
 .summary-body p:last-child{margin-bottom:0}
-/* Disclaimer + Buy bar */
 .disclaimer-bar{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;transition:background var(--transition),border-color var(--transition)}
 .disclaimer-text{font-size:0.78rem;color:var(--muted);line-height:1.5;font-style:italic;flex:1;min-width:200px}
 .disclaimer-text a{color:var(--accent);text-decoration:none}
 .disclaimer-text a:hover{text-decoration:underline}
 .buy-btn{display:none;align-items:center;gap:8px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s;flex-shrink:0}
 .buy-btn:hover{background:var(--accent-light)}
-/* Megan Words */
 .megan-words-section{border-top:1px solid var(--border);transition:border-color var(--transition)}
 .megan-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm);transition:background var(--transition)}
 .megan-words-header:hover{background:var(--accent-pale)}
@@ -222,6 +221,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
         <button class="pvb on" id="pvf" onclick="setVoice('female')">&#9792;</button>
         <button class="pvb" id="pvm" onclick="setVoice('male')">&#9794;</button>
       </div>
+      <div class="player-voice-btns">
+        <button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1×</button>
+        <button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5×</button>
+        <button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2×</button>
+      </div>
     </div>
     <div class="summary-actions">
       <button class="btn-action" onclick="downloadTxt()">&#8595; Text file</button>
@@ -261,6 +265,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
   <div id="archive-container"></div>
 </div>
-<script src="/app.js?v=15"></script>
+<script src="/app.js?v=16"></script>
 </body>
 </html>
