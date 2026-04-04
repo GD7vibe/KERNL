@@ -2,13 +2,16 @@ const STORAGE_KEY = 'kernl_v2';
 const AMAZON_TAG = 'kernl-21'; // Replace with your actual Amazon Associates tag
 let currentVoice = 'female';
 let currentSummary = null;
-let synth = window.speechSynthesis;
-let utterance = null;
 let isPlaying = false;
 let playTimer = null;
+let audioEl = null;
+let usingFallback = false;
+
+// Web Speech API fallback
+let synth = window.speechSynthesis;
+let utterance = null;
 let resumeTimer = null;
-let playStart = 0;
-let estimatedSecs = 600;
+
 let autocompleteTimer = null;
 let selectedFromDropdown = false;
 
@@ -172,7 +175,7 @@ function setVoice(v) {
   if (currentSummary) {
     document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice selected' : 'Male voice selected';
   }
-  if (isPlaying) { stopAudio(); setTimeout(startAudio, 150); }
+  if (isPlaying) { stopAudio(); setTimeout(togglePlay, 150); }
 }
 
 async function handleGenerate() {
@@ -291,6 +294,87 @@ function closeSummary() {
   currentSummary = null;
 }
 
+// ─── Audio engine ────────────────────────────────────────────────────────────
+
+function setPlayerState(playing, subText) {
+  isPlaying = playing;
+  const icon = document.getElementById('play-icon');
+  if (playing) {
+    icon.innerHTML = '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>';
+  } else {
+    icon.innerHTML = '<polygon points="6,3 20,12 6,21"/>';
+  }
+  if (subText) document.getElementById('player-sub').textContent = subText;
+}
+
+function stopAudio() {
+  // Stop HTML5 audio
+  if (audioEl) {
+    audioEl.pause();
+    audioEl.src = '';
+    audioEl = null;
+  }
+  // Stop Web Speech fallback
+  if (synth) synth.cancel();
+  if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+  clearInterval(playTimer);
+  playTimer = null;
+  usingFallback = false;
+  setPlayerState(false, null);
+}
+
+async function startOpenAIAudio() {
+  if (!currentSummary) return;
+
+  setPlayerState(true, 'Loading audio…');
+
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice })
+    });
+
+    if (!res.ok) throw new Error('TTS request failed');
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    audioEl = new Audio(url);
+    usingFallback = false;
+
+    audioEl.addEventListener('timeupdate', () => {
+      if (!audioEl || !audioEl.duration) return;
+      const pct = (audioEl.currentTime / audioEl.duration) * 100;
+      document.getElementById('progress-fill').style.width = pct + '%';
+      const m = Math.floor(audioEl.currentTime / 60);
+      const s = Math.floor(audioEl.currentTime % 60);
+      document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
+    });
+
+    audioEl.addEventListener('ended', () => {
+      document.getElementById('progress-fill').style.width = '100%';
+      setPlayerState(false, 'Finished — press play to replay');
+      URL.revokeObjectURL(url);
+      audioEl = null;
+    });
+
+    audioEl.addEventListener('error', () => {
+      URL.revokeObjectURL(url);
+      audioEl = null;
+      startFallbackAudio();
+    });
+
+    audioEl.play();
+    setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+
+  } catch (err) {
+    console.warn('OpenAI TTS failed, falling back to browser voice:', err.message);
+    startFallbackAudio();
+  }
+}
+
+// Web Speech API fallback
 function getBestVoice(gender) {
   const voices = synth.getVoices();
   const en = voices.filter(v => v.lang.startsWith('en'));
@@ -300,22 +384,9 @@ function getBestVoice(gender) {
   return en.find(v => terms.some(t => v.name.toLowerCase().includes(t))) || en.find(v => v.default) || en[0] || voices[0] || null;
 }
 
-function startChromeKeepAlive() {
-  stopChromeKeepAlive();
-  resumeTimer = setInterval(() => {
-    if (synth.speaking && !synth.paused) {
-      synth.pause();
-      synth.resume();
-    }
-  }, 10000);
-}
-
-function stopChromeKeepAlive() {
-  if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
-}
-
-function startAudio() {
+function startFallbackAudio() {
   if (!currentSummary || !synth) return;
+  usingFallback = true;
   synth.cancel();
   utterance = new SpeechSynthesisUtterance(currentSummary.plain);
   utterance.rate = currentVoice === 'female' ? 0.94 : 0.90;
@@ -323,8 +394,9 @@ function startAudio() {
   utterance.volume = 1;
   const voices = synth.getVoices();
   if (voices.length) { const v = getBestVoice(currentVoice); if (v) utterance.voice = v; }
-  estimatedSecs = Math.round(currentSummary.plain.length / 13);
-  playStart = Date.now();
+
+  const estimatedSecs = Math.round(currentSummary.plain.length / 13);
+  const playStart = Date.now();
   clearInterval(playTimer);
   playTimer = setInterval(() => {
     if (!isPlaying) return;
@@ -335,43 +407,41 @@ function startAudio() {
     const s = Math.floor(elapsed % 60);
     document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
   }, 500);
+
+  // Chrome keep-alive (desktop only)
+  const isAndroid = /android/i.test(navigator.userAgent);
+  if (!isAndroid) {
+    resumeTimer = setInterval(() => {
+      if (synth.speaking && !synth.paused) { synth.pause(); synth.resume(); }
+    }, 10000);
+  }
+
   utterance.onend = () => {
-    isPlaying = false;
     clearInterval(playTimer);
-    stopChromeKeepAlive();
-    document.getElementById('play-icon').innerHTML = '<polygon points="6,3 20,12 6,21"/>';
+    if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
     document.getElementById('progress-fill').style.width = '100%';
-    document.getElementById('player-sub').textContent = 'Finished — press play to replay';
+    setPlayerState(false, 'Finished — press play to replay');
   };
   utterance.onerror = () => {
-    isPlaying = false;
     clearInterval(playTimer);
-    stopChromeKeepAlive();
-    document.getElementById('play-icon').innerHTML = '<polygon points="6,3 20,12 6,21"/>';
+    if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+    setPlayerState(false, null);
   };
-  synth.speak(utterance);
-  isPlaying = true;
-  startChromeKeepAlive();
-  document.getElementById('play-icon').innerHTML = '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>';
-  document.getElementById('player-sub').textContent = 'Now playing — ' + (currentVoice === 'female' ? 'female' : 'male') + ' voice';
-}
 
-function stopAudio() {
-  synth.cancel();
-  isPlaying = false;
-  clearInterval(playTimer);
-  stopChromeKeepAlive();
-  document.getElementById('play-icon').innerHTML = '<polygon points="6,3 20,12 6,21"/>';
+  synth.speak(utterance);
+  setPlayerState(true, 'Now playing — browser voice (fallback)');
 }
 
 function togglePlay() {
   if (!currentSummary) return;
-  if (isPlaying) { stopAudio(); return; }
-  if (!synth.getVoices().length) {
-    synth.onvoiceschanged = () => { synth.onvoiceschanged = null; startAudio(); };
-    synth.getVoices();
-  } else { startAudio(); }
+  if (isPlaying) {
+    stopAudio();
+    return;
+  }
+  startOpenAIAudio();
 }
+
+// ─── Download / Print ────────────────────────────────────────────────────────
 
 function downloadTxt() {
   if (!currentSummary) return;
@@ -433,6 +503,8 @@ function triggerDownload(blob, filename) {
 
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').slice(0, 60); }
 
+// ─── Event listeners ─────────────────────────────────────────────────────────
+
 document.getElementById('book-input').addEventListener('input', e => {
   selectedFromDropdown = false;
   clearTimeout(autocompleteTimer);
@@ -455,6 +527,4 @@ document.addEventListener('click', e => {
 initDark();
 setVoice('female');
 renderArchive();
-if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => {};
-synth.getVoices();
-// v15
+// v16
