@@ -12,6 +12,7 @@ let synth = window.speechSynthesis;
 let utterance = null;
 let resumeTimer = null;
 
+let playbackRate = 1;
 let autocompleteTimer = null;
 let selectedFromDropdown = false;
 
@@ -164,6 +165,16 @@ function setError(msg) {
   const bar = document.getElementById('error-bar');
   bar.textContent = msg;
   bar.classList.toggle('show', !!msg);
+}
+
+function setSpeed(rate) {
+  playbackRate = rate;
+  // Update active state on speed buttons
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.classList.toggle('active', parseFloat(btn.dataset.rate) === rate);
+  });
+  // Apply immediately if audio is playing
+  if (audioEl) audioEl.playbackRate = rate;
 }
 
 function setVoice(v) {
@@ -381,54 +392,58 @@ async function startOpenAIAudio() {
 
     if (!res.ok) throw new Error('TTS request failed');
 
-    // Response is either JSON (cached URL) or raw MP3 bytes (freshly generated)
     const contentType = res.headers.get('content-type') || '';
     let audioUrl;
     let blobUrl = null;
 
     if (contentType.includes('application/json')) {
-      // Cache hit — use the Supabase Storage URL directly
+      // Cache hit — use Supabase Storage URL directly
       const data = await res.json();
       audioUrl = data.url;
     } else {
-      // Fresh generation — create a local blob URL
+      // Fresh generation — create local blob URL
       const blob = await res.blob();
       blobUrl = URL.createObjectURL(blob);
       audioUrl = blobUrl;
     }
 
-    audioEl = new Audio(audioUrl);
-    usingFallback = false;
-
-    audioEl.addEventListener('timeupdate', () => {
-      if (!audioEl || !audioEl.duration) return;
-      const pct = (audioEl.currentTime / audioEl.duration) * 100;
-      document.getElementById('progress-fill').style.width = pct + '%';
-      const m = Math.floor(audioEl.currentTime / 60);
-      const s = Math.floor(audioEl.currentTime % 60);
-      document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
-    });
-
-    audioEl.addEventListener('ended', () => {
-      document.getElementById('progress-fill').style.width = '100%';
-      setPlayerState(false, 'Finished — press play to replay');
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl = null;
-    });
-
-    audioEl.addEventListener('error', () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl = null;
-      startFallbackAudio();
-    });
-
-    audioEl.play();
-    setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+    playSingleAudio(audioUrl, blobUrl);
 
   } catch (err) {
     console.warn('OpenAI TTS failed, falling back to browser voice:', err.message);
     startFallbackAudio();
   }
+}
+
+function playSingleAudio(audioUrl, blobUrl) {
+  audioEl = new Audio(audioUrl);
+  usingFallback = false;
+
+  audioEl.addEventListener('timeupdate', () => {
+    if (!audioEl || !audioEl.duration) return;
+    const pct = (audioEl.currentTime / audioEl.duration) * 100;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    const m = Math.floor(audioEl.currentTime / 60);
+    const s = Math.floor(audioEl.currentTime % 60);
+    document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
+  });
+
+  audioEl.addEventListener('ended', () => {
+    document.getElementById('progress-fill').style.width = '100%';
+    setPlayerState(false, 'Finished — press play to replay');
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    audioEl = null;
+  });
+
+  audioEl.addEventListener('error', () => {
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    audioEl = null;
+    startFallbackAudio();
+  });
+
+  audioEl.play();
+  audioEl.playbackRate = playbackRate;
+  setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
 }
 
 // Web Speech API fallback
