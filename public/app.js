@@ -277,6 +277,7 @@ function toggleMeganWords() {
 
 function displaySummary(title, author, html, plain, words, spoilers, fromArchive) {
   stopAudio();
+  unlockVoiceButtons();
   currentSummary = { title, author, html, plain, words, spoilers };
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
@@ -309,11 +310,35 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
 
 function closeSummary() {
   stopAudio();
+  unlockVoiceButtons();
   document.getElementById('summary-card').classList.remove('show');
   currentSummary = null;
 }
 
 // ─── Audio engine ────────────────────────────────────────────────────────────
+
+
+function lockVoiceButtons() {
+  const pvf = document.getElementById('pvf');
+  const pvm = document.getElementById('pvm');
+  const vbf = document.getElementById('vbf');
+  const vbm = document.getElementById('vbm');
+  if (pvf) { pvf.disabled = true; pvf.style.opacity = '0.4'; pvf.style.cursor = 'not-allowed'; }
+  if (pvm) { pvm.disabled = true; pvm.style.opacity = '0.4'; pvm.style.cursor = 'not-allowed'; }
+  if (vbf) { vbf.disabled = true; vbf.style.opacity = '0.4'; vbf.style.cursor = 'not-allowed'; }
+  if (vbm) { vbm.disabled = true; vbm.style.opacity = '0.4'; vbm.style.cursor = 'not-allowed'; }
+}
+
+function unlockVoiceButtons() {
+  const pvf = document.getElementById('pvf');
+  const pvm = document.getElementById('pvm');
+  const vbf = document.getElementById('vbf');
+  const vbm = document.getElementById('vbm');
+  if (pvf) { pvf.disabled = false; pvf.style.opacity = ''; pvf.style.cursor = ''; }
+  if (pvm) { pvm.disabled = false; pvm.style.opacity = ''; pvm.style.cursor = ''; }
+  if (vbf) { vbf.disabled = false; vbf.style.opacity = ''; vbf.style.cursor = ''; }
+  if (vbm) { vbm.disabled = false; vbm.style.opacity = ''; vbm.style.cursor = ''; }
+}
 
 function setPlayerState(playing, subText) {
   isPlaying = playing;
@@ -361,6 +386,7 @@ async function startOpenAIAudio() {
   if (!currentSummary) return;
 
   setPlayerState(true, 'Loading audio…');
+  lockVoiceButtons();
 
   try {
     const res = await fetch('/api/tts', {
@@ -396,6 +422,7 @@ async function startOpenAIAudio() {
   } catch (err) {
     console.warn('OpenAI TTS failed, falling back to browser voice:', err.message);
     setPlayerState(false, 'Audio unavailable — please try again');
+    unlockVoiceButtons();
   }
 }
 
@@ -415,6 +442,7 @@ function playSingleAudio(audioUrl, blobUrl) {
   audioEl.addEventListener('ended', () => {
     document.getElementById('progress-fill').style.width = '100%';
     setPlayerState(false, 'Finished — press play to replay');
+    unlockVoiceButtons();
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
   });
@@ -423,6 +451,7 @@ function playSingleAudio(audioUrl, blobUrl) {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     setPlayerState(false, 'Audio unavailable — please try again');
+    unlockVoiceButtons();
   });
 
   audioEl.play();
