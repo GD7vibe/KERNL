@@ -426,11 +426,11 @@ async function loadSummary() {
   document.title = 'KERNL — ' + title;
 
   try {
-    function normKey(s) {
+    var normKey = function(s) {
       return String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-    }
+    };
 
-    let row = null;
+    var row = null;
 
     // Layer 1: exact key with author
     if (author) {
@@ -480,7 +480,7 @@ async function loadSummary() {
 
     if (!row) throw new Error('Not found');
 
-    let words = [];
+    var words = [];
     try { words = row.words ? JSON.parse(row.words) : []; } catch(e) {}
 
     renderSummary({
