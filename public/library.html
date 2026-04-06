@@ -118,7 +118,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     </button>
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
     <div class="tagline">for the curious</div>
-    <div class="library-subtitle">Browse our free tier library of 100 book summaries</div>
+    <div class="library-subtitle">Browse our free tier library of 100 books</div>
   </div>
 
   <div class="search-wrap">
@@ -450,53 +450,8 @@ function esc(s) {
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
-async function openBook(title, author) {
-  stopAudio();
-  currentBook = { title, author };
-  playbackRate = 1;
-  document.querySelectorAll('.modal-spd').forEach(b => {
-    b.classList.toggle('active', parseFloat(b.dataset.rate) === 1);
-  });
-
-  document.getElementById('modal-title').textContent = title;
-  document.getElementById('modal-author').textContent = 'by ' + author;
-  document.getElementById('modal-body').innerHTML = '<div class="modal-loading">Loading summary...</div>';
-  document.getElementById('player-sub').textContent = 'Press play to listen';
-  document.getElementById('player-title').textContent = title;
-  document.getElementById('progress-fill').style.width = '0%';
-  document.getElementById('progress-time').textContent = '0:00';
-  document.getElementById('play-icon').innerHTML = '<polygon points="6,3 20,12 6,21"/>';
-
-  const cat = getCategoryInfo(getCategory(title));
-  document.getElementById('modal-chips').innerHTML =
-    `<div class="modal-chip">KERNL Deep</div>
-     <div class="modal-chip">${cat.icon} ${cat.label}</div>
-     <div class="modal-chip">Spoiler-free</div>`;
-
-  document.getElementById('modal-overlay').classList.add('show');
-  document.body.style.overflow = 'hidden';
-
-  // Fetch summary from Supabase
-  try {
-    const key = (title + '||' + (author || '')).toLowerCase().trim().replace(/\s+/g, ' ') + '||nospoilers';
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/summaries?lookup_key=eq.${encodeURIComponent(key)}&select=html,plain,words`,
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-    );
-    const data = await res.json();
-    if (!data || !data.length) throw new Error('Not found');
-
-    currentBook.plain = data[0].plain;
-    document.getElementById('modal-body').innerHTML = data[0].html;
-
-    const wc = data[0].plain.split(/\s+/).filter(w => w).length;
-    document.getElementById('modal-chips').innerHTML +=
-      `<div class="modal-chip">${wc.toLocaleString()} words</div>`;
-
-  } catch (err) {
-    document.getElementById('modal-body').innerHTML =
-      '<div class="modal-loading">Could not load summary.</div>';
-  }
+function openBook(title, author) {
+  window.location.href = '/summary?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
 }
 
 function closeModal(e) {
