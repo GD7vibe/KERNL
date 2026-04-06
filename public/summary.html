@@ -69,8 +69,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .megan-words-subtitle{font-size:0.75rem;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400;font-style:italic;margin-left:4px}
 .megan-arrow{font-size:0.75rem;color:var(--muted);transition:transform 0.3s ease}
 .megan-words-grid{display:none;padding:1.5rem 2rem 2rem;grid-template-columns:repeat(3,1fr);gap:12px;background:var(--card);transition:background var(--transition)}
+@media(max-width:700px){.megan-words-grid{grid-template-columns:repeat(2,1fr);padding:1rem 1rem 1.5rem;gap:10px}}
+@media(max-width:400px){.megan-words-grid{grid-template-columns:1fr}}
 .megan-words-grid.open{display:grid}
 .megan-word-item{background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.9rem 1.1rem;transition:all var(--transition)}
+@media(max-width:700px){.megan-word-item{padding:0.75rem 0.9rem}}
 .megan-word-item:hover{border-color:var(--accent-light);transform:translateY(-1px)}
 .megan-word{font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent);margin-bottom:4px}
 .megan-definition{font-size:0.82rem;color:var(--muted);line-height:1.5}
