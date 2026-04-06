@@ -112,8 +112,7 @@ let audioEl = null;
 let isPlaying = false;
 let playbackRate = 1;
 let currentVoice = 'female';
-let usingFallback = false;
-let synth = window.speechSynthesis;
+let 
 
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -154,9 +153,8 @@ function setVoice(v) { v = 'female'; // Library only has Nova audio
   document.getElementById('pvm').classList.toggle('on', v === 'male');
   const wasPlaying = isPlaying;
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
-  if (synth) synth.cancel();
   isPlaying = false;
-  usingFallback = false;
+  
   document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
   if (wasPlaying) setTimeout(startOpenAIAudio, 150);
 }
@@ -179,15 +177,14 @@ function setPlayerState(playing, sub) {
 
 function stopAudio() {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
-  if (synth) synth.cancel();
   isPlaying = false;
-  usingFallback = false;
+  
   setPlayerState(false, null);
 }
 
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
-  else if (usingFallback && synth) synth.pause();
+  
   setPlayerState(false, 'Paused — press play to continue');
 }
 
@@ -195,11 +192,6 @@ function resumeAudio() {
   if (audioEl && audioEl.paused) {
     audioEl.play();
     setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
-    return true;
-  }
-  if (usingFallback && synth && synth.paused) {
-    synth.resume();
-    setPlayerState(true, 'Now playing — browser voice');
     return true;
   }
   return false;
@@ -232,7 +224,7 @@ async function startOpenAIAudio() {
     }
     audioEl = new Audio(audioUrl);
     audioEl.playbackRate = playbackRate;
-    usingFallback = false;
+    
     audioEl.addEventListener('timeupdate', function() {
       if (!audioEl || !audioEl.duration) return;
       const pct = (audioEl.currentTime / audioEl.duration) * 100;
@@ -250,33 +242,21 @@ async function startOpenAIAudio() {
     audioEl.addEventListener('error', function() {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
       audioEl = null;
-      startFallbackAudio();
+      setPlayerState(false, 'Audio unavailable — please try again');
     });
     audioEl.play();
     setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
   } catch (err) {
-    startFallbackAudio();
+    setPlayerState(false, 'Audio unavailable — please try again');
   }
 }
 
-function startFallbackAudio() {
-  if (!currentSummary || !synth) return;
-  usingFallback = true;
-  synth.cancel();
-  const utt = new SpeechSynthesisUtterance(currentSummary.plain);
-  utt.rate = currentVoice === 'female' ? 0.94 : 0.90;
-  utt.pitch = currentVoice === 'female' ? 1.05 : 0.82;
-  utt.onend = function() { setPlayerState(false, 'Finished — press play to replay'); };
-  utt.onerror = function() { setPlayerState(false, null); };
-  synth.speak(utt);
-  setPlayerState(true, 'Now playing — browser voice (fallback)');
-}
 
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
-  if (usingFallback && synth && synth.paused) { resumeAudio(); return; }
+  // fallback removed
   startOpenAIAudio();
 }
 
