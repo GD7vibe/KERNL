@@ -82,7 +82,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 <body>
 <div id="app">
   <div class="masthead">
-    <a class="back-link" href="/library">← Library</a>
+    <a class="back-link" href="/library.html">← Library</a>
     <button class="dark-toggle" onclick="toggleDark()">
       <span id="dark-icon">🌙</span>
       <span id="dark-label">Dark</span>
@@ -424,7 +424,7 @@ function renderSummary(data) {
         '<div class="megan-words-grid" id="megan-words-grid"></div>' +
       '</div>' +
       '<div class="summary-footer">' +
-        '<a class="btn-action" href="/library">← Back to Library</a>' +
+        '<a class="btn-action" href="/library.html">← Back to Library</a>' +
       '</div>' +
     '</div>';
 
@@ -437,7 +437,7 @@ async function loadSummary() {
   const author = params.get('author');
 
   if (!title) {
-    document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library">← Back to Library</a></div>';
+    document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">← Back to Library</a></div>';
     return;
   }
 
@@ -465,7 +465,7 @@ async function loadSummary() {
     });
 
   } catch (err) {
-    document.getElementById('content').innerHTML = '<div class="loading-card">Could not load summary. <a href="/library">← Back to Library</a></div>';
+    document.getElementById('content').innerHTML = '<div class="loading-card">Could not load summary. <a href="/library.html">← Back to Library</a></div>';
   }
 }
 
