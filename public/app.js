@@ -5,8 +5,6 @@ let currentSummary = null;
 let isPlaying = false;
 let playTimer = null;
 let audioEl = null;
-let 
-
 // Web Speech API removed — OpenAI TTS only
 
 let playbackRate = 1;
