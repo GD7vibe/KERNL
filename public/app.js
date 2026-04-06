@@ -5,12 +5,9 @@ let currentSummary = null;
 let isPlaying = false;
 let playTimer = null;
 let audioEl = null;
-let usingFallback = false;
+let 
 
-// Web Speech API fallback
-let synth = window.speechSynthesis;
-let utterance = null;
-let resumeTimer = null;
+// Web Speech API removed — OpenAI TTS only
 
 let playbackRate = 1;
 let autocompleteTimer = null;
@@ -192,10 +189,8 @@ function setVoice(v) {
     audioEl.src = '';
     audioEl = null;
   }
-  if (synth) synth.cancel();
-  if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
   isPlaying = false;
-  usingFallback = false;
+  
 
   if (currentSummary) {
     document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
@@ -340,11 +335,9 @@ function stopAudio() {
     audioEl.src = '';
     audioEl = null;
   }
-  if (synth) synth.cancel();
-  if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
   clearInterval(playTimer);
   playTimer = null;
-  usingFallback = false;
+  
   setPlayerState(false, null);
 }
 
@@ -352,8 +345,6 @@ function pauseAudio() {
   // Pause without discarding — OpenAI audio can resume from same position
   if (audioEl && !audioEl.paused) {
     audioEl.pause();
-  } else if (usingFallback && synth) {
-    synth.pause();
   }
   setPlayerState(false, 'Paused — press play to continue');
 }
@@ -363,11 +354,6 @@ function resumeAudio() {
   if (audioEl) {
     audioEl.play();
     setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
-    return true;
-  }
-  if (usingFallback && synth && synth.paused) {
-    synth.resume();
-    setPlayerState(true, 'Now playing — browser voice (fallback)');
     return true;
   }
   return false;
@@ -411,13 +397,13 @@ async function startOpenAIAudio() {
 
   } catch (err) {
     console.warn('OpenAI TTS failed, falling back to browser voice:', err.message);
-    startFallbackAudio();
+    setPlayerState(false, 'Audio unavailable — please try again');
   }
 }
 
 function playSingleAudio(audioUrl, blobUrl) {
   audioEl = new Audio(audioUrl);
-  usingFallback = false;
+  
 
   audioEl.addEventListener('timeupdate', () => {
     if (!audioEl || !audioEl.duration) return;
@@ -438,7 +424,7 @@ function playSingleAudio(audioUrl, blobUrl) {
   audioEl.addEventListener('error', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    startFallbackAudio();
+    setPlayerState(false, 'Audio unavailable — please try again');
   });
 
   audioEl.play();
@@ -446,63 +432,6 @@ function playSingleAudio(audioUrl, blobUrl) {
   setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
 }
 
-// Web Speech API fallback
-function getBestVoice(gender) {
-  const voices = synth.getVoices();
-  const en = voices.filter(v => v.lang.startsWith('en'));
-  const fTerms = ['female','woman','zira','samantha','victoria','karen','moira','tessa','fiona','veena','ava','allison','kate','serena'];
-  const mTerms = ['male','man','david','alex','daniel','lee','tom','oliver','mark','aaron','arthur','james'];
-  const terms = gender === 'female' ? fTerms : mTerms;
-  return en.find(v => terms.some(t => v.name.toLowerCase().includes(t))) || en.find(v => v.default) || en[0] || voices[0] || null;
-}
-
-function startFallbackAudio() {
-  if (!currentSummary || !synth) return;
-  usingFallback = true;
-  synth.cancel();
-  utterance = new SpeechSynthesisUtterance(currentSummary.plain);
-  utterance.rate = currentVoice === 'female' ? 0.94 : 0.90;
-  utterance.pitch = currentVoice === 'female' ? 1.05 : 0.82;
-  utterance.volume = 1;
-  const voices = synth.getVoices();
-  if (voices.length) { const v = getBestVoice(currentVoice); if (v) utterance.voice = v; }
-
-  const estimatedSecs = Math.round(currentSummary.plain.length / 13);
-  const playStart = Date.now();
-  clearInterval(playTimer);
-  playTimer = setInterval(() => {
-    if (!isPlaying) return;
-    const elapsed = (Date.now() - playStart) / 1000;
-    const pct = Math.min(100, (elapsed / estimatedSecs) * 100);
-    document.getElementById('progress-fill').style.width = pct + '%';
-    const m = Math.floor(elapsed / 60);
-    const s = Math.floor(elapsed % 60);
-    document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
-  }, 500);
-
-  // Chrome keep-alive (desktop only)
-  const isAndroid = /android/i.test(navigator.userAgent);
-  if (!isAndroid) {
-    resumeTimer = setInterval(() => {
-      if (synth.speaking && !synth.paused) { synth.pause(); synth.resume(); }
-    }, 10000);
-  }
-
-  utterance.onend = () => {
-    clearInterval(playTimer);
-    if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
-    document.getElementById('progress-fill').style.width = '100%';
-    setPlayerState(false, 'Finished — press play to replay');
-  };
-  utterance.onerror = () => {
-    clearInterval(playTimer);
-    if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
-    setPlayerState(false, null);
-  };
-
-  synth.speak(utterance);
-  setPlayerState(true, 'Now playing — browser voice (fallback)');
-}
 
 function togglePlay() {
   if (!currentSummary) return;
@@ -520,10 +449,7 @@ function togglePlay() {
   }
 
   // If fallback is paused — resume
-  if (usingFallback && synth && synth.paused) {
-    resumeAudio();
-    return;
-  }
+  // fallback removed
 
   // Otherwise start fresh
   startOpenAIAudio();
