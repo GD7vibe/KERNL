@@ -176,11 +176,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 </div>
 
 <script>
-// ─── Config ───────────────────────────────────────────────────────────────────
+// ─── Config ──────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
-// ─── Categories ───────────────────────────────────────────────────────────────
+// ─── Categories ──────────────────────────────────────────────────────────────
 const CATEGORIES = [
   { id: 'all', label: 'All Books', icon: '📚' },
   { id: 'mind', label: 'Mind & Psychology', icon: '🧠' },
@@ -197,7 +197,7 @@ const CATEGORIES = [
   { id: 'philosophy', label: 'Philosophy', icon: '🎯' },
 ];
 
-// ─── Book → Category mapping ──────────────────────────────────────────────────
+// ─── Book → Category mapping (also serves as the free tier allowlist) ─────────
 const BOOK_CATEGORIES = {
   'atomic habits': 'self',
   'sapiens': 'history',
@@ -301,7 +301,7 @@ const BOOK_CATEGORIES = {
   'the power of the dog': 'fiction',
 };
 
-// ─── State ────────────────────────────────────────────────────────────────────
+// ─── State ───────────────────────────────────────────────────────────────────
 let allBooks = [];
 let activeCategory = 'all';
 let currentBook = null;
@@ -309,7 +309,7 @@ let audioEl = null;
 let isPlaying = false;
 let playbackRate = 1;
 
-// ─── Dark mode ────────────────────────────────────────────────────────────────
+// ─── Dark mode ───────────────────────────────────────────────────────────────
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
@@ -328,7 +328,7 @@ function initDark() {
   }
 }
 
-// ─── Category helpers ─────────────────────────────────────────────────────────
+// ─── Category helpers ────────────────────────────────────────────────────────
 function getCategory(title) {
   const key = (title || '').toLowerCase().trim();
   return BOOK_CATEGORIES[key] || 'fiction';
@@ -338,7 +338,7 @@ function getCategoryInfo(id) {
   return CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
 }
 
-// ─── Fetch library from Supabase ──────────────────────────────────────────────
+// ─── Fetch library from Supabase ─────────────────────────────────────────────
 async function loadLibrary() {
   try {
     const res = await fetch(
@@ -347,12 +347,14 @@ async function loadLibrary() {
     );
     const data = await res.json();
 
-    // Deduplicate by title+author (keep nospoilers version)
+    // Deduplicate by title+author, then filter to the 100 free tier books only
     const seen = new Set();
     allBooks = data.filter(b => {
-      const key = (b.title + '||' + b.author).toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
+      const titleKey = (b.title || '').toLowerCase().trim();
+      if (!(titleKey in BOOK_CATEGORIES)) return false; // free tier filter
+      const dedupKey = (b.title + '||' + b.author).toLowerCase();
+      if (seen.has(dedupKey)) return false;
+      seen.add(dedupKey);
       return true;
     }).map(b => ({
       ...b,
@@ -367,7 +369,7 @@ async function loadLibrary() {
   }
 }
 
-// ─── Render categories ────────────────────────────────────────────────────────
+// ─── Render categories ───────────────────────────────────────────────────────
 function renderCategories() {
   const container = document.getElementById('categories');
   container.innerHTML = CATEGORIES.map(cat => {
@@ -391,7 +393,7 @@ function setCategory(id) {
   renderGrid();
 }
 
-// ─── Render grid ──────────────────────────────────────────────────────────────
+// ─── Render grid ─────────────────────────────────────────────────────────────
 function filterBooks() {
   activeCategory = 'all';
   renderCategories();
@@ -449,7 +451,7 @@ function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
+// ─── Modal ───────────────────────────────────────────────────────────────────
 function openBook(title, author) {
   window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
 }
@@ -465,7 +467,7 @@ function closeModalDirect() {
   currentBook = null;
 }
 
-// ─── Audio ────────────────────────────────────────────────────────────────────
+// ─── Audio ───────────────────────────────────────────────────────────────────
 function setSpeed(rate) {
   playbackRate = rate;
   document.querySelectorAll('.modal-spd').forEach(b => {
@@ -566,7 +568,7 @@ function togglePlay() {
   startAudio();
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// ─── Init ────────────────────────────────────────────────────────────────────
 initDark();
 loadLibrary();
 </script>
