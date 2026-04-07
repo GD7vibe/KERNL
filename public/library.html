@@ -38,6 +38,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 /* Category filters */
 .categories{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2rem}
 .cat-btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+@media(max-width:560px){
+  .categories{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .cat-btn{justify-content:center}
+  .cat-btn:first-child{grid-column:1/-1}
+}
 .cat-btn:hover{border-color:var(--accent-light);color:var(--accent)}
 .cat-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
 .cat-icon{font-size:0.9rem}
