@@ -347,14 +347,13 @@ async function loadLibrary() {
     );
     const data = await res.json();
 
-    // Deduplicate by title+author, then filter to the 100 free tier books only
+    // Filter to the 100 free tier books only, dedup by title (catches author name variants)
     const seen = new Set();
     allBooks = data.filter(b => {
       const titleKey = (b.title || '').toLowerCase().trim();
       if (!(titleKey in BOOK_CATEGORIES)) return false; // free tier filter
-      const dedupKey = (b.title + '||' + b.author).toLowerCase();
-      if (seen.has(dedupKey)) return false;
-      seen.add(dedupKey);
+      if (seen.has(titleKey)) return false; // dedup on title only
+      seen.add(titleKey);
       return true;
     }).map(b => ({
       ...b,
