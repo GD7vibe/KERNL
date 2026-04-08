@@ -25,8 +25,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .library-subtitle{font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--muted);margin-top:0.75rem}
 .dark-toggle{position:absolute;top:1rem;right:1rem;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);display:flex;align-items:center;gap:6px;opacity:0.7}
 .dark-toggle:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
-.back-link{position:absolute;top:1rem;left:1rem;background:var(--accent);border:none;border-radius:20px;padding:7px 16px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#fff;font-weight:500;transition:all var(--transition);text-decoration:none;display:flex;align-items:center;gap:6px;opacity:1}
-.back-link:hover{background:var(--accent-light);opacity:1}
+
 
 /* Search bar */
 .search-wrap{margin:1.5rem 0;position:relative}
@@ -119,7 +118,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 <body>
 <div id="app">
   <div class="masthead">
-    <a class="back-link" href="/">← Back</a>
     <button class="dark-toggle" onclick="toggleDark()">
       <span id="dark-icon">🌙</span>
       <span id="dark-label">Dark</span>
