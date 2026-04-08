@@ -53,7 +53,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .pvb:hover:not(.on):not(.active){border-color:var(--accent-light);color:var(--accent)}
 .summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center;transition:background var(--transition),border-color var(--transition)}
 .summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink);transition:color var(--transition)}
-@media(max-width:560px){.summary-body{padding:1.5rem}}
 .summary-body h2{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--accent);margin:2rem 0 0.75rem;padding-bottom:8px;border-bottom:1px solid var(--border);transition:color var(--transition),border-color var(--transition)}
 .summary-body h2:first-child{margin-top:0}
 .summary-body p{margin-bottom:1.1rem}
@@ -80,6 +79,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-footer{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end;transition:background var(--transition),border-color var(--transition)}
 .btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
+
+/* ── MOBILE: full-width reading experience ── */
+@media(max-width:560px){
+  body{overflow-x:hidden}
+  #app{padding:0 0 5rem}
+  .masthead{padding:1.5rem 1rem 1.25rem;margin-bottom:1rem}
+  .summary-card{border-radius:0;border-left:none;border-right:none;box-shadow:none;margin-bottom:0}
+  .summary-header{padding:1.25rem 1rem 1rem}
+  .summary-header-ornament{font-size:3rem;top:0.5rem;right:0.75rem}
+  .player{padding:0.75rem 1rem;gap:10px}
+  .summary-actions{padding:0.75rem 1rem}
+  .summary-body{padding:1.25rem 1rem}
+  .disclaimer-bar{padding:0.75rem 1rem}
+  .megan-words-header{padding:0.75rem 1rem}
+  .summary-footer{padding:0.75rem 1rem}
+  .btn-action{font-size:0.78rem;padding:0 12px}
+  .progress-wrap{max-width:none}
+}
 </style>
 </head>
 <body>
@@ -93,7 +110,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
     <div class="tagline">for the curious</div>
   </div>
-
   <div id="content">
     <div class="loading-card">
       <div class="spinner"></div>
@@ -131,30 +147,23 @@ function initDark() {
   }
 }
 
-function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').slice(0,60); }
-
-function countWords(plain) {
-  return plain.split(/\s+/).filter(w => w.length > 0).length;
-}
-
+function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 function makeAmazonUrl(title, author) {
   const query = encodeURIComponent(title + (author ? ' ' + author : ''));
   return 'https://www.amazon.co.uk/s?k=' + query + '&tag=' + AMAZON_TAG;
 }
 
-function setVoice(v) { v = 'female'; // Library only has Nova audio
+function setVoice(v) {
+  v = 'female';
   currentVoice = v;
   document.getElementById('pvf').classList.toggle('on', v === 'female');
   document.getElementById('pvm').classList.toggle('on', v === 'male');
   const wasPlaying = isPlaying;
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
-  
-  document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+  document.getElementById('player-sub').textContent = 'Female voice — press play';
   if (wasPlaying) setTimeout(startOpenAIAudio, 150);
 }
 
@@ -177,20 +186,18 @@ function setPlayerState(playing, sub) {
 function stopAudio() {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
-  
   setPlayerState(false, null);
 }
 
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
-  
   setPlayerState(false, 'Paused — press play to continue');
 }
 
 function resumeAudio() {
   if (audioEl && audioEl.paused) {
     audioEl.play();
-    setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+    setPlayerState(true, 'Now playing — Nova voice');
     return true;
   }
   return false;
@@ -203,12 +210,7 @@ async function startOpenAIAudio() {
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: currentSummary.plain,
-        voice: currentVoice,
-        title: currentSummary.title,
-        author: currentSummary.author
-      })
+      body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
     });
     if (!res.ok) throw new Error('TTS failed');
     const ct = res.headers.get('content-type') || '';
@@ -223,7 +225,6 @@ async function startOpenAIAudio() {
     }
     audioEl = new Audio(audioUrl);
     audioEl.playbackRate = playbackRate;
-    
     audioEl.addEventListener('timeupdate', function() {
       if (!audioEl || !audioEl.duration) return;
       const pct = (audioEl.currentTime / audioEl.duration) * 100;
@@ -244,18 +245,16 @@ async function startOpenAIAudio() {
       setPlayerState(false, 'Audio unavailable — please try again');
     });
     audioEl.play();
-    setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+    setPlayerState(true, 'Now playing — Nova voice');
   } catch (err) {
     setPlayerState(false, 'Audio unavailable — please try again');
   }
 }
 
-
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
-  // fallback removed
   startOpenAIAudio();
 }
 
@@ -342,17 +341,9 @@ function renderMeganWords(words) {
 }
 
 function renderSummary(data) {
-  currentSummary = {
-    title: data.title,
-    author: data.author,
-    html: data.html,
-    plain: data.plain,
-    words: data.words || []
-  };
-
+  currentSummary = { title: data.title, author: data.author, html: data.html, plain: data.plain, words: data.words || [] };
   const wc = countWords(data.plain);
   const amazonUrl = makeAmazonUrl(data.title, data.author);
-
   document.getElementById('content').innerHTML =
     '<div class="summary-card">' +
       '<div class="summary-header">' +
@@ -379,7 +370,8 @@ function renderSummary(data) {
           '<div class="progress-time" id="progress-time">0:00</div>' +
         '</div>' +
         '<div class="player-voice-btns">' +
-          '<span class="pvb on" style="cursor:default;">&#9792; Nova</span>' +
+          '<span class="pvb on" id="pvf" style="cursor:default;">&#9792; Nova</span>' +
+          '<span class="pvb" id="pvm" style="display:none;"></span>' +
         '</div>' +
         '<div class="player-voice-btns">' +
           '<button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1×</button>' +
@@ -408,7 +400,6 @@ function renderSummary(data) {
         '<a class="btn-action" href="/library.html">← Back to Library</a>' +
       '</div>' +
     '</div>';
-
   renderMeganWords(data.words || []);
 }
 
@@ -416,19 +407,13 @@ async function loadSummary() {
   const params = new URLSearchParams(window.location.search);
   const title = params.get('title');
   const author = params.get('author');
-
   if (!title) {
     document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">← Back to Library</a></div>';
     return;
   }
-
   document.title = 'KERNL — ' + title;
-
   try {
-    var normKey = function(s) {
-      return String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-    };
-
+    var normKey = function(s) { return String(s || '').toLowerCase().trim().replace(/\s+/g, ' '); };
     var row = null;
 
     // Layer 1: exact key with author
@@ -461,15 +446,12 @@ async function loadSummary() {
       );
       const d3 = await r3.json();
       if (d3 && d3.length) {
-        // Pick closest title match
         const normT = normKey(title);
         const scored = d3.map(function(r) {
           const nt = normKey(r.title);
           const maxLen = Math.max(normT.length, nt.length);
           let same = 0;
-          for (let i = 0; i < Math.min(normT.length, nt.length); i++) {
-            if (normT[i] === nt[i]) same++;
-          }
+          for (let i = 0; i < Math.min(normT.length, nt.length); i++) { if (normT[i] === nt[i]) same++; }
           return { row: r, score: maxLen > 0 ? same / maxLen : 0 };
         }).filter(function(r) { return r.score >= 0.6; })
           .sort(function(a, b) { return b.score - a.score; });
@@ -478,17 +460,9 @@ async function loadSummary() {
     }
 
     if (!row) throw new Error('Not found');
-
     var words = [];
     try { words = row.words ? JSON.parse(row.words) : []; } catch(e) {}
-
-    renderSummary({
-      title: title,
-      author: author || row.author || '',
-      html: row.html,
-      plain: row.plain,
-      words: words
-    });
+    renderSummary({ title: title, author: author || row.author || '', html: row.html, plain: row.plain, words: words });
 
   } catch (err) {
     document.getElementById('content').innerHTML = '<div class="loading-card">Could not load summary. <a href="/library.html">← Back to Library</a></div>';
