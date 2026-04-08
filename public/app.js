@@ -293,7 +293,6 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   const amazonUrl = makeAmazonUrl(title, author);
   const buyBtn = document.getElementById('buy-btn');
   buyBtn.href = amazonUrl;
-  buyBtn.style.display = 'flex';
 
   document.getElementById('player-title').textContent = title;
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
