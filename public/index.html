@@ -107,7 +107,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .disclaimer-text{font-size:0.78rem;color:var(--muted);line-height:1.5;font-style:italic;flex:1;min-width:200px}
 .disclaimer-text a{color:var(--accent);text-decoration:none}
 .disclaimer-text a:hover{text-decoration:underline}
-.buy-btn{display:none;align-items:center;gap:8px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s;flex-shrink:0}
+.buy-btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s;flex-shrink:0}
 .buy-btn:hover{background:var(--accent-light)}
 .megan-words-section{border-top:1px solid var(--border);transition:border-color var(--transition)}
 .megan-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm);transition:background var(--transition)}
@@ -252,14 +252,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
     </div>
     <div class="summary-body" id="summary-body"></div>
-    <div class="disclaimer-bar">
-      <div class="disclaimer-text">
-        KERNL summaries are original works intended to complement, not replace, the reading experience. We encourage you to read the full book and support the author.
-      </div>
-      <a id="buy-btn" class="buy-btn" href="#" target="_blank" rel="noopener noreferrer">
-        📖 Buy this book
-      </a>
-    </div>
+    
     <div class="megan-words-section" id="megan-words-section" style="display:none">
       <div class="megan-words-header" onclick="toggleMeganWords()">
         <div class="megan-words-title">
