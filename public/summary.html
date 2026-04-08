@@ -20,10 +20,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .logo{font-family:'Playfair Display',serif;font-size:clamp(2rem,6vw,3rem);font-weight:600;letter-spacing:0.12em;color:var(--ink);line-height:1;transition:color var(--transition)}
 .logo-e{color:var(--accent)}
 .tagline{font-size:0.85rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--muted);margin-top:0.5rem;font-weight:500}
-.dark-toggle{position:absolute;top:0;right:0;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);display:flex;align-items:center;gap:6px;opacity:0.7}
+.dark-toggle{position:absolute;top:1rem;right:1rem;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);display:flex;align-items:center;gap:6px;opacity:0.7}
 .dark-toggle:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
-.back-link{position:absolute;top:0;left:0;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 14px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);text-decoration:none;display:flex;align-items:center;gap:6px;opacity:0.7}
-.back-link:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
+.back-link{position:absolute;top:1rem;left:1rem;background:var(--accent);border:none;border-radius:20px;padding:7px 16px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#fff;font-weight:500;transition:all var(--transition);text-decoration:none;display:flex;align-items:center;gap:6px;opacity:1}
+.back-link:hover{background:var(--accent-light);opacity:1}
 .loading-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:4rem;text-align:center;color:var(--muted);font-style:italic}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.75s linear infinite;margin:0 auto 1rem}
 @keyframes spin{to{transform:rotate(360deg)}}
