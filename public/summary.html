@@ -57,9 +57,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-body h2:first-child{margin-top:0}
 .summary-body p{margin-bottom:1.1rem}
 .summary-body p:last-child{margin-bottom:0}
-.disclaimer-bar{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;transition:background var(--transition),border-color var(--transition)}
-.disclaimer-text{font-size:0.78rem;color:var(--muted);line-height:1.5;font-style:italic;flex:1;min-width:200px}
-.buy-btn{display:flex;align-items:center;gap:8px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s;flex-shrink:0}
+.disclaimer-bar{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);transition:background var(--transition),border-color var(--transition)}
+.disclaimer-text{font-size:0.78rem;color:var(--muted);line-height:1.5;font-style:italic}
+.buy-btn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s;border:none;cursor:pointer}
 .buy-btn:hover{background:var(--accent-light)}
 .megan-words-section{border-top:1px solid var(--border);transition:border-color var(--transition)}
 .megan-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm);transition:background var(--transition)}
@@ -383,18 +383,18 @@ function renderSummary(data) {
         '<button class="btn-action" onclick="downloadTxt()">&#8595; Text file</button>' +
         '<button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>' +
         '<button class="btn-action" onclick="printSummary()">&#128438; Print</button>' +
+        '<a class="buy-btn" href="' + amazonUrl + '" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>' +
       '</div>' +
       '<div class="summary-body">' + data.html + '</div>' +
-      '<div class="disclaimer-bar">' +
-        '<div class="disclaimer-text">KERNL summaries are original works intended to complement, not replace, the reading experience. We encourage you to read the full book and support the author.</div>' +
-        '<a class="buy-btn" href="' + amazonUrl + '" target="_blank" rel="noopener noreferrer">📖 Buy this book</a>' +
-      '</div>' +
       '<div class="megan-words-section" id="megan-words-section" style="display:none">' +
         '<div class="megan-words-header" onclick="toggleMeganWords()">' +
-          '<div class="megan-words-title"><span>📖</span> Mega Words <span class="megan-words-subtitle">— interesting words from this book</span></div>' +
+          '<div class="megan-words-title"><span>&#128218;</span> Mega Words <span class="megan-words-subtitle">— interesting words from this book</span></div>' +
           '<span class="megan-arrow" id="megan-arrow">▼</span>' +
         '</div>' +
         '<div class="megan-words-grid" id="megan-words-grid"></div>' +
+        '<div class="disclaimer-bar">' +
+          '<div class="disclaimer-text">KERNL summaries are original works intended to complement, not replace, the reading experience. We encourage you to read the full book and support the author.</div>' +
+        '</div>' +
       '</div>' +
       '<div class="summary-footer">' +
         '<a class="btn-action" href="/library.html">← Back to Library</a>' +
