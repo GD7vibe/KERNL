@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script defer src="/_vercel/insights/script.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--success-bg:#e8f5ee;--success-fg:#2d6a4f;--error-bg:#fdf0f0;--error-fg:#8B1A1A;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
@@ -34,8 +35,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-book-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:1rem;transition:color var(--transition)}
 .summary-chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);transition:all var(--transition)}
-
-/* ── PLAYER ── */
 .player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);transition:background var(--transition),border-color var(--transition)}
 .player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px}
 .play-btn{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.1s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
@@ -50,8 +49,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .pvb.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb:hover:not(.on):not(.active){border-color:var(--accent-light);color:var(--accent)}
-
-/* ── SCRUB ROW ── */
 .player-scrub-row{display:flex;align-items:center;gap:10px;width:100%}
 .skip-btn{width:32px;height:32px;flex-shrink:0;border-radius:50%;background:transparent;border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:'DM Sans',sans-serif;font-size:0.62rem;font-weight:600;color:var(--muted);line-height:1}
 .skip-btn:hover{border-color:var(--accent-light);color:var(--accent);background:var(--accent-pale)}
@@ -61,9 +58,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .scrub-track{flex:1;height:6px;background:var(--warm);border-radius:3px;cursor:pointer;position:relative;overflow:visible;transition:background var(--transition)}
 .scrub-track:hover .scrub-fill{opacity:0.85}
 .scrub-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;pointer-events:none;transition:width 0.25s linear}
-.scrub-thumb{position:absolute;top:50%;right:-6px;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(139,69,19,0.4);pointer-events:none;opacity:0;transition:opacity 0.15s}
+.scrub-thumb{position:absolute;top:50%;left:0%;transform:translateY(-50%) translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(139,69,19,0.4);pointer-events:none;opacity:0;transition:opacity 0.15s}
 .scrub-track:hover .scrub-thumb,.scrub-track.dragging .scrub-thumb{opacity:1}
-
 .summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center;transition:background var(--transition),border-color var(--transition)}
 .summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink);transition:color var(--transition)}
 .summary-body h2{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--accent);margin:2rem 0 0.75rem;padding-bottom:8px;border-bottom:1px solid var(--border);transition:color var(--transition),border-color var(--transition)}
@@ -92,7 +88,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-footer{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end;transition:background var(--transition),border-color var(--transition)}
 .btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
-
 @media(max-width:560px){
   body{overflow-x:hidden}
   #app{padding:0 0 5rem}
@@ -110,7 +105,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   .btn-action{font-size:0.78rem;padding:0 12px}
 }
 </style>
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 <div id="app">
@@ -134,11 +128,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 const AMAZON_TAG = 'kernl-21';
+
 let currentSummary = null;
 let audioEl = null;
 let isPlaying = false;
 let playbackRate = 1;
 let currentVoice = 'female';
+// Pre-fetched audio URL — ready when user taps play (iOS fix)
+let prefetchedAudioUrl = null;
+let prefetchedBlobUrl = null;
 
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -163,7 +161,6 @@ function makeAmazonUrl(title,author) {
   return 'https://www.amazon.co.uk/s?k=' + encodeURIComponent(title+(author?' '+author:'')) + '&tag=' + AMAZON_TAG;
 }
 
-// ── Speed ──────────────────────────────────────────────────────────────────
 function setSpeed(rate) {
   playbackRate = rate;
   document.querySelectorAll('.speed-btn').forEach(function(btn) {
@@ -172,7 +169,6 @@ function setSpeed(rate) {
   if (audioEl) audioEl.playbackRate = rate;
 }
 
-// ── Scrub UI ───────────────────────────────────────────────────────────────
 function fmtTime(secs) {
   if (!isFinite(secs) || secs < 0) secs = 0;
   var m = Math.floor(secs/60), s = Math.floor(secs%60);
@@ -181,8 +177,8 @@ function fmtTime(secs) {
 function resetScrubUI() {
   var fill = document.getElementById('scrub-fill');
   var thumb = document.getElementById('scrub-thumb');
-  if (fill) { fill.style.width = '0%'; }
-  if (thumb) { thumb.style.left = '0%'; }
+  if (fill) fill.style.width = '0%';
+  if (thumb) thumb.style.left = '0%';
   var el = document.getElementById('scrub-elapsed');
   var re = document.getElementById('scrub-remaining');
   if (el) el.textContent = '0:00';
@@ -226,13 +222,14 @@ function skipAudio(secs) {
   updateScrubUI();
 }
 
-// ── Player state ───────────────────────────────────────────────────────────
 function setPlayerState(playing, sub) {
   isPlaying = playing;
-  document.getElementById('play-icon').innerHTML = playing
+  var icon = document.getElementById('play-icon');
+  if (!icon) return;
+  icon.innerHTML = playing
     ? '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>'
     : '<polygon points="6,3 20,12 6,21"/>';
-  if (sub) document.getElementById('player-sub').textContent = sub;
+  if (sub) { var ps = document.getElementById('player-sub'); if(ps) ps.textContent = sub; }
 }
 function stopAudio() {
   if (audioEl) { audioEl.pause(); audioEl.src=''; audioEl=null; }
@@ -245,82 +242,140 @@ function pauseAudio() {
   setPlayerState(false, 'Paused — press play to continue');
 }
 function resumeAudio() {
-  if (audioEl && audioEl.paused) { audioEl.play(); setPlayerState(true, 'Now playing — Nova voice'); return true; }
+  if (audioEl && audioEl.paused) {
+    // iOS: .play() must be called directly inside a user gesture handler
+    var p = audioEl.play();
+    if (p && p.catch) p.catch(function(){});
+    setPlayerState(true, 'Now playing — Nova voice');
+    return true;
+  }
   return false;
 }
-async function startOpenAIAudio() {
+
+// ── Pre-fetch audio URL silently (no .play() — iOS safe) ──────────────────
+async function prefetchAudio() {
   if (!currentSummary) return;
-  setPlayerState(true, 'Loading audio…');
   try {
-    const res = await fetch('/api/tts', {
+    var res = await fetch('/api/tts', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({text:currentSummary.plain, voice:currentVoice, title:currentSummary.title, author:currentSummary.author})
     });
-    if (!res.ok) throw new Error('TTS failed');
-    const ct = res.headers.get('content-type') || '';
-    let audioUrl, blobUrl = null;
+    if (!res.ok) return;
+    var ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) {
-      const data = await res.json(); audioUrl = data.url;
+      var data = await res.json();
+      prefetchedAudioUrl = data.url;
+      prefetchedBlobUrl = null;
     } else {
-      const blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl;
+      var blob = await res.blob();
+      prefetchedBlobUrl = URL.createObjectURL(blob);
+      prefetchedAudioUrl = prefetchedBlobUrl;
     }
-    audioEl = new Audio(audioUrl);
-    audioEl.playbackRate = playbackRate;
-    audioEl.addEventListener('timeupdate', updateScrubUI);
-    audioEl.addEventListener('ended', function() {
-      var fill = document.getElementById('scrub-fill');
-      if (fill) fill.style.width = '100%';
-      setPlayerState(false, 'Finished — press play to replay');
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl = null;
-    });
-    audioEl.addEventListener('error', function() {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl = null;
-      setPlayerState(false, 'Audio unavailable — please try again');
-    });
-    audioEl.play();
-    setPlayerState(true, 'Now playing — Nova voice');
-    initScrubEvents();
-  } catch(err) {
-    setPlayerState(false, 'Audio unavailable — please try again');
+  } catch(e) {
+    prefetchedAudioUrl = null;
   }
 }
+
+// ── Play — always triggered by direct user tap ─────────────────────────────
+async function startOpenAIAudio() {
+  if (!currentSummary) return;
+  setPlayerState(true, 'Loading audio…');
+
+  var audioUrl = prefetchedAudioUrl;
+  var blobUrl = prefetchedBlobUrl;
+
+  // If prefetch hasn't finished yet, fetch now (still within user gesture on iOS)
+  if (!audioUrl) {
+    try {
+      var res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({text:currentSummary.plain, voice:currentVoice, title:currentSummary.title, author:currentSummary.author})
+      });
+      if (!res.ok) throw new Error('TTS failed');
+      var ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        var data = await res.json();
+        audioUrl = data.url;
+      } else {
+        var blob = await res.blob();
+        blobUrl = URL.createObjectURL(blob);
+        audioUrl = blobUrl;
+      }
+    } catch(err) {
+      setPlayerState(false, 'Audio unavailable — please try again');
+      return;
+    }
+  }
+
+  // Clear prefetch cache
+  prefetchedAudioUrl = null;
+  prefetchedBlobUrl = null;
+
+  audioEl = new Audio(audioUrl);
+  audioEl.playbackRate = playbackRate;
+  audioEl.addEventListener('timeupdate', updateScrubUI);
+  audioEl.addEventListener('ended', function() {
+    var fill = document.getElementById('scrub-fill');
+    if (fill) fill.style.width = '100%';
+    setPlayerState(false, 'Finished — press play to replay');
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    audioEl = null;
+    // Pre-fetch again for instant replay
+    prefetchAudio();
+  });
+  audioEl.addEventListener('error', function() {
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    audioEl = null;
+    setPlayerState(false, 'Audio unavailable — please try again');
+  });
+
+  // .play() is called here, directly inside the user gesture chain
+  var playPromise = audioEl.play();
+  if (playPromise && playPromise.catch) {
+    playPromise.catch(function(err) {
+      console.warn('Play blocked:', err);
+      setPlayerState(false, 'Tap play to listen');
+    });
+  }
+  setPlayerState(true, 'Now playing — Nova voice');
+  initScrubEvents();
+}
+
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
   startOpenAIAudio();
 }
+
 function toggleMeganWords() {
-  const grid = document.getElementById('megan-words-grid');
-  const arrow = document.getElementById('megan-arrow');
-  const isOpen = grid.classList.toggle('open');
+  var grid = document.getElementById('megan-words-grid');
+  var arrow = document.getElementById('megan-arrow');
+  var isOpen = grid.classList.toggle('open');
   arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
-// ── Downloads ──────────────────────────────────────────────────────────────
 function downloadTxt() {
   if (!currentSummary) return;
-  const header = 'KERNL — "' + currentSummary.title + '" by ' + currentSummary.author + '\n' + '─'.repeat(60) + '\n\n';
-  const blob = new Blob([header + currentSummary.plain], {type:'text/plain;charset=utf-8'});
-  triggerDownload(blob, safe(currentSummary.title) + '_KERNL.txt');
+  var header = 'KERNL — "' + currentSummary.title + '" by ' + currentSummary.author + '\n' + '─'.repeat(60) + '\n\n';
+  triggerDownload(new Blob([header + currentSummary.plain], {type:'text/plain;charset=utf-8'}), safe(currentSummary.title) + '_KERNL.txt');
 }
 function downloadEpub() {
   if (!currentSummary) return;
-  const id='kernl-'+Date.now(), t=esc(currentSummary.title), a=esc(currentSummary.author);
-  const contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' — KERNL Deep Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL — for the curious</div></body></html>';
-  const opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' — KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
-  const ncx='<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="'+id+'"/></head><docTitle><text>'+t+'</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
-  const container='<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
-  const script=document.createElement('script');
+  var id='kernl-'+Date.now(), t=esc(currentSummary.title), a=esc(currentSummary.author);
+  var contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' — KERNL Deep Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL — for the curious</div></body></html>';
+  var opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' — KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
+  var ncx='<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="'+id+'"/></head><docTitle><text>'+t+'</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
+  var container='<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
+  var script=document.createElement('script');
   script.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
   script.onload=function(){
-    const zip=new JSZip();
+    var zip=new JSZip();
     zip.file('mimetype','application/epub+zip');
     zip.folder('META-INF').file('container.xml',container);
-    const oebps=zip.folder('OEBPS');
+    var oebps=zip.folder('OEBPS');
     oebps.file('content.opf',opf);oebps.file('toc.ncx',ncx);oebps.file('content.html',contentHtml);
     zip.generateAsync({type:'blob',mimeType:'application/epub+zip'}).then(function(blob){triggerDownload(blob,safe(currentSummary.title)+'_KERNL.epub');});
   };
@@ -328,33 +383,34 @@ function downloadEpub() {
 }
 function printSummary() {
   if (!currentSummary) return;
-  const meganGrid=document.getElementById('megan-words-grid');
-  const meganOpen=meganGrid&&meganGrid.classList.contains('open');
-  const words=currentSummary.words||[];
-  let meganSection='';
+  var meganGrid=document.getElementById('megan-words-grid');
+  var meganOpen=meganGrid&&meganGrid.classList.contains('open');
+  var words=currentSummary.words||[];
+  var meganSection='';
   if (meganOpen&&words.length) {
-    const wordRows=words.map(function(w){return '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">'+esc(w.word)+'</td><td style="padding:5pt 0;color:#444;line-height:1.5">'+esc(w.definition)+'</td></tr>';}).join('');
+    var wordRows=words.map(function(w){return '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">'+esc(w.word)+'</td><td style="padding:5pt 0;color:#444;line-height:1.5">'+esc(w.definition)+'</td></tr>';}).join('');
     meganSection='<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">'+wordRows+'</table></div>';
   }
-  const w=window.open('','_blank');
+  var w=window.open('','_blank');
   w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' — KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>'+esc(currentSummary.title)+'</h1><div class="byline">by '+esc(currentSummary.author)+' — KERNL Deep Summary</div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL — for the curious</div></body></html>');
   w.document.close();
   setTimeout(function(){w.print();},400);
 }
-function triggerDownload(blob,filename){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(a.href);},1000);}
-function renderMeganWords(words){
-  const section=document.getElementById('megan-words-section');
+function triggerDownload(blob,filename){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(a.href);},1000);}
+
+function renderMeganWords(words) {
+  var section=document.getElementById('megan-words-section');
   if(!words||!words.length){section.style.display='none';return;}
-  const seen=new Set();
-  const unique=words.filter(function(w){const k=w.word.toLowerCase().trim();if(seen.has(k))return false;seen.add(k);return true;});
+  var seen=new Set();
+  var unique=words.filter(function(w){var k=w.word.toLowerCase().trim();if(seen.has(k))return false;seen.add(k);return true;});
   section.style.display='block';
   document.getElementById('megan-words-grid').innerHTML=unique.map(function(w){return '<div class="megan-word-item"><div class="megan-word">'+esc(w.word)+'</div><div class="megan-definition">'+esc(w.definition)+'</div></div>';}).join('');
 }
 
 function renderSummary(data) {
   currentSummary = {title:data.title,author:data.author,html:data.html,plain:data.plain,words:data.words||[]};
-  const wc = countWords(data.plain);
-  const amazonUrl = makeAmazonUrl(data.title, data.author);
+  var wc = countWords(data.plain);
+  var amazonUrl = makeAmazonUrl(data.title, data.author);
   document.getElementById('content').innerHTML =
     '<div class="summary-card">' +
       '<div class="summary-header">' +
@@ -379,7 +435,6 @@ function renderSummary(data) {
           '</div>' +
           '<div class="player-voice-btns">' +
             '<span class="pvb on" id="pvf" style="cursor:default;">&#9792; Nova</span>' +
-            '<span class="pvb" id="pvm" style="display:none;"></span>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1×</button>' +
@@ -389,12 +444,12 @@ function renderSummary(data) {
         '</div>' +
         '<div class="player-scrub-row">' +
           '<span class="scrub-time" id="scrub-elapsed">0:00</span>' +
-          '<button class="skip-btn" onclick="skipAudio(-10)" title="Back 10s">−10</button>' +
+          '<button class="skip-btn" onclick="skipAudio(-10)">−10</button>' +
           '<div class="scrub-track" id="scrub-track">' +
             '<div class="scrub-fill" id="scrub-fill"></div>' +
             '<div class="scrub-thumb" id="scrub-thumb"></div>' +
           '</div>' +
-          '<button class="skip-btn" onclick="skipAudio(10)" title="Forward 10s">+10</button>' +
+          '<button class="skip-btn" onclick="skipAudio(10)">+10</button>' +
           '<span class="scrub-time right" id="scrub-remaining">−0:00</span>' +
         '</div>' +
       '</div>' +
@@ -420,12 +475,14 @@ function renderSummary(data) {
       '</div>' +
     '</div>';
   renderMeganWords(data.words||[]);
+  // Silently pre-fetch audio URL in background — NO .play() called here
+  prefetchAudio();
 }
 
 async function loadSummary() {
-  const params = new URLSearchParams(window.location.search);
-  const title = params.get('title');
-  const author = params.get('author');
+  var params = new URLSearchParams(window.location.search);
+  var title = params.get('title');
+  var author = params.get('author');
   if (!title) {
     document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">← Back to Library</a></div>';
     return;
@@ -435,21 +492,21 @@ async function loadSummary() {
     var normKey = function(s) { return String(s||'').toLowerCase().trim().replace(/\s+/g,' '); };
     var row = null;
     if (author) {
-      const key1 = normKey(title)+'||'+normKey(author)+'||nospoilers';
-      const r1 = await fetch(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(key1)+'&select=title,author,html,plain,words&limit=1',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-      const d1 = await r1.json(); if (d1&&d1.length) row=d1[0];
+      var key1 = normKey(title)+'||'+normKey(author)+'||nospoilers';
+      var r1 = await fetch(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(key1)+'&select=title,author,html,plain,words&limit=1',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+      var d1 = await r1.json(); if (d1&&d1.length) row=d1[0];
     }
     if (!row) {
-      const key2 = normKey(title)+'||||nospoilers';
-      const r2 = await fetch(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(key2)+'&select=title,author,html,plain,words&limit=1',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-      const d2 = await r2.json(); if (d2&&d2.length) row=d2[0];
+      var key2 = normKey(title)+'||||nospoilers';
+      var r2 = await fetch(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(key2)+'&select=title,author,html,plain,words&limit=1',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+      var d2 = await r2.json(); if (d2&&d2.length) row=d2[0];
     }
     if (!row) {
-      const r3 = await fetch(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+normKey(title)+'%')+'&select=title,author,html,plain,words&limit=10',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-      const d3 = await r3.json();
+      var r3 = await fetch(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+normKey(title)+'%')+'&select=title,author,html,plain,words&limit=10',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+      var d3 = await r3.json();
       if (d3&&d3.length) {
-        const normT=normKey(title);
-        const scored=d3.map(function(r){const nt=normKey(r.title);const maxLen=Math.max(normT.length,nt.length);let same=0;for(let i=0;i<Math.min(normT.length,nt.length);i++){if(normT[i]===nt[i])same++;}return{row:r,score:maxLen>0?same/maxLen:0};}).filter(function(r){return r.score>=0.6;}).sort(function(a,b){return b.score-a.score;});
+        var normT=normKey(title);
+        var scored=d3.map(function(r){var nt=normKey(r.title);var maxLen=Math.max(normT.length,nt.length);var same=0;for(var i=0;i<Math.min(normT.length,nt.length);i++){if(normT[i]===nt[i])same++;}return{row:r,score:maxLen>0?same/maxLen:0};}).filter(function(r){return r.score>=0.6;}).sort(function(a,b){return b.score-a.score;});
         if (scored.length) row=scored[0].row;
       }
     }
