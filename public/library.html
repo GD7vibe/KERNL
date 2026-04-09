@@ -64,37 +64,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .loading{text-align:center;padding:4rem;color:var(--muted)}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.75s linear infinite;margin:0 auto 1rem}
 @keyframes spin{to{transform:rotate(360deg)}}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem}
-.modal-overlay.show{display:flex}
-.modal{background:var(--card);border-radius:var(--radius);max-width:700px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);transition:background var(--transition)}
-.modal-header{padding:1.5rem 1.5rem 1.25rem;border-bottom:1px solid var(--border);background:var(--warm);position:sticky;top:0;z-index:1;transition:background var(--transition)}
-.modal-title{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:600;color:var(--ink);margin-bottom:0.25rem}
-.modal-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:0.75rem}
-.modal-chips{display:flex;gap:8px;flex-wrap:wrap}
-.modal-chip{font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:3px 10px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12)}
-.modal-player{padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--card)}
-.modal-play-btn{width:40px;height:40px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
-.modal-play-btn:hover{background:var(--accent-light)}
-.modal-play-btn svg{width:16px;height:16px;fill:white}
-.modal-player-info{flex:1}
-.modal-player-title{font-size:0.82rem;font-weight:500;color:var(--ink)}
-.modal-player-sub{font-size:0.72rem;color:var(--muted);margin-top:2px}
-.modal-progress-wrap{display:flex;align-items:center;gap:8px;flex:1}
-.modal-progress-bar{flex:1;height:4px;background:var(--warm);border-radius:2px;overflow:hidden}
-.modal-progress-fill{height:100%;background:var(--accent);width:0%;transition:width 0.4s linear;border-radius:2px}
-.modal-progress-time{font-size:0.7rem;color:var(--muted);white-space:nowrap}
-.modal-speed-btns{display:flex;gap:4px}
-.modal-spd{height:26px;padding:0 8px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.7rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
-.modal-spd.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.modal-spd:hover:not(.active){border-color:var(--accent-light);color:var(--accent)}
-.modal-body{padding:1.5rem 2rem;font-family:'DM Sans',sans-serif;font-size:0.97rem;line-height:1.9;color:var(--ink)}
-.modal-body h2{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--accent);margin:1.75rem 0 0.6rem;padding-bottom:6px;border-bottom:1px solid var(--border)}
-.modal-body h2:first-child{margin-top:0}
-.modal-body p{margin-bottom:1rem}
-.modal-footer{padding:1rem 1.5rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0}
-.modal-close{height:36px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
-.modal-close:hover{border-color:var(--accent-light);color:var(--accent)}
-.modal-loading{padding:3rem;text-align:center;color:var(--muted);font-style:italic}
 </style>
 </head>
 <body>
@@ -117,48 +86,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     <div class="stats-count" id="stats-count">Loading library...</div>
   </div>
   <div id="book-grid-wrap">
-    <div class="loading">
-      <div class="spinner"></div>
-      Loading library...
-    </div>
+    <div class="loading"><div class="spinner"></div>Loading library...</div>
   </div>
 </div>
-
-<!-- Summary Modal -->
-<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
-  <div class="modal" id="modal">
-    <div class="modal-header">
-      <div class="modal-title" id="modal-title"></div>
-      <div class="modal-author" id="modal-author"></div>
-      <div class="modal-chips" id="modal-chips"></div>
-    </div>
-    <div class="modal-player">
-      <button class="modal-play-btn" onclick="togglePlay()">
-        <svg id="play-icon" viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
-      </button>
-      <div class="modal-player-info">
-        <div class="modal-player-title" id="player-title">Ready to play</div>
-        <div class="modal-player-sub" id="player-sub">Press play to listen</div>
-      </div>
-      <div class="modal-progress-wrap">
-        <div class="modal-progress-bar">
-          <div class="modal-progress-fill" id="progress-fill"></div>
-        </div>
-        <div class="modal-progress-time" id="progress-time">0:00</div>
-      </div>
-      <div class="modal-speed-btns">
-        <button class="modal-spd active" data-rate="1" onclick="setSpeed(1)">1×</button>
-        <button class="modal-spd" data-rate="1.5" onclick="setSpeed(1.5)">1.5×</button>
-        <button class="modal-spd" data-rate="2" onclick="setSpeed(2)">2×</button>
-      </div>
-    </div>
-    <div class="modal-body" id="modal-body"><div class="modal-loading">Loading summary...</div></div>
-    <div class="modal-footer">
-      <button class="modal-close" onclick="closeModalDirect()">✕ Close</button>
-    </div>
-  </div>
-</div>
-
 <script>
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
@@ -180,45 +110,41 @@ const CATEGORIES = [
 ];
 
 const BOOK_CATEGORIES = {
-  'atomic habits': 'self', 'sapiens': 'history', 'the 7 habits of highly effective people': 'self',
-  'think and grow rich': 'money', 'the power of now': 'philosophy', "man's search for meaning": 'philosophy',
-  'how to win friends and influence people': 'mind', 'the 4-hour work week': 'self', 'rich dad poor dad': 'money',
-  '12 rules for life': 'philosophy', 'the subtle art of not giving a f*ck': 'self', 'outliers': 'mind',
-  'thinking fast and slow': 'mind', 'the lean startup': 'money', 'zero to one': 'money', 'good to great': 'leadership',
-  'the e-myth revisited': 'money', 'deep work': 'self', 'start with why': 'leadership', 'dare to lead': 'leadership',
-  'the alchemist': 'fiction', '1984': 'classic', 'to kill a mockingbird': 'classic', 'the great gatsby': 'classic',
-  'brave new world': 'classic', 'animal farm': 'classic', 'of mice and men': 'classic', 'lord of the flies': 'classic',
-  'the catcher in the rye': 'classic', 'fahrenheit 451': 'classic', 'the hobbit': 'classic',
-  "harry potter and the philosopher's stone": 'family', 'the lion the witch and the wardrobe': 'family',
-  'charlie and the chocolate factory': 'family', 'matilda': 'family', 'the bfg': 'family',
-  'james and the giant peach': 'family', 'the hunger games': 'fiction', 'the da vinci code': 'fiction',
-  'gone girl': 'fiction', 'the girl with the dragon tattoo': 'fiction', 'the road': 'fiction',
-  'life of pi': 'fiction', 'the kite runner': 'fiction', 'a thousand splendid suns': 'fiction',
-  'the book thief': 'fiction', 'all quiet on the western front': 'classic', 'the old man and the sea': 'classic',
-  'crime and punishment': 'classic', 'a brief history of time': 'science', 'the selfish gene': 'science',
-  'cosmos': 'science', 'the gene': 'science', 'educated': 'biography', 'becoming': 'biography',
-  'long walk to freedom': 'biography', 'steve jobs': 'biography', 'elon musk': 'biography',
-  'leonardo da vinci': 'biography', 'homo deus': 'history', '21 lessons for the 21st century': 'history',
-  'guns germs and steel': 'history', 'the silk roads': 'history', 'prisoners of geography': 'history',
-  'a short history of nearly everything': 'science', 'notes from a small island': 'biography',
-  'the diary of a young girl': 'biography', 'night': 'biography', 'the art of war': 'philosophy',
-  'meditations': 'philosophy', 'the prince': 'philosophy', 'influence': 'mind',
-  'the psychology of money': 'money', 'the millionaire next door': 'money', 'i will teach you to be rich': 'money',
-  'the total money makeover': 'money', 'why we sleep': 'health', 'the body': 'health', 'ikigai': 'health',
-  'the blue zones': 'health', 'breath': 'health', 'lost connections': 'health', 'stolen focus': 'health',
-  'digital minimalism': 'self', 'the social animal': 'mind', 'quiet': 'mind', 'emotional intelligence': 'mind',
-  'the gifts of imperfection': 'self', 'feel the fear and do it anyway': 'self', 'the miracle morning': 'self',
-  "can't hurt me": 'self', 'extreme ownership': 'leadership', 'the 48 laws of power': 'leadership',
-  'mastery': 'self', 'the art of thinking clearly': 'mind', 'black box thinking': 'mind', 'bounce': 'self',
-  'shoe dog': 'biography', 'born to run': 'health', 'the power of the dog': 'fiction',
+  'atomic habits':'self','sapiens':'history','the 7 habits of highly effective people':'self',
+  'think and grow rich':'money','the power of now':'philosophy',"man's search for meaning":'philosophy',
+  'how to win friends and influence people':'mind','the 4-hour work week':'self','rich dad poor dad':'money',
+  '12 rules for life':'philosophy','the subtle art of not giving a f*ck':'self','outliers':'mind',
+  'thinking fast and slow':'mind','the lean startup':'money','zero to one':'money','good to great':'leadership',
+  'the e-myth revisited':'money','deep work':'self','start with why':'leadership','dare to lead':'leadership',
+  'the alchemist':'fiction','1984':'classic','to kill a mockingbird':'classic','the great gatsby':'classic',
+  'brave new world':'classic','animal farm':'classic','of mice and men':'classic','lord of the flies':'classic',
+  'the catcher in the rye':'classic','fahrenheit 451':'classic','the hobbit':'classic',
+  "harry potter and the philosopher's stone":'family','the lion the witch and the wardrobe':'family',
+  'charlie and the chocolate factory':'family','matilda':'family','the bfg':'family',
+  'james and the giant peach':'family','the hunger games':'fiction','the da vinci code':'fiction',
+  'gone girl':'fiction','the girl with the dragon tattoo':'fiction','the road':'fiction',
+  'life of pi':'fiction','the kite runner':'fiction','a thousand splendid suns':'fiction',
+  'the book thief':'fiction','all quiet on the western front':'classic','the old man and the sea':'classic',
+  'crime and punishment':'classic','a brief history of time':'science','the selfish gene':'science',
+  'cosmos':'science','the gene':'science','educated':'biography','becoming':'biography',
+  'long walk to freedom':'biography','steve jobs':'biography','elon musk':'biography',
+  'leonardo da vinci':'biography','homo deus':'history','21 lessons for the 21st century':'history',
+  'guns germs and steel':'history','the silk roads':'history','prisoners of geography':'history',
+  'a short history of nearly everything':'science','notes from a small island':'biography',
+  'the diary of a young girl':'biography','night':'biography','the art of war':'philosophy',
+  'meditations':'philosophy','the prince':'philosophy','influence':'mind',
+  'the psychology of money':'money','the millionaire next door':'money','i will teach you to be rich':'money',
+  'the total money makeover':'money','why we sleep':'health','the body':'health','ikigai':'health',
+  'the blue zones':'health','breath':'health','lost connections':'health','stolen focus':'health',
+  'digital minimalism':'self','the social animal':'mind','quiet':'mind','emotional intelligence':'mind',
+  'the gifts of imperfection':'self','feel the fear and do it anyway':'self','the miracle morning':'self',
+  "can't hurt me":'self','extreme ownership':'leadership','the 48 laws of power':'leadership',
+  'mastery':'self','the art of thinking clearly':'mind','black box thinking':'mind','bounce':'self',
+  'shoe dog':'biography','born to run':'health','the power of the dog':'fiction',
 };
 
 let allBooks = [];
 let activeCategory = 'all';
-let currentBook = null;
-let audioEl = null;
-let isPlaying = false;
-let playbackRate = 1;
 
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -238,11 +164,17 @@ function initDark() {
 }
 function getCategory(title) { return BOOK_CATEGORIES[(title||'').toLowerCase().trim()] || 'fiction'; }
 function getCategoryInfo(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// KEY FIX: use data attributes instead of inline onclick with apostrophes
+function openBook(title, author) {
+  window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
+}
 
 async function loadLibrary() {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/summaries?select=title,author,lookup_key,words&lookup_key=like.*nospoilers*&order=title.asc`,
+      `${SUPABASE_URL}/rest/v1/summaries?select=title,author,lookup_key&lookup_key=like.*nospoilers*&order=title.asc`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     const data = await res.json();
@@ -279,6 +211,7 @@ function setCategory(id) {
   renderGrid();
 }
 function filterBooks() { activeCategory = 'all'; renderCategories(); renderGrid(); }
+
 function renderGrid() {
   const query = document.getElementById('search-input').value.toLowerCase().trim();
   const filtered = allBooks.filter(b => {
@@ -291,96 +224,40 @@ function renderGrid() {
   if (query) { countEl.innerHTML = `<span>${filtered.length}</span> book${filtered.length!==1?'s':''} matching "${query}"`; }
   else if (activeCategory === 'all') { countEl.innerHTML = `<span>${filtered.length}</span> books in the library`; }
   else { countEl.innerHTML = `${catInfo.icon} <span>${filtered.length}</span> books in ${catInfo.label}`; }
-  if (!filtered.length) { document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">No books found.</div>'; return; }
-  document.getElementById('book-grid-wrap').innerHTML = '<div class="book-grid">' + filtered.map(b => {
-    const cat = getCategoryInfo(b.category);
-    return `<div class="book-card" onclick="openBook('${esc(b.title)}','${esc(b.author)}')">
-      <div class="book-card-top">
-        <div>
-          <div class="book-title">${esc(b.title)}</div>
-          <div class="book-author">by ${esc(b.author)}</div>
-        </div>
-        <div class="book-cat-badge">${cat.icon} ${cat.label}</div>
-      </div>
-      <div class="book-card-footer">
-        <div class="audio-badge"><div class="audio-dot"></div> Audio available</div>
-        <button class="read-btn" onclick="event.stopPropagation();openBook('${esc(b.title)}','${esc(b.author)}')">Read ›</button>
-      </div>
-    </div>`;
-  }).join('') + '</div>';
-}
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-function openBook(title, author) {
-  window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
-}
-function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
-function closeModalDirect() {
-  stopAudio();
-  document.getElementById('modal-overlay').classList.remove('show');
-  document.body.style.overflow = '';
-  currentBook = null;
-}
-function setSpeed(rate) {
-  playbackRate = rate;
-  document.querySelectorAll('.modal-spd').forEach(b => { b.classList.toggle('active', parseFloat(b.dataset.rate) === rate); });
-  if (audioEl) audioEl.playbackRate = rate;
-}
-function setPlayerState(playing, sub) {
-  isPlaying = playing;
-  document.getElementById('play-icon').innerHTML = playing
-    ? '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>'
-    : '<polygon points="6,3 20,12 6,21"/>';
-  if (sub) document.getElementById('player-sub').textContent = sub;
-}
-function stopAudio() {
-  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
-  isPlaying = false;
-  setPlayerState(false, null);
-}
-async function startAudio() {
-  if (!currentBook || !currentBook.plain) return;
-  setPlayerState(true, 'Loading audio…');
-  try {
-    const res = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: currentBook.plain, voice: 'female', title: currentBook.title, author: currentBook.author })
+  if (!filtered.length) { document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">No books found.</div>'; return; }
+
+  // KEY FIX: store title/author as data attributes, attach click via JS — no apostrophe-in-onclick problem
+  const wrap = document.createElement('div');
+  wrap.className = 'book-grid';
+  filtered.forEach(b => {
+    const cat = getCategoryInfo(b.category);
+    const card = document.createElement('div');
+    card.className = 'book-card';
+    card.dataset.title = b.title;
+    card.dataset.author = b.author;
+    card.innerHTML =
+      '<div class="book-card-top">' +
+        '<div>' +
+          '<div class="book-title">' + esc(b.title) + '</div>' +
+          '<div class="book-author">by ' + esc(b.author) + '</div>' +
+        '</div>' +
+        '<div class="book-cat-badge">' + cat.icon + ' ' + cat.label + '</div>' +
+      '</div>' +
+      '<div class="book-card-footer">' +
+        '<div class="audio-badge"><div class="audio-dot"></div> Audio available</div>' +
+        '<button class="read-btn">Read ›</button>' +
+      '</div>';
+    card.addEventListener('click', function() { openBook(this.dataset.title, this.dataset.author); });
+    card.querySelector('.read-btn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      openBook(card.dataset.title, card.dataset.author);
     });
-    if (!res.ok) throw new Error('TTS failed');
-    const ct = res.headers.get('content-type') || '';
-    let audioUrl, blobUrl = null;
-    if (ct.includes('application/json')) { const data = await res.json(); audioUrl = data.url; }
-    else { const blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl; }
-    audioEl = new Audio(audioUrl);
-    audioEl.playbackRate = playbackRate;
-    audioEl.addEventListener('timeupdate', () => {
-      if (!audioEl||!audioEl.duration) return;
-      const pct = (audioEl.currentTime/audioEl.duration)*100;
-      document.getElementById('progress-fill').style.width = pct+'%';
-      const m=Math.floor(audioEl.currentTime/60), s=Math.floor(audioEl.currentTime%60);
-      document.getElementById('progress-time').textContent = m+':'+String(s).padStart(2,'0');
-    });
-    audioEl.addEventListener('ended', () => {
-      document.getElementById('progress-fill').style.width='100%';
-      setPlayerState(false,'Finished — press play to replay');
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl=null;
-    });
-    audioEl.addEventListener('error', () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl=null;
-      setPlayerState(false,'Audio unavailable');
-    });
-    audioEl.play();
-    setPlayerState(true,'Now playing — Nova voice');
-  } catch(err) { setPlayerState(false,'Audio unavailable'); }
-}
-function togglePlay() {
-  if (!currentBook) return;
-  if (isPlaying) { if (audioEl) audioEl.pause(); setPlayerState(false,'Paused — press play to continue'); return; }
-  if (audioEl&&audioEl.paused&&audioEl.src) { audioEl.play(); setPlayerState(true,'Now playing — Nova voice'); return; }
-  startAudio();
+    wrap.appendChild(card);
+  });
+  const gridWrap = document.getElementById('book-grid-wrap');
+  gridWrap.innerHTML = '';
+  gridWrap.appendChild(wrap);
 }
 
 initDark();
