@@ -79,7 +79,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);transition:all var(--transition)}
 .chip-spoiler{color:#8B1A1A;background:rgba(139,26,26,0.08);border-color:rgba(139,26,26,0.2)}
-.player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);display:flex;align-items:center;gap:14px;flex-wrap:wrap;transition:background var(--transition),border-color var(--transition)}
+
+/* ── PLAYER ── */
+.player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);transition:background var(--transition),border-color var(--transition)}
+.player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px}
 .play-btn{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.1s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
 .play-btn:hover{background:var(--accent-light)}
 .play-btn:active{transform:scale(0.95)}
@@ -87,22 +90,48 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .player-center{flex:1;min-width:120px}
 .player-title{font-size:0.85rem;font-weight:500;color:var(--ink);transition:color var(--transition)}
 .player-sub{font-size:0.75rem;color:var(--muted);margin-top:2px;transition:color var(--transition)}
-.progress-wrap{flex:2;min-width:100px;max-width:300px;display:flex;align-items:center;gap:8px}
-.progress-bar{flex:1;height:4px;background:var(--warm);border-radius:2px;overflow:hidden;cursor:pointer;transition:background var(--transition)}
-.progress-fill{height:100%;background:var(--accent);width:0%;transition:width 0.4s linear;border-radius:2px}
-.progress-time{font-size:0.72rem;color:var(--muted);white-space:nowrap;transition:color var(--transition)}
 .player-voice-btns{display:flex;gap:6px;flex-shrink:0}
 .pvb{height:30px;padding:0 12px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
 .pvb.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb:hover:not(.on):not(.active){border-color:var(--accent-light);color:var(--accent)}
-.summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center;transition:background var(--transition),border-color var(--transition)}
-.summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink);transition:color var(--transition)}
-@media(max-width:560px){body{overflow-x:hidden}#app{padding:0 0 5rem}.masthead{padding:1.5rem 1rem 1.25rem;margin-bottom:1rem}.summary-card{border-radius:0;border-left:none;border-right:none;box-shadow:none;margin-bottom:0}.summary-header{padding:1.25rem 1rem 1rem}.summary-header-ornament{font-size:3rem;top:0.5rem;right:0.75rem}.player{padding:0.75rem 1rem;gap:10px}.summary-actions{padding:0.75rem 1rem}.summary-body{padding:1.25rem 1rem}.disclaimer-bar{padding:0.75rem 1rem}.megan-words-header{padding:0.75rem 1rem}.summary-footer{padding:0.75rem 1rem}.btn-action{font-size:0.78rem;padding:0 12px}.progress-wrap{max-width:none}}
+
+/* ── SCRUB ROW ── */
+.player-scrub-row{display:flex;align-items:center;gap:10px;width:100%}
+.skip-btn{width:32px;height:32px;flex-shrink:0;border-radius:50%;background:transparent;border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:'DM Sans',sans-serif;font-size:0.62rem;font-weight:600;color:var(--muted);line-height:1}
+.skip-btn:hover{border-color:var(--accent-light);color:var(--accent);background:var(--accent-pale)}
+.skip-btn:active{transform:scale(0.92)}
+.scrub-time{font-size:0.72rem;color:var(--muted);white-space:nowrap;min-width:34px;transition:color var(--transition);font-variant-numeric:tabular-nums}
+.scrub-time.right{text-align:right}
+.scrub-track{flex:1;height:6px;background:var(--warm);border-radius:3px;cursor:pointer;position:relative;overflow:visible;transition:background var(--transition)}
+.scrub-track:hover .scrub-fill{opacity:0.85}
+.scrub-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;pointer-events:none;transition:width 0.25s linear}
+.scrub-thumb{position:absolute;top:50%;right:-6px;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(139,69,19,0.4);pointer-events:none;opacity:0;transition:opacity 0.15s}
+.scrub-track:hover .scrub-thumb,.scrub-track.dragging .scrub-thumb{opacity:1}
+
+@media(max-width:560px){
+  body{overflow-x:hidden}
+  #app{padding:0 0 5rem}
+  .masthead{padding:1.5rem 1rem 1.25rem;margin-bottom:1rem}
+  .summary-card{border-radius:0;border-left:none;border-right:none;box-shadow:none;margin-bottom:0}
+  .summary-header{padding:1.25rem 1rem 1rem}
+  .summary-header-ornament{font-size:3rem;top:0.5rem;right:0.75rem}
+  .player{padding:0.75rem 1rem}
+  .summary-actions{padding:0.75rem 1rem}
+  .summary-body{padding:1.25rem 1rem}
+  .disclaimer-bar{padding:0.75rem 1rem}
+  .megan-words-header{padding:0.75rem 1rem}
+  .summary-footer{padding:0.75rem 1rem}
+  .btn-action{font-size:0.78rem;padding:0 12px}
+  .player-top{margin-bottom:8px}
+}
+
 .summary-body h2{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--accent);margin:2rem 0 0.75rem;padding-bottom:8px;border-bottom:1px solid var(--border);transition:color var(--transition),border-color var(--transition)}
 .summary-body h2:first-child{margin-top:0}
 .summary-body p{margin-bottom:1.1rem}
 .summary-body p:last-child{margin-bottom:0}
+.summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center;transition:background var(--transition),border-color var(--transition)}
+.summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink);transition:color var(--transition)}
 .disclaimer-bar{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;transition:background var(--transition),border-color var(--transition)}
 .disclaimer-text{font-size:0.78rem;color:var(--muted);line-height:1.5;font-style:italic;flex:1;min-width:200px}
 .disclaimer-text a{color:var(--accent);text-decoration:none}
@@ -150,7 +179,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 </style>
 </head>
 <body>
-
 <script>
 (function() {
   var ADMIN_KEY = 'kernl_admin_auth';
@@ -165,7 +193,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   }
 })();
 </script>
-
 <div id="app">
   <div class="masthead">
     <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()">
@@ -176,6 +203,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     <div class="tagline">for the curious</div>
     <div class="ornament">❧</div>
   </div>
+
   <div class="search-card">
     <div class="search-grid">
       <div class="field">
@@ -210,6 +238,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     </div>
     <div class="error-bar" id="error-bar"></div>
   </div>
+
   <div class="summary-card" id="summary-card">
     <div class="summary-header">
       <div class="summary-header-ornament">"</div>
@@ -222,35 +251,45 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
         <div class="chip" id="s-spoiler"></div>
       </div>
     </div>
+
+    <!-- PLAYER -->
     <div class="player">
-      <button class="play-btn" id="play-btn" onclick="togglePlay()">
-        <svg id="play-icon" viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
-      </button>
-      <div class="player-center">
-        <div class="player-title" id="player-title">Ready</div>
-        <div class="player-sub" id="player-sub">Press play to listen</div>
-      </div>
-      <div class="progress-wrap">
-        <div class="progress-bar">
-          <div class="progress-fill" id="progress-fill"></div>
+      <div class="player-top">
+        <button class="play-btn" id="play-btn" onclick="togglePlay()">
+          <svg id="play-icon" viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
+        </button>
+        <div class="player-center">
+          <div class="player-title" id="player-title">Ready</div>
+          <div class="player-sub" id="player-sub">Press play to listen</div>
         </div>
-        <div class="progress-time" id="progress-time">0:00</div>
+        <div class="player-voice-btns">
+          <button class="pvb on" id="pvf" onclick="setVoice('female')">&#9792;</button>
+          <button class="pvb" id="pvm" onclick="setVoice('male')">&#9794;</button>
+        </div>
+        <div class="player-voice-btns">
+          <button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1×</button>
+          <button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5×</button>
+          <button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2×</button>
+        </div>
       </div>
-      <div class="player-voice-btns">
-        <button class="pvb on" id="pvf" onclick="setVoice('female')">&#9792;</button>
-        <button class="pvb" id="pvm" onclick="setVoice('male')">&#9794;</button>
-      </div>
-      <div class="player-voice-btns">
-        <button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1×</button>
-        <button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5×</button>
-        <button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2×</button>
+      <!-- SCRUB ROW -->
+      <div class="player-scrub-row">
+        <span class="scrub-time" id="scrub-elapsed">0:00</span>
+        <button class="skip-btn" onclick="skipAudio(-10)" title="Back 10s">−10</button>
+        <div class="scrub-track" id="scrub-track">
+          <div class="scrub-fill" id="scrub-fill"></div>
+          <div class="scrub-thumb" id="scrub-thumb"></div>
+        </div>
+        <button class="skip-btn" onclick="skipAudio(10)" title="Forward 10s">+10</button>
+        <span class="scrub-time right" id="scrub-remaining">−0:00</span>
       </div>
     </div>
+
     <div class="summary-actions">
       <button class="btn-action" onclick="downloadTxt()">&#8595; Text file</button>
       <button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
-    <a id="buy-btn" class="buy-btn" href="#" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>
+      <a id="buy-btn" class="buy-btn" href="#" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>
     </div>
     <div class="summary-body" id="summary-body"></div>
     <div class="disclaimer-bar">
@@ -276,6 +315,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <button class="btn-action danger" onclick="closeSummary()">&#10005; Close</button>
     </div>
   </div>
+
   <div class="section-header">
     <div class="section-title">Your library</div>
     <div class="section-right">
@@ -285,6 +325,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
   <div id="archive-container"></div>
 </div>
-<script src="/app.js?v=16"></script>
+<script src="/app.js?v=17"></script>
 </body>
 </html>
