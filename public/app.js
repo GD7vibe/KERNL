@@ -5,20 +5,17 @@ let currentSummary = null;
 let isPlaying = false;
 let playTimer = null;
 let audioEl = null;
-// Web Speech API removed — OpenAI TTS only
-
 let playbackRate = 1;
 let autocompleteTimer = null;
 let selectedFromDropdown = false;
 
-// Dark mode
+// ── Dark mode ──────────────────────────────────────────────────────────────
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
   document.getElementById('dark-icon').textContent = isDark ? '☀️' : '🌙';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
-
 function initDark() {
   const saved = localStorage.getItem('kernl_dark');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -30,7 +27,7 @@ function initDark() {
   }
 }
 
-// Autocomplete
+// ── Autocomplete ───────────────────────────────────────────────────────────
 async function fetchBookSuggestions(query) {
   if (!query || query.length < 3) { hideDropdown(); return; }
   try {
@@ -42,11 +39,8 @@ async function fetchBookSuggestions(query) {
       .slice(0, 5)
       .map(d => ({ title: d.title, author: d.author_name[0], year: d.first_publish_year || '' }));
     if (results.length) showDropdown(results); else hideDropdown();
-  } catch (e) {
-    hideDropdown();
-  }
+  } catch (e) { hideDropdown(); }
 }
-
 function showDropdown(results) {
   let dropdown = document.getElementById('book-dropdown');
   if (!dropdown) {
@@ -62,12 +56,10 @@ function showDropdown(results) {
     </div>`).join('');
   dropdown.style.display = 'block';
 }
-
 function hideDropdown() {
   const dropdown = document.getElementById('book-dropdown');
   if (dropdown) dropdown.style.display = 'none';
 }
-
 function selectBook(idx) {
   const dropdown = document.getElementById('book-dropdown');
   if (!dropdown) return;
@@ -84,11 +76,8 @@ function selectBook(idx) {
   hideDropdown();
 }
 
-function getArchive() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-  catch (e) { return []; }
-}
-
+// ── Archive ────────────────────────────────────────────────────────────────
+function getArchive() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; } }
 function saveEntry(entry) {
   const arc = getArchive();
   const key = norm(entry.title) + '||' + norm(entry.author) + '||' + (entry.spoilers ? 'spoilers' : 'nospoilers');
@@ -96,29 +85,18 @@ function saveEntry(entry) {
   if (idx >= 0) arc[idx] = entry; else arc.unshift(entry);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(arc.slice(0, 300)));
 }
-
 function clearArchive() {
   if (!confirm('Clear your entire KERNL library? This cannot be undone.')) return;
   localStorage.removeItem(STORAGE_KEY);
   renderArchive();
 }
-
 function norm(s) { return String(s || '').toLowerCase().trim().replace(/\s+/g, ' '); }
-
-function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function fmtDate(ts) {
-  if (!ts) return '';
-  return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
-}
-
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(ts) { if (!ts) return ''; return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }); }
 function makeAmazonUrl(title, author) {
   const query = encodeURIComponent(title + (author ? ' ' + author : ''));
   return `https://www.amazon.co.uk/s?k=${query}&tag=${AMAZON_TAG}`;
 }
-
 function renderArchive() {
   const arc = getArchive();
   const container = document.getElementById('archive-container');
@@ -130,73 +108,62 @@ function renderArchive() {
     container.innerHTML = '<div class="archive-empty">Your library is empty — summarise a book above to begin.</div>';
     return;
   }
-  container.innerHTML = '<div class="archive-grid">' +
-    arc.map((e, i) => `
-      <div class="archive-item" onclick="loadEntry(${i})">
-        <div class="archive-book-title">${esc(e.title)}</div>
-        <div class="archive-book-author">by ${esc(e.author)}</div>
-        <div class="archive-footer">
-          <div class="archive-date">${fmtDate(e.savedAt)}</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            ${e.spoilers ? '<div class="archive-chip spoiler-chip">Spoilers</div>' : '<div class="archive-chip">No spoilers</div>'}
-            <div class="archive-chip">Archived</div>
-          </div>
+  container.innerHTML = '<div class="archive-grid">' + arc.map((e, i) => `
+    <div class="archive-item" onclick="loadEntry(${i})">
+      <div class="archive-book-title">${esc(e.title)}</div>
+      <div class="archive-book-author">by ${esc(e.author)}</div>
+      <div class="archive-footer">
+        <div class="archive-date">${fmtDate(e.savedAt)}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${e.spoilers ? '<div class="archive-chip spoiler-chip">Spoilers</div>' : '<div class="archive-chip">No spoilers</div>'}
+          <div class="archive-chip">Archived</div>
         </div>
-      </div>`).join('') + '</div>';
+      </div>
+    </div>`).join('') + '</div>';
 }
-
 function loadEntry(idx) {
   const e = getArchive()[idx];
   if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], e.spoilers || false, true);
 }
 
+// ── Status / error ─────────────────────────────────────────────────────────
 function setStatus(msg, show) {
   const bar = document.getElementById('status-bar');
   document.getElementById('status-text').textContent = msg;
   bar.classList.toggle('show', !!show);
 }
-
 function setError(msg) {
   const bar = document.getElementById('error-bar');
   bar.textContent = msg;
   bar.classList.toggle('show', !!msg);
 }
 
+// ── Speed ──────────────────────────────────────────────────────────────────
 function setSpeed(rate) {
   playbackRate = rate;
-  // Update active state on speed buttons
   document.querySelectorAll('.speed-btn').forEach(btn => {
     btn.classList.toggle('active', parseFloat(btn.dataset.rate) === rate);
   });
-  // Apply immediately if audio is playing
   if (audioEl) audioEl.playbackRate = rate;
 }
 
+// ── Voice ──────────────────────────────────────────────────────────────────
 function setVoice(v) {
   currentVoice = v;
   document.getElementById('vbf').classList.toggle('active', v === 'female');
   document.getElementById('vbm').classList.toggle('active', v === 'male');
   document.getElementById('pvf').classList.toggle('on', v === 'female');
   document.getElementById('pvm').classList.toggle('on', v === 'male');
-
   const wasPlaying = isPlaying;
-
-  // Always discard existing audio — it's the wrong voice
-  if (audioEl) {
-    audioEl.pause();
-    audioEl.src = '';
-    audioEl = null;
-  }
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
-  
-
   if (currentSummary) {
     document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
-    // If it was playing, restart with new voice automatically
     if (wasPlaying) setTimeout(startOpenAIAudio, 150);
   }
 }
 
+// ── Generate ───────────────────────────────────────────────────────────────
 async function handleGenerate() {
   const title = document.getElementById('book-input').value.trim();
   const author = document.getElementById('author-input').value.trim();
@@ -204,7 +171,6 @@ async function handleGenerate() {
   setError('');
   hideDropdown();
   if (!title) { setError('Please enter a book title to continue.'); return; }
-
   const cached = getArchive().find(e =>
     norm(e.title) === norm(title) &&
     (!author || norm(e.author) === norm(author)) &&
@@ -215,27 +181,22 @@ async function handleGenerate() {
     setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
-
   document.getElementById('gen-btn').disabled = true;
   setStatus('Generating summary with AI — please wait about 30 seconds...', true);
-
   try {
     const res = await fetch('/api/summarise', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, author, spoilers })
     });
-
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
-
     const { html, plain, words } = data;
     const displayAuthor = author || 'Unknown author';
     saveEntry({ title, author: displayAuthor, html, plain, words: words || [], spoilers, savedAt: Date.now() });
     setStatus('', false);
     renderArchive();
     displaySummary(title, displayAuthor, html, plain, words || [], spoilers, false);
-
   } catch (err) {
     setStatus('', false);
     setError('Could not generate summary: ' + err.message);
@@ -244,14 +205,12 @@ async function handleGenerate() {
   }
 }
 
-function countWords(plain) {
-  return plain.split(/\s+/).filter(w => w.length > 0).length;
-}
+function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
+// ── Mega Words ─────────────────────────────────────────────────────────────
 function renderMeganWords(words) {
   const section = document.getElementById('megan-words-section');
   if (!words || !words.length) { section.style.display = 'none'; return; }
-  // Deduplicate by word (case-insensitive) as a frontend safety net
   const seen = new Set();
   const uniqueWords = words.filter(w => {
     const key = w.word.toLowerCase().trim();
@@ -267,7 +226,6 @@ function renderMeganWords(words) {
       <div class="megan-definition">${esc(w.definition)}</div>
     </div>`).join('');
 }
-
 function toggleMeganWords() {
   const grid = document.getElementById('megan-words-grid');
   const arrow = document.getElementById('megan-arrow');
@@ -275,6 +233,7 @@ function toggleMeganWords() {
   arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
+// ── Display summary ────────────────────────────────────────────────────────
 function displaySummary(title, author, html, plain, words, spoilers, fromArchive) {
   stopAudio();
   unlockVoiceButtons();
@@ -288,16 +247,12 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   spoilerChip.textContent = spoilers ? 'Spoilers included' : 'Spoiler-free';
   spoilerChip.className = 'chip' + (spoilers ? ' chip-spoiler' : '');
   document.getElementById('summary-body').innerHTML = html;
-
-  // Amazon affiliate link
   const amazonUrl = makeAmazonUrl(title, author);
   const buyBtn = document.getElementById('buy-btn');
   buyBtn.href = amazonUrl;
-
   document.getElementById('player-title').textContent = title;
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
-  document.getElementById('progress-fill').style.width = '0%';
-  document.getElementById('progress-time').textContent = '0:00';
+  resetScrubUI();
   const grid = document.getElementById('megan-words-grid');
   const arrow = document.getElementById('megan-arrow');
   grid.classList.remove('open');
@@ -306,7 +261,6 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   document.getElementById('summary-card').classList.add('show');
   document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-
 function closeSummary() {
   stopAudio();
   unlockVoiceButtons();
@@ -314,31 +268,79 @@ function closeSummary() {
   currentSummary = null;
 }
 
-// ─── Audio engine ────────────────────────────────────────────────────────────
+// ── Scrub UI helpers ───────────────────────────────────────────────────────
+function fmtTime(secs) {
+  if (!isFinite(secs) || secs < 0) secs = 0;
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+function resetScrubUI() {
+  const fill = document.getElementById('scrub-fill');
+  const thumb = document.getElementById('scrub-thumb');
+  if (fill) { fill.style.width = '0%'; if (thumb) thumb.style.left = '0%'; }
+  const el = document.getElementById('scrub-elapsed');
+  const re = document.getElementById('scrub-remaining');
+  if (el) el.textContent = '0:00';
+  if (re) re.textContent = '−0:00';
+}
+function updateScrubUI() {
+  if (!audioEl || !audioEl.duration) return;
+  const pct = (audioEl.currentTime / audioEl.duration) * 100;
+  const fill = document.getElementById('scrub-fill');
+  const thumb = document.getElementById('scrub-thumb');
+  if (fill) fill.style.width = pct + '%';
+  if (thumb) thumb.style.left = pct + '%';
+  const el = document.getElementById('scrub-elapsed');
+  const re = document.getElementById('scrub-remaining');
+  if (el) el.textContent = fmtTime(audioEl.currentTime);
+  if (re) re.textContent = '−' + fmtTime(audioEl.duration - audioEl.currentTime);
+}
 
+// ── Scrub interaction ──────────────────────────────────────────────────────
+function initScrubEvents() {
+  const track = document.getElementById('scrub-track');
+  if (!track || track._scrubInit) return;
+  track._scrubInit = true;
+  let dragging = false;
 
+  function seekTo(e) {
+    if (!audioEl || !audioEl.duration) return;
+    const rect = track.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    audioEl.currentTime = pct * audioEl.duration;
+    updateScrubUI();
+  }
+
+  track.addEventListener('mousedown', e => { dragging = true; track.classList.add('dragging'); seekTo(e); });
+  track.addEventListener('touchstart', e => { dragging = true; track.classList.add('dragging'); seekTo(e); }, { passive: true });
+  document.addEventListener('mousemove', e => { if (dragging) seekTo(e); });
+  document.addEventListener('touchmove', e => { if (dragging) seekTo(e); }, { passive: true });
+  document.addEventListener('mouseup', () => { dragging = false; track.classList.remove('dragging'); });
+  document.addEventListener('touchend', () => { dragging = false; track.classList.remove('dragging'); });
+}
+
+// ── Skip ±10s ──────────────────────────────────────────────────────────────
+function skipAudio(secs) {
+  if (!audioEl) return;
+  audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, audioEl.currentTime + secs));
+  updateScrubUI();
+}
+
+// ── Audio engine ───────────────────────────────────────────────────────────
 function lockVoiceButtons() {
-  const pvf = document.getElementById('pvf');
-  const pvm = document.getElementById('pvm');
-  const vbf = document.getElementById('vbf');
-  const vbm = document.getElementById('vbm');
-  if (pvf) { pvf.disabled = true; pvf.style.opacity = '0.4'; pvf.style.cursor = 'not-allowed'; }
-  if (pvm) { pvm.disabled = true; pvm.style.opacity = '0.4'; pvm.style.cursor = 'not-allowed'; }
-  if (vbf) { vbf.disabled = true; vbf.style.opacity = '0.4'; vbf.style.cursor = 'not-allowed'; }
-  if (vbm) { vbm.disabled = true; vbm.style.opacity = '0.4'; vbm.style.cursor = 'not-allowed'; }
+  ['pvf','pvm','vbf','vbm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = true; el.style.opacity = '0.4'; el.style.cursor = 'not-allowed'; }
+  });
 }
-
 function unlockVoiceButtons() {
-  const pvf = document.getElementById('pvf');
-  const pvm = document.getElementById('pvm');
-  const vbf = document.getElementById('vbf');
-  const vbm = document.getElementById('vbm');
-  if (pvf) { pvf.disabled = false; pvf.style.opacity = ''; pvf.style.cursor = ''; }
-  if (pvm) { pvm.disabled = false; pvm.style.opacity = ''; pvm.style.cursor = ''; }
-  if (vbf) { vbf.disabled = false; vbf.style.opacity = ''; vbf.style.cursor = ''; }
-  if (vbm) { vbm.disabled = false; vbm.style.opacity = ''; vbm.style.cursor = ''; }
+  ['pvf','pvm','vbf','vbm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = false; el.style.opacity = ''; el.style.cursor = ''; }
+  });
 }
-
 function setPlayerState(playing, subText) {
   isPlaying = playing;
   const icon = document.getElementById('play-icon');
@@ -349,146 +351,83 @@ function setPlayerState(playing, subText) {
   }
   if (subText) document.getElementById('player-sub').textContent = subText;
 }
-
 function stopAudio() {
-  // Fully stop and discard everything — called when closing summary or switching book/voice
-  if (audioEl) {
-    audioEl.pause();
-    audioEl.src = '';
-    audioEl = null;
-  }
-  clearInterval(playTimer);
-  playTimer = null;
-  
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
+  clearInterval(playTimer); playTimer = null;
   setPlayerState(false, null);
+  resetScrubUI();
 }
-
 function pauseAudio() {
-  // Pause without discarding — OpenAI audio can resume from same position
-  if (audioEl && !audioEl.paused) {
-    audioEl.pause();
-  }
+  if (audioEl && !audioEl.paused) audioEl.pause();
   setPlayerState(false, 'Paused — press play to continue');
 }
-
 function resumeAudio() {
-  // Resume from paused position
-  if (audioEl) {
-    audioEl.play();
-    setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
-    return true;
-  }
+  if (audioEl) { audioEl.play(); setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice'); return true; }
   return false;
 }
-
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-
   setPlayerState(true, 'Loading audio…');
   lockVoiceButtons();
-
   try {
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: currentSummary.plain,
-        voice: currentVoice,
-        title: currentSummary.title,
-        author: currentSummary.author
-      })
+      body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
     });
-
     if (!res.ok) throw new Error('TTS request failed');
-
     const contentType = res.headers.get('content-type') || '';
-    let audioUrl;
-    let blobUrl = null;
-
+    let audioUrl, blobUrl = null;
     if (contentType.includes('application/json')) {
-      // Cache hit — use Supabase Storage URL directly
       const data = await res.json();
       audioUrl = data.url;
     } else {
-      // Fresh generation — create local blob URL
       const blob = await res.blob();
       blobUrl = URL.createObjectURL(blob);
       audioUrl = blobUrl;
     }
-
     playSingleAudio(audioUrl, blobUrl);
-
   } catch (err) {
-    console.warn('OpenAI TTS failed, falling back to browser voice:', err.message);
+    console.warn('OpenAI TTS failed:', err.message);
     setPlayerState(false, 'Audio unavailable — please try again');
     unlockVoiceButtons();
   }
 }
-
 function playSingleAudio(audioUrl, blobUrl) {
   audioEl = new Audio(audioUrl);
-  
-
-  audioEl.addEventListener('timeupdate', () => {
-    if (!audioEl || !audioEl.duration) return;
-    const pct = (audioEl.currentTime / audioEl.duration) * 100;
-    document.getElementById('progress-fill').style.width = pct + '%';
-    const m = Math.floor(audioEl.currentTime / 60);
-    const s = Math.floor(audioEl.currentTime % 60);
-    document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
-  });
-
+  audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', () => {
-    document.getElementById('progress-fill').style.width = '100%';
+    const fill = document.getElementById('scrub-fill');
+    if (fill) fill.style.width = '100%';
     setPlayerState(false, 'Finished — press play to replay');
     unlockVoiceButtons();
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
   });
-
   audioEl.addEventListener('error', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     setPlayerState(false, 'Audio unavailable — please try again');
     unlockVoiceButtons();
   });
-
   audioEl.play();
   audioEl.playbackRate = playbackRate;
   setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+  initScrubEvents();
 }
-
-
 function togglePlay() {
   if (!currentSummary) return;
-
-  // If currently playing — pause (don't stop)
-  if (isPlaying) {
-    pauseAudio();
-    return;
-  }
-
-  // If audio element exists and is paused — resume from position
-  if (audioEl && audioEl.paused && audioEl.src) {
-    resumeAudio();
-    return;
-  }
-
-  // If fallback is paused — resume
-  // fallback removed
-
-  // Otherwise start fresh
+  if (isPlaying) { pauseAudio(); return; }
+  if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
   startOpenAIAudio();
 }
 
-// ─── Download / Print ────────────────────────────────────────────────────────
-
+// ── Download / Print ───────────────────────────────────────────────────────
 function downloadTxt() {
   if (!currentSummary) return;
   const header = 'KERNL — "' + currentSummary.title + '" by ' + currentSummary.author + '\n' + '─'.repeat(60) + '\n\n';
   triggerDownload(new Blob([header + currentSummary.plain], { type: 'text/plain;charset=utf-8' }), safe(currentSummary.title) + '_KERNL.txt');
 }
-
 function downloadEpub() {
   if (!currentSummary) return;
   const id = 'kernl-' + Date.now();
@@ -504,16 +443,13 @@ function downloadEpub() {
     zip.file('mimetype', 'application/epub+zip');
     zip.folder('META-INF').file('container.xml', container);
     const oebps = zip.folder('OEBPS');
-    oebps.file('content.opf', opf);
-    oebps.file('toc.ncx', ncx);
-    oebps.file('content.html', contentHtml);
+    oebps.file('content.opf', opf); oebps.file('toc.ncx', ncx); oebps.file('content.html', contentHtml);
     zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' }).then(blob => {
       triggerDownload(blob, safe(currentSummary.title) + '_KERNL.epub');
     });
   };
   document.head.appendChild(script);
 }
-
 function printSummary() {
   if (!currentSummary) return;
   const meganGrid = document.getElementById('megan-words-grid');
@@ -521,9 +457,7 @@ function printSummary() {
   const words = currentSummary.words || [];
   let meganSection = '';
   if (meganOpen && words.length) {
-    const wordRows = words.map(w =>
-      `<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">${esc(w.word)}</td><td style="padding:5pt 0;color:#444;line-height:1.5">${esc(w.definition)}</td></tr>`
-    ).join('');
+    const wordRows = words.map(w => `<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">${esc(w.word)}</td><td style="padding:5pt 0;color:#444;line-height:1.5">${esc(w.definition)}</td></tr>`).join('');
     meganSection = `<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">📖 Mega Words — Interesting vocabulary from this book</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`;
   }
   const w = window.open('', '_blank');
@@ -531,7 +465,6 @@ function printSummary() {
   w.document.close();
   setTimeout(() => w.print(), 400);
 }
-
 function triggerDownload(blob, filename) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -540,26 +473,21 @@ function triggerDownload(blob, filename) {
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
 }
-
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').slice(0, 60); }
 
-// ─── Event listeners ─────────────────────────────────────────────────────────
-
+// ── Event listeners ────────────────────────────────────────────────────────
 document.getElementById('book-input').addEventListener('input', e => {
   selectedFromDropdown = false;
   clearTimeout(autocompleteTimer);
   autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 500);
 });
-
 document.getElementById('book-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') { hideDropdown(); handleGenerate(); }
   if (e.key === 'Escape') hideDropdown();
 });
-
 document.getElementById('author-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') handleGenerate();
 });
-
 document.addEventListener('click', e => {
   if (!e.target.closest('#book-input') && !e.target.closest('#book-dropdown')) hideDropdown();
 });
@@ -567,4 +495,4 @@ document.addEventListener('click', e => {
 initDark();
 setVoice('female');
 renderArchive();
-// v16
+// v17
