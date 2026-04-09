@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<script defer src="/_vercel/insights/script.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
@@ -15,8 +16,6 @@ html.dark{--ink:#e8e0d5;--paper:#1a1714;--warm:#242019;--accent:#c47a3a;--accent
 html{font-size:16px;scroll-behavior:smooth}
 body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background var(--transition),color var(--transition)}
 #app{max-width:1100px;margin:0 auto;padding:0 1.5rem 5rem}
-
-/* Header */
 .masthead{text-align:center;padding:3rem 0 2rem;position:relative;margin-bottom:2rem}
 .masthead::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:80px;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .logo{font-family:'Playfair Display',serif;font-size:clamp(2.4rem,6vw,3.2rem);font-weight:600;letter-spacing:0.12em;color:var(--ink);line-height:1}
@@ -25,16 +24,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .library-subtitle{font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--muted);margin-top:0.75rem}
 .dark-toggle{position:absolute;top:1rem;right:1rem;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);display:flex;align-items:center;gap:6px;opacity:0.7}
 .dark-toggle:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
-
-
-/* Search bar */
 .search-wrap{margin:1.5rem 0;position:relative}
 .search-input{width:100%;height:50px;padding:0 50px 0 18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);font-family:'DM Sans',sans-serif;font-size:1rem;color:var(--ink);outline:none;transition:border-color 0.2s,box-shadow 0.2s,background var(--transition),color var(--transition)}
 .search-input:focus{border-color:var(--accent-light);box-shadow:0 0 0 3px rgba(196,122,58,0.1)}
 .search-input::placeholder{color:var(--muted);opacity:0.6}
 .search-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:1.1rem;pointer-events:none}
-
-/* Category filters */
 .categories{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2rem}
 .cat-btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;white-space:nowrap;display:flex;align-items:center;gap:6px}
 @media(max-width:560px){
@@ -48,17 +42,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .cat-btn:hover{border-color:var(--accent-light);color:var(--accent)}
 .cat-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
 .cat-icon{font-size:0.9rem}
-
-/* Stats bar */
 .stats-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
 .stats-count{font-size:0.82rem;color:var(--muted);font-style:italic}
 .stats-count span{color:var(--accent);font-weight:500}
-
-/* Book grid */
 .book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
 @media(max-width:560px){.book-grid{grid-template-columns:1fr}}
-
-/* Book card */
 .book-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;cursor:pointer;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s,background var(--transition);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
 .book-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:0;transition:opacity 0.2s}
 .book-card:hover{border-color:var(--accent-light);box-shadow:0 4px 20px rgba(139,69,19,0.12);transform:translateY(-2px)}
@@ -72,16 +60,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .audio-dot{width:6px;height:6px;border-radius:50%;background:#2d6a4f;flex-shrink:0}
 .read-btn{height:28px;padding:0 14px;background:var(--accent);color:#fff;border:none;border-radius:20px;font-family:'DM Sans',sans-serif;font-size:0.75rem;font-weight:500;cursor:pointer;transition:background 0.2s}
 .read-btn:hover{background:var(--accent-light)}
-
-/* Empty state */
 .empty-state{text-align:center;padding:4rem 2rem;color:var(--muted);font-style:italic}
-
-/* Loading */
 .loading{text-align:center;padding:4rem;color:var(--muted)}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.75s linear infinite;margin:0 auto 1rem}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* Modal overlay */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem}
 .modal-overlay.show{display:flex}
 .modal{background:var(--card);border-radius:var(--radius);max-width:700px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);transition:background var(--transition)}
@@ -126,18 +108,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     <div class="tagline">for the curious</div>
     <div class="library-subtitle">Explore our free sample library of book summaries</div>
   </div>
-
   <div class="search-wrap">
     <input class="search-input" id="search-input" type="text" placeholder="Search by title or author..." oninput="filterBooks()" autocomplete="off"/>
     <span class="search-icon">🔍</span>
   </div>
-
   <div class="categories" id="categories"></div>
-
   <div class="stats-bar">
     <div class="stats-count" id="stats-count">Loading library...</div>
   </div>
-
   <div id="book-grid-wrap">
     <div class="loading">
       <div class="spinner"></div>
@@ -182,11 +160,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 </div>
 
 <script>
-// ─── Config ──────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
-// ─── Categories ──────────────────────────────────────────────────────────────
 const CATEGORIES = [
   { id: 'all', label: 'All Books', icon: '📚' },
   { id: 'mind', label: 'Mind & Psychology', icon: '🧠' },
@@ -203,111 +179,40 @@ const CATEGORIES = [
   { id: 'philosophy', label: 'Philosophy', icon: '🎯' },
 ];
 
-// ─── Book → Category mapping (also serves as the free tier allowlist) ─────────
 const BOOK_CATEGORIES = {
-  'atomic habits': 'self',
-  'sapiens': 'history',
-  'the 7 habits of highly effective people': 'self',
-  'think and grow rich': 'money',
-  'the power of now': 'philosophy',
-  "man's search for meaning": 'philosophy',
-  'how to win friends and influence people': 'mind',
-  'the 4-hour work week': 'self',
-  'rich dad poor dad': 'money',
-  '12 rules for life': 'philosophy',
-  'the subtle art of not giving a f*ck': 'self',
-  'outliers': 'mind',
-  'thinking fast and slow': 'mind',
-  'the lean startup': 'money',
-  'zero to one': 'money',
-  'good to great': 'leadership',
-  'the e-myth revisited': 'money',
-  'deep work': 'self',
-  'start with why': 'leadership',
-  'dare to lead': 'leadership',
-  'the alchemist': 'fiction',
-  '1984': 'classic',
-  'to kill a mockingbird': 'classic',
-  'the great gatsby': 'classic',
-  'brave new world': 'classic',
-  'animal farm': 'classic',
-  'of mice and men': 'classic',
-  'lord of the flies': 'classic',
-  'the catcher in the rye': 'classic',
-  'fahrenheit 451': 'classic',
-  'the hobbit': 'classic',
-  "harry potter and the philosopher's stone": 'family',
-  'the lion the witch and the wardrobe': 'family',
-  'charlie and the chocolate factory': 'family',
-  'matilda': 'family',
-  'the bfg': 'family',
-  'james and the giant peach': 'family',
-  'the hunger games': 'fiction',
-  'the da vinci code': 'fiction',
-  'gone girl': 'fiction',
-  'the girl with the dragon tattoo': 'fiction',
-  'the road': 'fiction',
-  'life of pi': 'fiction',
-  'the kite runner': 'fiction',
-  'a thousand splendid suns': 'fiction',
-  'the book thief': 'fiction',
-  'all quiet on the western front': 'classic',
-  'the old man and the sea': 'classic',
-  'crime and punishment': 'classic',
-  'a brief history of time': 'science',
-  'the selfish gene': 'science',
-  'cosmos': 'science',
-  'the gene': 'science',
-  'educated': 'biography',
-  'becoming': 'biography',
-  'long walk to freedom': 'biography',
-  'steve jobs': 'biography',
-  'elon musk': 'biography',
-  'leonardo da vinci': 'biography',
-  'homo deus': 'history',
-  '21 lessons for the 21st century': 'history',
-  'guns germs and steel': 'history',
-  'the silk roads': 'history',
-  'prisoners of geography': 'history',
-  'a short history of nearly everything': 'science',
-  'notes from a small island': 'biography',
-  'the diary of a young girl': 'biography',
-  'night': 'biography',
-  'the art of war': 'philosophy',
-  'meditations': 'philosophy',
-  'the prince': 'philosophy',
-  'influence': 'mind',
-  'the psychology of money': 'money',
-  'the millionaire next door': 'money',
-  'i will teach you to be rich': 'money',
-  'the total money makeover': 'money',
-  'why we sleep': 'health',
-  'the body': 'health',
-  'ikigai': 'health',
-  'the blue zones': 'health',
-  'breath': 'health',
-  'lost connections': 'health',
-  'stolen focus': 'health',
-  'digital minimalism': 'self',
-  'the social animal': 'mind',
-  'quiet': 'mind',
-  'emotional intelligence': 'mind',
-  'the gifts of imperfection': 'self',
-  'feel the fear and do it anyway': 'self',
-  'the miracle morning': 'self',
-  "can't hurt me": 'self',
-  'extreme ownership': 'leadership',
-  'the 48 laws of power': 'leadership',
-  'mastery': 'self',
-  'the art of thinking clearly': 'mind',
-  'black box thinking': 'mind',
-  'bounce': 'self',
-  'shoe dog': 'biography',
-  'born to run': 'health',
-  'the power of the dog': 'fiction',
+  'atomic habits': 'self', 'sapiens': 'history', 'the 7 habits of highly effective people': 'self',
+  'think and grow rich': 'money', 'the power of now': 'philosophy', "man's search for meaning": 'philosophy',
+  'how to win friends and influence people': 'mind', 'the 4-hour work week': 'self', 'rich dad poor dad': 'money',
+  '12 rules for life': 'philosophy', 'the subtle art of not giving a f*ck': 'self', 'outliers': 'mind',
+  'thinking fast and slow': 'mind', 'the lean startup': 'money', 'zero to one': 'money', 'good to great': 'leadership',
+  'the e-myth revisited': 'money', 'deep work': 'self', 'start with why': 'leadership', 'dare to lead': 'leadership',
+  'the alchemist': 'fiction', '1984': 'classic', 'to kill a mockingbird': 'classic', 'the great gatsby': 'classic',
+  'brave new world': 'classic', 'animal farm': 'classic', 'of mice and men': 'classic', 'lord of the flies': 'classic',
+  'the catcher in the rye': 'classic', 'fahrenheit 451': 'classic', 'the hobbit': 'classic',
+  "harry potter and the philosopher's stone": 'family', 'the lion the witch and the wardrobe': 'family',
+  'charlie and the chocolate factory': 'family', 'matilda': 'family', 'the bfg': 'family',
+  'james and the giant peach': 'family', 'the hunger games': 'fiction', 'the da vinci code': 'fiction',
+  'gone girl': 'fiction', 'the girl with the dragon tattoo': 'fiction', 'the road': 'fiction',
+  'life of pi': 'fiction', 'the kite runner': 'fiction', 'a thousand splendid suns': 'fiction',
+  'the book thief': 'fiction', 'all quiet on the western front': 'classic', 'the old man and the sea': 'classic',
+  'crime and punishment': 'classic', 'a brief history of time': 'science', 'the selfish gene': 'science',
+  'cosmos': 'science', 'the gene': 'science', 'educated': 'biography', 'becoming': 'biography',
+  'long walk to freedom': 'biography', 'steve jobs': 'biography', 'elon musk': 'biography',
+  'leonardo da vinci': 'biography', 'homo deus': 'history', '21 lessons for the 21st century': 'history',
+  'guns germs and steel': 'history', 'the silk roads': 'history', 'prisoners of geography': 'history',
+  'a short history of nearly everything': 'science', 'notes from a small island': 'biography',
+  'the diary of a young girl': 'biography', 'night': 'biography', 'the art of war': 'philosophy',
+  'meditations': 'philosophy', 'the prince': 'philosophy', 'influence': 'mind',
+  'the psychology of money': 'money', 'the millionaire next door': 'money', 'i will teach you to be rich': 'money',
+  'the total money makeover': 'money', 'why we sleep': 'health', 'the body': 'health', 'ikigai': 'health',
+  'the blue zones': 'health', 'breath': 'health', 'lost connections': 'health', 'stolen focus': 'health',
+  'digital minimalism': 'self', 'the social animal': 'mind', 'quiet': 'mind', 'emotional intelligence': 'mind',
+  'the gifts of imperfection': 'self', 'feel the fear and do it anyway': 'self', 'the miracle morning': 'self',
+  "can't hurt me": 'self', 'extreme ownership': 'leadership', 'the 48 laws of power': 'leadership',
+  'mastery': 'self', 'the art of thinking clearly': 'mind', 'black box thinking': 'mind', 'bounce': 'self',
+  'shoe dog': 'biography', 'born to run': 'health', 'the power of the dog': 'fiction',
 };
 
-// ─── State ───────────────────────────────────────────────────────────────────
 let allBooks = [];
 let activeCategory = 'all';
 let currentBook = null;
@@ -315,14 +220,12 @@ let audioEl = null;
 let isPlaying = false;
 let playbackRate = 1;
 
-// ─── Dark mode ───────────────────────────────────────────────────────────────
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
   document.getElementById('dark-icon').textContent = isDark ? '☀️' : '🌙';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
-
 function initDark() {
   const saved = localStorage.getItem('kernl_dark');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -333,18 +236,9 @@ function initDark() {
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
+function getCategory(title) { return BOOK_CATEGORIES[(title||'').toLowerCase().trim()] || 'fiction'; }
+function getCategoryInfo(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
 
-// ─── Category helpers ────────────────────────────────────────────────────────
-function getCategory(title) {
-  const key = (title || '').toLowerCase().trim();
-  return BOOK_CATEGORIES[key] || 'fiction';
-}
-
-function getCategoryInfo(id) {
-  return CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
-}
-
-// ─── Fetch library from Supabase ─────────────────────────────────────────────
 async function loadLibrary() {
   try {
     const res = await fetch(
@@ -352,135 +246,86 @@ async function loadLibrary() {
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     const data = await res.json();
-
-    // Filter to the 100 free tier books only, dedup by title (catches author name variants)
     const seen = new Set();
     allBooks = data.filter(b => {
-      const titleKey = (b.title || '').toLowerCase().trim();
-      if (!(titleKey in BOOK_CATEGORIES)) return false; // free tier filter
-      if (seen.has(titleKey)) return false; // dedup on title only
+      const titleKey = (b.title||'').toLowerCase().trim();
+      if (!(titleKey in BOOK_CATEGORIES)) return false;
+      if (seen.has(titleKey)) return false;
       seen.add(titleKey);
       return true;
-    }).map(b => ({
-      ...b,
-      category: getCategory(b.title)
-    }));
-
+    }).map(b => ({ ...b, category: getCategory(b.title) }));
     renderCategories();
     renderGrid();
-  } catch (err) {
-    document.getElementById('book-grid-wrap').innerHTML =
-      '<div class="empty-state">Could not load library. Please try again.</div>';
+  } catch(err) {
+    document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">Could not load library. Please try again.</div>';
   }
 }
 
-// ─── Render categories ───────────────────────────────────────────────────────
 function renderCategories() {
   const container = document.getElementById('categories');
   container.innerHTML = CATEGORIES.map(cat => {
-    const count = cat.id === 'all'
-      ? allBooks.length
-      : allBooks.filter(b => b.category === cat.id).length;
+    const count = cat.id === 'all' ? allBooks.length : allBooks.filter(b => b.category === cat.id).length;
     if (count === 0 && cat.id !== 'all') return '';
-    return `<button class="cat-btn ${activeCategory === cat.id ? 'active' : ''}"
-      onclick="setCategory('${cat.id}')">
-      <span class="cat-icon">${cat.icon}</span>
-      ${cat.label}
+    return `<button class="cat-btn ${activeCategory === cat.id ? 'active' : ''}" onclick="setCategory('${cat.id}')">
+      <span class="cat-icon">${cat.icon}</span> ${cat.label}
       <span style="opacity:0.6;font-size:0.75em">(${count})</span>
     </button>`;
   }).join('');
 }
-
 function setCategory(id) {
   activeCategory = id;
   document.getElementById('search-input').value = '';
   renderCategories();
   renderGrid();
 }
-
-// ─── Render grid ─────────────────────────────────────────────────────────────
-function filterBooks() {
-  activeCategory = 'all';
-  renderCategories();
-  renderGrid();
-}
-
+function filterBooks() { activeCategory = 'all'; renderCategories(); renderGrid(); }
 function renderGrid() {
   const query = document.getElementById('search-input').value.toLowerCase().trim();
   const filtered = allBooks.filter(b => {
     const matchCat = activeCategory === 'all' || b.category === activeCategory;
-    const matchSearch = !query ||
-      b.title.toLowerCase().includes(query) ||
-      b.author.toLowerCase().includes(query);
+    const matchSearch = !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query);
     return matchCat && matchSearch;
   });
-
   const countEl = document.getElementById('stats-count');
   const catInfo = getCategoryInfo(activeCategory);
-  if (query) {
-    countEl.innerHTML = `<span>${filtered.length}</span> book${filtered.length !== 1 ? 's' : ''} matching "${query}"`;
-  } else if (activeCategory === 'all') {
-    countEl.innerHTML = `<span>${filtered.length}</span> books in the library`;
-  } else {
-    countEl.innerHTML = `${catInfo.icon} <span>${filtered.length}</span> books in ${catInfo.label}`;
-  }
-
-  if (!filtered.length) {
-    document.getElementById('book-grid-wrap').innerHTML =
-      '<div class="empty-state">No books found.</div>';
-    return;
-  }
-
-  document.getElementById('book-grid-wrap').innerHTML =
-    '<div class="book-grid">' +
-    filtered.map(b => {
-      const cat = getCategoryInfo(b.category);
-      return `<div class="book-card" onclick="openBook('${esc(b.title)}','${esc(b.author)}')">
-        <div class="book-card-top">
-          <div>
-            <div class="book-title">${esc(b.title)}</div>
-            <div class="book-author">by ${esc(b.author)}</div>
-          </div>
-          <div class="book-cat-badge">${cat.icon} ${cat.label}</div>
+  if (query) { countEl.innerHTML = `<span>${filtered.length}</span> book${filtered.length!==1?'s':''} matching "${query}"`; }
+  else if (activeCategory === 'all') { countEl.innerHTML = `<span>${filtered.length}</span> books in the library`; }
+  else { countEl.innerHTML = `${catInfo.icon} <span>${filtered.length}</span> books in ${catInfo.label}`; }
+  if (!filtered.length) { document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">No books found.</div>'; return; }
+  document.getElementById('book-grid-wrap').innerHTML = '<div class="book-grid">' + filtered.map(b => {
+    const cat = getCategoryInfo(b.category);
+    return `<div class="book-card" onclick="openBook('${esc(b.title)}','${esc(b.author)}')">
+      <div class="book-card-top">
+        <div>
+          <div class="book-title">${esc(b.title)}</div>
+          <div class="book-author">by ${esc(b.author)}</div>
         </div>
-        <div class="book-card-footer">
-          <div class="audio-badge"><div class="audio-dot"></div> Audio available</div>
-          <button class="read-btn" onclick="event.stopPropagation();openBook('${esc(b.title)}','${esc(b.author)}')">Read ›</button>
-        </div>
-      </div>`;
-    }).join('') +
-    '</div>';
+        <div class="book-cat-badge">${cat.icon} ${cat.label}</div>
+      </div>
+      <div class="book-card-footer">
+        <div class="audio-badge"><div class="audio-dot"></div> Audio available</div>
+        <button class="read-btn" onclick="event.stopPropagation();openBook('${esc(b.title)}','${esc(b.author)}')">Read ›</button>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
 }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-// ─── Modal ───────────────────────────────────────────────────────────────────
 function openBook(title, author) {
   window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
 }
-
-function closeModal(e) {
-  if (e.target === document.getElementById('modal-overlay')) closeModalDirect();
-}
-
+function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
 function closeModalDirect() {
   stopAudio();
   document.getElementById('modal-overlay').classList.remove('show');
   document.body.style.overflow = '';
   currentBook = null;
 }
-
-// ─── Audio ───────────────────────────────────────────────────────────────────
 function setSpeed(rate) {
   playbackRate = rate;
-  document.querySelectorAll('.modal-spd').forEach(b => {
-    b.classList.toggle('active', parseFloat(b.dataset.rate) === rate);
-  });
+  document.querySelectorAll('.modal-spd').forEach(b => { b.classList.toggle('active', parseFloat(b.dataset.rate) === rate); });
   if (audioEl) audioEl.playbackRate = rate;
 }
-
 function setPlayerState(playing, sub) {
   isPlaying = playing;
   document.getElementById('play-icon').innerHTML = playing
@@ -488,92 +333,56 @@ function setPlayerState(playing, sub) {
     : '<polygon points="6,3 20,12 6,21"/>';
   if (sub) document.getElementById('player-sub').textContent = sub;
 }
-
 function stopAudio() {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
   setPlayerState(false, null);
 }
-
 async function startAudio() {
   if (!currentBook || !currentBook.plain) return;
   setPlayerState(true, 'Loading audio…');
-
   try {
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: currentBook.plain,
-        voice: 'female',
-        title: currentBook.title,
-        author: currentBook.author
-      })
+      body: JSON.stringify({ text: currentBook.plain, voice: 'female', title: currentBook.title, author: currentBook.author })
     });
-
     if (!res.ok) throw new Error('TTS failed');
-
     const ct = res.headers.get('content-type') || '';
     let audioUrl, blobUrl = null;
-
-    if (ct.includes('application/json')) {
-      const data = await res.json();
-      audioUrl = data.url;
-    } else {
-      const blob = await res.blob();
-      blobUrl = URL.createObjectURL(blob);
-      audioUrl = blobUrl;
-    }
-
+    if (ct.includes('application/json')) { const data = await res.json(); audioUrl = data.url; }
+    else { const blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl; }
     audioEl = new Audio(audioUrl);
     audioEl.playbackRate = playbackRate;
-
     audioEl.addEventListener('timeupdate', () => {
-      if (!audioEl || !audioEl.duration) return;
-      const pct = (audioEl.currentTime / audioEl.duration) * 100;
-      document.getElementById('progress-fill').style.width = pct + '%';
-      const m = Math.floor(audioEl.currentTime / 60);
-      const s = Math.floor(audioEl.currentTime % 60);
-      document.getElementById('progress-time').textContent = m + ':' + String(s).padStart(2, '0');
+      if (!audioEl||!audioEl.duration) return;
+      const pct = (audioEl.currentTime/audioEl.duration)*100;
+      document.getElementById('progress-fill').style.width = pct+'%';
+      const m=Math.floor(audioEl.currentTime/60), s=Math.floor(audioEl.currentTime%60);
+      document.getElementById('progress-time').textContent = m+':'+String(s).padStart(2,'0');
     });
-
     audioEl.addEventListener('ended', () => {
-      document.getElementById('progress-fill').style.width = '100%';
-      setPlayerState(false, 'Finished — press play to replay');
+      document.getElementById('progress-fill').style.width='100%';
+      setPlayerState(false,'Finished — press play to replay');
       if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl = null;
+      audioEl=null;
     });
-
     audioEl.addEventListener('error', () => {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
-      audioEl = null;
-      setPlayerState(false, 'Audio unavailable');
+      audioEl=null;
+      setPlayerState(false,'Audio unavailable');
     });
-
     audioEl.play();
-    setPlayerState(true, 'Now playing — Nova voice');
-
-  } catch (err) {
-    setPlayerState(false, 'Audio unavailable');
-  }
+    setPlayerState(true,'Now playing — Nova voice');
+  } catch(err) { setPlayerState(false,'Audio unavailable'); }
 }
-
 function togglePlay() {
   if (!currentBook) return;
-  if (isPlaying) {
-    if (audioEl) audioEl.pause();
-    setPlayerState(false, 'Paused — press play to continue');
-    return;
-  }
-  if (audioEl && audioEl.paused && audioEl.src) {
-    audioEl.play();
-    setPlayerState(true, 'Now playing — Nova voice');
-    return;
-  }
+  if (isPlaying) { if (audioEl) audioEl.pause(); setPlayerState(false,'Paused — press play to continue'); return; }
+  if (audioEl&&audioEl.paused&&audioEl.src) { audioEl.play(); setPlayerState(true,'Now playing — Nova voice'); return; }
   startAudio();
 }
 
-// ─── Init ────────────────────────────────────────────────────────────────────
 initDark();
 loadLibrary();
 </script>
