@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'kernl_v2';
-const AMAZON_TAG = 'kernl-21'; // Replace with your actual Amazon Associates tag
+const AMAZON_TAG = 'kernl-21';
 let currentVoice = 'female';
 let currentSummary = null;
 let isPlaying = false;
@@ -204,7 +204,6 @@ async function handleGenerate() {
     document.getElementById('gen-btn').disabled = false;
   }
 }
-
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
 // ── Mega Words ─────────────────────────────────────────────────────────────
@@ -275,6 +274,17 @@ function fmtTime(secs) {
   const s = Math.floor(secs % 60);
   return m + ':' + String(s).padStart(2, '0');
 }
+
+// ── Active highlight for scrub row ─────────────────────────────────────────
+function setScrubActive(active) {
+  const row = document.getElementById('scrub-row');
+  const btn = document.getElementById('play-btn');
+  const sub = document.getElementById('player-sub');
+  if (row) row.classList.toggle('active', active);
+  if (btn) btn.classList.toggle('playing', active);
+  if (sub) sub.classList.toggle('playing', active);
+}
+
 function resetScrubUI() {
   const fill = document.getElementById('scrub-fill');
   const thumb = document.getElementById('scrub-thumb');
@@ -283,6 +293,7 @@ function resetScrubUI() {
   const re = document.getElementById('scrub-remaining');
   if (el) el.textContent = '0:00';
   if (re) re.textContent = '−0:00';
+  setScrubActive(false);
 }
 function updateScrubUI() {
   if (!audioEl || !audioEl.duration) return;
@@ -303,7 +314,6 @@ function initScrubEvents() {
   if (!track || track._scrubInit) return;
   track._scrubInit = true;
   let dragging = false;
-
   function seekTo(e) {
     if (!audioEl || !audioEl.duration) return;
     const rect = track.getBoundingClientRect();
@@ -312,7 +322,6 @@ function initScrubEvents() {
     audioEl.currentTime = pct * audioEl.duration;
     updateScrubUI();
   }
-
   track.addEventListener('mousedown', e => { dragging = true; track.classList.add('dragging'); seekTo(e); });
   track.addEventListener('touchstart', e => { dragging = true; track.classList.add('dragging'); seekTo(e); }, { passive: true });
   document.addEventListener('mousemove', e => { if (dragging) seekTo(e); });
@@ -350,6 +359,7 @@ function setPlayerState(playing, subText) {
     icon.innerHTML = '<polygon points="6,3 20,12 6,21"/>';
   }
   if (subText) document.getElementById('player-sub').textContent = subText;
+  setScrubActive(playing);
 }
 function stopAudio() {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
@@ -360,9 +370,15 @@ function stopAudio() {
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
   setPlayerState(false, 'Paused — press play to continue');
+  setScrubActive(false);
 }
 function resumeAudio() {
-  if (audioEl) { audioEl.play(); setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice'); return true; }
+  if (audioEl) {
+    audioEl.play();
+    setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+    setScrubActive(true);
+    return true;
+  }
   return false;
 }
 async function startOpenAIAudio() {
@@ -400,6 +416,7 @@ function playSingleAudio(audioUrl, blobUrl) {
     const fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
     setPlayerState(false, 'Finished — press play to replay');
+    setScrubActive(false);
     unlockVoiceButtons();
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
@@ -408,11 +425,13 @@ function playSingleAudio(audioUrl, blobUrl) {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     setPlayerState(false, 'Audio unavailable — please try again');
+    setScrubActive(false);
     unlockVoiceButtons();
   });
   audioEl.play();
   audioEl.playbackRate = playbackRate;
   setPlayerState(true, 'Now playing — ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+  setScrubActive(true);
   initScrubEvents();
 }
 function togglePlay() {
@@ -495,4 +514,4 @@ document.addEventListener('click', e => {
 initDark();
 setVoice('female');
 renderArchive();
-// v17
+// v18
