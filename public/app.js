@@ -511,7 +511,15 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#book-input') && !e.target.closest('#book-dropdown')) hideDropdown();
 });
 
+// ── KERNL SWIFT ───────────────────────────────────────────────────────────
+function openSwift() {
+  if (!currentSummary || !currentSummary.plain) return;
+  var wpmMap = {1: 250, 1.5: 375, 2: 500};
+  var wpm = wpmMap[playbackRate] || 250;
+  KernlSwift.open(currentSummary.plain, wpm);
+}
+
 initDark();
 setVoice('female');
 renderArchive();
-// v18
+// v19
