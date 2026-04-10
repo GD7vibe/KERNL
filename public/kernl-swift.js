@@ -168,9 +168,11 @@
     });
     var lbl = document.getElementById('ks-wl');
     if (lbl) lbl.textContent = wpm + ' words per minute';
-    // Rebuild timings if audio loaded
+    // Set audio playback rate: 1x=250wpm, 1.5x=375wpm, 2x=500wpm
     var audio = _getAudio ? _getAudio() : null;
-    if (audio && audio.duration) buildTimings(audio.duration);
+    if (audio) audio.playbackRate = wpm / 250;
+    // Rebuild timings to match new speed (audio duration stays same, words compress)
+    if (audio && audio.duration) buildTimings(audio.duration / (wpm / 250));
   }
 
   // ── Scrub events ───────────────────────────────────────────────────────
