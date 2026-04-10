@@ -516,7 +516,7 @@ function openSwift() {
   if (!currentSummary || !currentSummary.plain) return;
   var wpmMap = {1: 250, 1.5: 375, 2: 500};
   var wpm = wpmMap[playbackRate] || 250;
-  KernlSwift.open(currentSummary.plain, wpm);
+  KernlSwift.open(currentSummary.plain, wpm, audioEl);
 }
 
 initDark();
