@@ -108,11 +108,22 @@
       if (el) el.textContent = fmtTime(t);
       if (re) re.textContent = '−' + fmtTime(dur - t);
 
-      // Play state
+      // Play state mirrors audio
       setPlayState(!audio.paused && !audio.ended);
 
+    } else if (audio) {
+      // Audio element exists but not yet loaded — show loading
+      var pv = document.getElementById('ks-pivot');
+      if (pv && pv.textContent === '—') {
+        var b = document.getElementById('ks-before');
+        var a = document.getElementById('ks-after');
+        if (b) b.textContent = 'Load';
+        if (pv) pv.textContent = 'i';
+        if (a) a.textContent = 'ng…';
+      }
+      setPlayState(false);
     } else {
-      // Audio not ready yet — show loading state
+      // No audio element yet — keep polling, audio will appear after togglePlay() fires
       setPlayState(false);
     }
 
