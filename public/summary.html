@@ -542,7 +542,7 @@ function openSwift() {
     currentSummary.plain,
     wpm,
     function() { return audioEl; },
-    function() { startOpenAIAudio(); },
+    function() { togglePlay(); },
     function() { pauseAudio(); }
   );
 }
