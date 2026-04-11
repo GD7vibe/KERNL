@@ -438,11 +438,7 @@ function togglePlay() {
 }
 
 // ── Download / Print ───────────────────────────────────────────────────────
-function downloadTxt() {
-  if (!currentSummary) return;
-  const header = 'KERNL — "' + currentSummary.title + '" by ' + currentSummary.author + '\n' + '─'.repeat(60) + '\n\n';
-  triggerDownload(new Blob([header + currentSummary.plain], { type: 'text/plain;charset=utf-8' }), safe(currentSummary.title) + '_KERNL.txt');
-}
+
 function downloadEpub() {
   if (!currentSummary) return;
   const id = 'kernl-' + Date.now();
