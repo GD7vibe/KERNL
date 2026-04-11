@@ -65,6 +65,35 @@ function buildPrompt(title,author,spoilers) {
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // ── Patch words mode: generate + save words for a book by title ──
+  if (req.body && req.body.patchWords) {
+    const { title, author } = req.body;
+    try {
+      const cached = await findCached(title, author || '', false);
+      if (!cached) return res.status(404).json({ error: 'Book not found' });
+      let words = [];
+      try { words = cached.words ? JSON.parse(cached.words) : []; } catch(e) {}
+      if (!words || words.length === 0) {
+        words = await generateWordsOnly(cached.plain, cached.title, cached.author || author || '');
+      }
+      // Patch using server-side key (has update permission)
+      const pRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + cached.id, {
+        method: 'PATCH',
+        headers: {
+          'apikey': process.env.SUPABASE_SERVICE_KEY || SUPABASE_KEY,
+          'Authorization': 'Bearer ' + (process.env.SUPABASE_SERVICE_KEY || SUPABASE_KEY),
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ words: JSON.stringify(words) })
+      });
+      return res.status(200).json({ ok: pRes.ok, status: pRes.status, wordCount: words.length });
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   const { title, author, spoilers } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
