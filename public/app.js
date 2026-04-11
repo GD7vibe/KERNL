@@ -3,11 +3,9 @@ const AMAZON_TAG = 'kernl-21';
 let currentVoice = 'female';
 let currentSummary = null;
 let isPlaying = false;
-let playTimer = null;
 let audioEl = null;
 let playbackRate = 1;
 let autocompleteTimer = null;
-let selectedFromDropdown = false;
 
 // ── Dark mode ──────────────────────────────────────────────────────────────
 function toggleDark() {
@@ -72,7 +70,6 @@ function selectBook(idx) {
   authorInput.value = author;
   authorInput.classList.add('author-autofilled');
   setTimeout(() => authorInput.classList.remove('author-autofilled'), 1500);
-  selectedFromDropdown = true;
   hideDropdown();
 }
 
@@ -363,7 +360,6 @@ function setPlayerState(playing, subText) {
 }
 function stopAudio() {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
-  clearInterval(playTimer); playTimer = null;
   setPlayerState(false, null);
   resetScrubUI();
 }
@@ -496,7 +492,6 @@ function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '
 
 // ── Event listeners ────────────────────────────────────────────────────────
 document.getElementById('book-input').addEventListener('input', e => {
-  selectedFromDropdown = false;
   clearTimeout(autocompleteTimer);
   autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 500);
 });
