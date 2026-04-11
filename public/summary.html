@@ -165,6 +165,7 @@ let playbackRate = 1;
 let currentVoice = 'female';
 let prefetchedAudioUrl = null;
 let prefetchedBlobUrl = null;
+let currentTimings = []; // Whisper word timestamps for Swift sync
 
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -538,7 +539,8 @@ function openSwift() {
     wpm,
     function() { return audioEl; },
     function() { togglePlay(); },
-    function() { pauseAudio(); }
+    function() { pauseAudio(); },
+    currentTimings
   );
 }
 
