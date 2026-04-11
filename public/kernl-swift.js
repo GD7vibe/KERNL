@@ -11,6 +11,8 @@
   var currentWpm = 250;
   var rafId     = null;
   var wordTimings = [];
+  var usingRealTimings = false;
+  var pendingTimings = null; // Whisper timings passed in from caller
 
   // Callbacks provided by caller
   var _getAudio  = null;  // function() returns current audioEl (may be null initially)
@@ -25,8 +27,8 @@
     return Math.floor((len - 1) / 2);
   }
 
-  // ── Build word timings from audio duration ─────────────────────────────
-  function buildTimings(dur) {
+  // ── Build fallback equal-distribution timings ──────────────────────────
+  function buildFallbackTimings(dur) {
     wordTimings = [];
     var secPerWord = dur / words.length;
     var t = 0;
@@ -34,14 +36,45 @@
       wordTimings.push({ start: t, end: t + secPerWord });
       t += secPerWord;
     }
+    usingRealTimings = false;
+  }
+
+  // ── Load real Whisper timings ───────────────────────────────────────────
+  // whisperTimings: [{word, start, end}] from OpenAI Whisper
+  // We align them to our words[] array by index (Whisper matches word order)
+  function loadRealTimings(whisperTimings, audioDur) {
+    wordTimings = [];
+    // Whisper returns timings for the exact words it heard.
+    // We map them positionally to our words array.
+    // If counts differ (chunking artefacts), we fill gaps proportionally.
+    var wt = whisperTimings;
+    for (var i = 0; i < words.length; i++) {
+      if (wt[i]) {
+        wordTimings.push({ start: wt[i].start, end: wt[i].end });
+      } else {
+        // Extend last timing or distribute remaining
+        var lastEnd = wordTimings.length ? wordTimings[wordTimings.length-1].end : 0;
+        var remaining = audioDur - lastEnd;
+        var wordsLeft = words.length - i;
+        var dur = remaining / Math.max(wordsLeft, 1);
+        wordTimings.push({ start: lastEnd, end: lastEnd + dur });
+        lastEnd += dur;
+      }
+    }
+    usingRealTimings = true;
+    console.log('KernlSwift: loaded ' + wt.length + ' real Whisper timings for ' + words.length + ' words');
   }
 
   function wordIdxForTime(t) {
     if (!wordTimings.length) return 0;
-    for (var i = 0; i < wordTimings.length; i++) {
-      if (t < wordTimings[i].end) return i;
+    // Binary search for efficiency
+    var lo = 0, hi = wordTimings.length - 1;
+    while (lo < hi) {
+      var mid = Math.floor((lo + hi) / 2);
+      if (wordTimings[mid].end <= t) lo = mid + 1;
+      else hi = mid;
     }
-    return wordTimings.length - 1;
+    return lo;
   }
 
   // ── Render word ────────────────────────────────────────────────────────
@@ -72,7 +105,13 @@
 
     if (audio && !isNaN(audio.duration) && audio.duration > 0) {
       // Ensure timings built
-      if (!wordTimings.length) buildTimings(audio.duration);
+      if (!wordTimings.length) {
+        if (pendingTimings && pendingTimings.length) {
+          loadRealTimings(pendingTimings, audio.duration);
+        } else {
+          buildFallbackTimings(audio.duration);
+        }
+      }
 
       var t   = audio.currentTime;
       var dur = audio.duration;
@@ -108,6 +147,9 @@
 
       // Play state mirrors audio
       setPlayState(!audio.paused && !audio.ended);
+      // Update sync label to show mode
+      var lbl = document.getElementById('ks-sync-label');
+      if (lbl) lbl.textContent = usingRealTimings ? '⚡ Synced to voice — word timestamps active' : '⚡ Synced to audio (generating precise timings…)';
 
     } else if (audio) {
       // Audio element exists but not yet loaded — show loading
@@ -204,16 +246,18 @@
   }
 
   // ── Open ───────────────────────────────────────────────────────────────
-  function open(plainText, wpm, getAudioFn, startAudioFn, pauseAudioFn) {
+  function open(plainText, wpm, getAudioFn, startAudioFn, pauseAudioFn, whisperTimings) {
     if (overlay) closeOverlay();
 
-    words        = plainText.trim().split(/\s+/).filter(Boolean);
-    currentIdx   = 0;
-    currentWpm   = wpm || 250;
-    wordTimings  = [];
-    _getAudio    = getAudioFn   || null;
-    _startAudio  = startAudioFn || null;
-    _pauseAudio  = pauseAudioFn || null;
+    words          = plainText.trim().split(/\s+/).filter(Boolean);
+    currentIdx     = 0;
+    currentWpm     = wpm || 250;
+    wordTimings    = [];
+    usingRealTimings = false;
+    pendingTimings = (whisperTimings && whisperTimings.length) ? whisperTimings : null;
+    _getAudio      = getAudioFn   || null;
+    _startAudio    = startAudioFn || null;
+    _pauseAudio    = pauseAudioFn || null;
 
     // Pre-build timings if audio already loaded
     var audio = _getAudio ? _getAudio() : null;
@@ -280,7 +324,7 @@
         '</div>',
 
         '<div id="ks-wl" style="font-size:0.75rem;color:var(--muted,#7a7060);">250 words per minute</div>',
-        '<div style="font-size:0.75rem;color:var(--accent,#8B4513);font-style:italic;opacity:0.85;">⚡ Words sync to audio playback</div>',
+        '<div id="ks-sync-label" style="font-size:0.75rem;color:var(--accent,#8B4513);font-style:italic;opacity:0.85;">⚡ Words sync to audio playback</div>',
 
       '</div>',
 
