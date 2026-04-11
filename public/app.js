@@ -6,6 +6,7 @@ let isPlaying = false;
 let audioEl = null;
 let playbackRate = 1;
 let autocompleteTimer = null;
+let currentTimings = []; // Whisper word timestamps for Swift sync
 
 // ── Dark mode ──────────────────────────────────────────────────────────────
 function toggleDark() {
@@ -393,6 +394,7 @@ async function startOpenAIAudio() {
     if (contentType.includes('application/json')) {
       const data = await res.json();
       audioUrl = data.url;
+      if (data.timings && data.timings.length) currentTimings = data.timings;
     } else {
       const blob = await res.blob();
       blobUrl = URL.createObjectURL(blob);
@@ -512,7 +514,8 @@ function openSwift() {
     wpm,
     function() { return audioEl; },
     function() { togglePlay(); },
-    function() { pauseAudio(); }
+    function() { pauseAudio(); },
+    currentTimings
   );
 }
 
