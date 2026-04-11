@@ -238,13 +238,13 @@
       '<div style="display:flex;flex-direction:column;align-items:center;gap:1.5rem;width:100%;max-width:640px;padding:0 2rem;">',
 
         // Word box — fixed pivot
-        '<div style="width:100%;background:var(--card,#fff);border:1px solid var(--border,rgba(139,69,19,0.14));border-radius:16px;padding:2.5rem 0;position:relative;overflow:hidden;">',
+        '<div style="width:100%;background:var(--card,#fff);border:1px solid var(--border,rgba(139,69,19,0.14));border-radius:16px;padding:2.5rem 0 3.5rem;position:relative;overflow:hidden;">',
           '<div style="position:absolute;top:0;bottom:0;left:50%;width:2px;background:rgba(139,69,19,0.07);transform:translateX(-50%);"></div>',
           '<div style="position:absolute;top:0;left:50%;width:2px;height:8px;background:var(--accent,#8B4513);opacity:0.5;transform:translateX(-50%);"></div>',
-          '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;width:100%;font-size:clamp(1.2rem,3.5vw,3rem);font-family:\'Playfair Display\',serif;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;">',
-            '<span id="ks-before" style="text-align:right;color:var(--ink,#1a1714);white-space:nowrap;overflow:hidden;"></span>',
+          '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;width:100%;font-size:clamp(1.2rem,3.5vw,3rem);font-family:\'Playfair Display\',serif;font-weight:500;line-height:1.4;white-space:nowrap;">',
+            '<span id="ks-before" style="text-align:right;color:var(--ink,#1a1714);white-space:nowrap;"></span>',
             '<span id="ks-pivot"  style="color:var(--accent,#8B4513);font-weight:600;text-align:center;"></span>',
-            '<span id="ks-after"  style="text-align:left;color:var(--ink,#1a1714);white-space:nowrap;overflow:hidden;"></span>',
+            '<span id="ks-after"  style="text-align:left;color:var(--ink,#1a1714);white-space:nowrap;"></span>',
           '</div>',
         '</div>',
 
