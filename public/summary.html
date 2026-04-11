@@ -378,11 +378,7 @@ function toggleMeganWords() {
   arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
-function downloadTxt() {
-  if (!currentSummary) return;
-  var header = 'KERNL — "' + currentSummary.title + '" by ' + currentSummary.author + '\n' + '─'.repeat(60) + '\n\n';
-  triggerDownload(new Blob([header + currentSummary.plain], {type:'text/plain;charset=utf-8'}), safe(currentSummary.title) + '_KERNL.txt');
-}
+
 function downloadEpub() {
   if (!currentSummary) return;
   var id='kernl-'+Date.now(), t=esc(currentSummary.title), a=esc(currentSummary.author);
@@ -473,8 +469,7 @@ function renderSummary(data) {
         '</div>' +
       '</div>' +
       '<div class="summary-actions">' +
-        '<button class="btn-action" onclick="downloadTxt()">&#8595; Text file</button>' +
-        '<button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>' +
+          '<button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>' +
         '<button class="btn-action" onclick="printSummary()">&#128438; Print</button>' +
         '<a class="buy-btn" href="' + amazonUrl + '" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>' +
       '<button class="btn-action" onclick="openSwift()" style="gap:6px;">&#9889; Swift</button>' +
