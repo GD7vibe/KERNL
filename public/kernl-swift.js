@@ -40,29 +40,52 @@
   }
 
   // ── Load real Whisper timings ───────────────────────────────────────────
-  // whisperTimings: [{word, start, end}] from OpenAI Whisper
-  // We align them to our words[] array by index (Whisper matches word order)
+  // Whisper returns [{word, start, end}]. We align to our words[] array
+  // using a sliding window match on word text to handle count mismatches.
+  function normaliseWord(w) {
+    return String(w || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   function loadRealTimings(whisperTimings, audioDur) {
     wordTimings = [];
-    // Whisper returns timings for the exact words it heard.
-    // We map them positionally to our words array.
-    // If counts differ (chunking artefacts), we fill gaps proportionally.
     var wt = whisperTimings;
+    var wi = 0; // whisper index
+    var lastEnd = 0;
+
     for (var i = 0; i < words.length; i++) {
-      if (wt[i]) {
-        wordTimings.push({ start: wt[i].start, end: wt[i].end });
-      } else {
-        // Extend last timing or distribute remaining
-        var lastEnd = wordTimings.length ? wordTimings[wordTimings.length-1].end : 0;
-        var remaining = audioDur - lastEnd;
-        var wordsLeft = words.length - i;
-        var dur = remaining / Math.max(wordsLeft, 1);
-        wordTimings.push({ start: lastEnd, end: lastEnd + dur });
-        lastEnd += dur;
+      var ourWord = normaliseWord(words[i]);
+
+      // Try to find this word in whisper timings starting from wi
+      var matched = false;
+      for (var look = wi; look < Math.min(wi + 4, wt.length); look++) {
+        if (normaliseWord(wt[look].word) === ourWord) {
+          wordTimings.push({ start: wt[look].start, end: wt[look].end });
+          lastEnd = wt[look].end;
+          wi = look + 1;
+          matched = true;
+          break;
+        }
+      }
+
+      if (!matched) {
+        // Word not found in Whisper — interpolate from last known position
+        // Use next available whisper timing as a guide if possible
+        var nextKnown = wt[wi] ? wt[wi].start : audioDur;
+        var gap = nextKnown - lastEnd;
+        var wordsToFill = 1;
+        // Count how many consecutive unmatched words before next whisper word
+        for (var j = i + 1; j < words.length && j < i + 5; j++) {
+          if (wt[wi] && normaliseWord(words[j]) === normaliseWord(wt[wi].word)) break;
+          wordsToFill++;
+        }
+        var durPerWord = Math.max(0.1, gap / wordsToFill);
+        wordTimings.push({ start: lastEnd, end: lastEnd + durPerWord });
+        lastEnd = lastEnd + durPerWord;
       }
     }
+
     usingRealTimings = true;
-    console.log('KernlSwift: loaded ' + wt.length + ' real Whisper timings for ' + words.length + ' words');
+    console.log('KernlSwift: mapped ' + words.length + ' words from ' + wt.length + ' Whisper timings');
   }
 
   function wordIdxForTime(t) {
@@ -113,7 +136,10 @@
         }
       }
 
-      var t   = audio.currentTime;
+      // CRITICAL: audioEl.currentTime advances at playbackRate speed
+      // but Whisper timestamps are in 1x time. Divide to compensate.
+      var playRate = audio.playbackRate || 1;
+      var t   = audio.currentTime / playRate;
       var dur = audio.duration;
 
       // Word
