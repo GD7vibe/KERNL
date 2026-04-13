@@ -39,25 +39,30 @@
     usingRealTimings = false;
   }
 
-  // ── Load real Whisper timings ───────────────────────────────────────────
-  // Whisper returns [{word, start, end}]. We align to our words[] array
-  // using a sliding window match on word text to handle count mismatches.
+  // ── Normalise word for comparison ────────────────────────────────────────
   function normaliseWord(w) {
     return String(w || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
+  // ── Load real Whisper timings ─────────────────────────────────────────────
+  // Uses a forward-search alignment: for each summary word, search ahead
+  // in the Whisper array up to MAX_LOOK positions to find a text match.
+  // When found, lock to that position. When not found, interpolate the gap.
+  // This handles Whisper merges, splits, and skips without cumulative drift.
   function loadRealTimings(whisperTimings, audioDur) {
     wordTimings = [];
     var wt = whisperTimings;
-    var wi = 0; // whisper index
+    var wi = 0;
     var lastEnd = 0;
+    var MAX_LOOK = 12; // search up to 12 Whisper words ahead for a match
 
     for (var i = 0; i < words.length; i++) {
       var ourWord = normaliseWord(words[i]);
-
-      // Try to find this word in whisper timings starting from wi
       var matched = false;
-      for (var look = wi; look < Math.min(wi + 4, wt.length); look++) {
+
+      // Search ahead in Whisper timings for this word
+      var searchLimit = Math.min(wi + MAX_LOOK, wt.length);
+      for (var look = wi; look < searchLimit; look++) {
         if (normaliseWord(wt[look].word) === ourWord) {
           wordTimings.push({ start: wt[look].start, end: wt[look].end });
           lastEnd = wt[look].end;
@@ -68,24 +73,37 @@
       }
 
       if (!matched) {
-        // Word not found in Whisper — interpolate from last known position
-        // Use next available whisper timing as a guide if possible
-        var nextKnown = wt[wi] ? wt[wi].start : audioDur;
-        var gap = nextKnown - lastEnd;
-        var wordsToFill = 1;
-        // Count how many consecutive unmatched words before next whisper word
-        for (var j = i + 1; j < words.length && j < i + 5; j++) {
-          if (wt[wi] && normaliseWord(words[j]) === normaliseWord(wt[wi].word)) break;
-          wordsToFill++;
+        // Not found — find how many summary words until the next Whisper match
+        var nextWhisperMatch = -1;
+        for (var fw = wi; fw < Math.min(wi + MAX_LOOK, wt.length); fw++) {
+          for (var si = i + 1; si < Math.min(i + MAX_LOOK, words.length); si++) {
+            if (normaliseWord(wt[fw].word) === normaliseWord(words[si])) {
+              nextWhisperMatch = fw;
+              var gapWords = si - i;
+              var gapTime = wt[fw].start - lastEnd;
+              var durEach = Math.max(0.08, gapTime / Math.max(1, gapWords));
+              wordTimings.push({ start: lastEnd, end: lastEnd + durEach });
+              lastEnd += durEach;
+              matched = true;
+              break;
+            }
+          }
+          if (matched) break;
         }
-        var durPerWord = Math.max(0.1, gap / wordsToFill);
-        wordTimings.push({ start: lastEnd, end: lastEnd + durPerWord });
-        lastEnd = lastEnd + durPerWord;
+
+        if (!matched) {
+          // Complete fallback — evenly distribute remaining time
+          var remaining = audioDur - lastEnd;
+          var wordsLeft = words.length - i;
+          var dur = Math.max(0.08, remaining / Math.max(1, wordsLeft));
+          wordTimings.push({ start: lastEnd, end: lastEnd + dur });
+          lastEnd += dur;
+        }
       }
     }
 
     usingRealTimings = true;
-    console.log('KernlSwift: mapped ' + words.length + ' words from ' + wt.length + ' Whisper timings');
+    console.log('KernlSwift: aligned ' + words.length + ' words from ' + wt.length + ' Whisper timings');
   }
 
   function wordIdxForTime(t) {
@@ -275,7 +293,18 @@
   function open(plainText, wpm, getAudioFn, startAudioFn, pauseAudioFn, whisperTimings) {
     if (overlay) closeOverlay();
 
-    words          = plainText.trim().split(/\s+/).filter(Boolean);
+    // Expand hyphenated words so they match Whisper's word-by-word transcription
+    // e.g. "self-help" → ["self", "help"], "well-known" → ["well", "known"]
+    words = plainText.trim().split(/\s+/).filter(Boolean).reduce(function(acc, w) {
+      if (w.indexOf('-') > 0 && w.indexOf('-') < w.length - 1) {
+        // Split on hyphen but keep punctuation with last part
+        var parts = w.split('-');
+        parts.forEach(function(p) { if (p) acc.push(p); });
+      } else {
+        acc.push(w);
+      }
+      return acc;
+    }, []);
     currentIdx     = 0;
     currentWpm     = wpm || 250;
     wordTimings    = [];
