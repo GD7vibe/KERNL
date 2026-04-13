@@ -334,7 +334,7 @@ async function startOpenAIAudio() {
       });
       if (!res.ok) throw new Error('TTS failed');
       var ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) { var data = await res.json(); audioUrl = data.url; }
+      if (ct.includes('application/json')) { var data = await res.json(); audioUrl = data.url; if (data.timings && data.timings.length) currentTimings = data.timings; }
       else { var blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl; }
     } catch(err) { setPlayerState(false, 'Audio unavailable — please try again'); return; }
   }
