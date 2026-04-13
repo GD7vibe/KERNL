@@ -50,7 +50,16 @@
   // ── Load Whisper timings — Whisper words become the display words ──────────
   function loadWhisperTimings(whisperTimings) {
     words = whisperTimings.map(function(w) { return w.word; });
-    wordTimings = whisperTimings.map(function(w) { return { start: w.start, end: w.end }; });
+    wordTimings = whisperTimings.map(function(w, i) {
+      var start = w.start;
+      var end = w.end;
+      // Fix zero-duration words — extend to next word's start or add 100ms
+      if (end <= start) {
+        var next = whisperTimings[i + 1];
+        end = next ? Math.min(next.start, start + 0.15) : start + 0.15;
+      }
+      return { start: start, end: end };
+    });
     usingRealTimings = true;
     console.log('KernlSwift v4: using ' + words.length + ' Whisper words with exact timestamps');
   }
@@ -78,16 +87,23 @@
   }
 
   // ── Find word index for a given audio time ─────────────────────────────────
+  // Use word.start as the trigger: a word appears exactly when its start time
+  // is reached. During silence gaps, the previous word stays on screen.
   function wordIdxForTime(t) {
     if (!wordTimings.length) return 0;
-    // Binary search
+    // Find the last word whose start <= t
+    var result = 0;
     var lo = 0, hi = wordTimings.length - 1;
-    while (lo < hi) {
+    while (lo <= hi) {
       var mid = Math.floor((lo + hi) / 2);
-      if (wordTimings[mid].end <= t) lo = mid + 1;
-      else hi = mid;
+      if (wordTimings[mid].start <= t) {
+        result = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
-    return lo;
+    return result;
   }
 
   // ── RAF loop ───────────────────────────────────────────────────────────────
