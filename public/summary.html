@@ -312,6 +312,7 @@ async function prefetchAudio() {
     if (ct.includes('application/json')) {
       var data = await res.json();
       prefetchedAudioUrl = data.url; prefetchedBlobUrl = null;
+      if (data.timings && data.timings.length) currentTimings = data.timings;
     } else {
       var blob = await res.blob();
       prefetchedBlobUrl = URL.createObjectURL(blob);
