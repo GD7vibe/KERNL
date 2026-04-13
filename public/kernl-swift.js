@@ -212,7 +212,7 @@
     var audio = _getAudio ? _getAudio() : null;
     if (audio) audio.playbackRate = wpm / 250;
     // Rebuild timings to match new speed (audio duration stays same, words compress)
-    if (audio && audio.duration) buildTimings(audio.duration / (wpm / 250));
+    if (audio && audio.duration) { if (pendingTimings && pendingTimings.length) loadRealTimings(pendingTimings, audio.duration); else buildFallbackTimings(audio.duration); }
   }
 
   // ── Scrub events ───────────────────────────────────────────────────────
@@ -261,7 +261,7 @@
 
     // Pre-build timings if audio already loaded
     var audio = _getAudio ? _getAudio() : null;
-    if (audio && audio.duration) buildTimings(audio.duration);
+    if (audio && audio.duration) { if (pendingTimings && pendingTimings.length) loadRealTimings(pendingTimings, audio.duration); else buildFallbackTimings(audio.duration); }
 
     var el = document.createElement('div');
     el.id = 'kernl-swift-overlay';
