@@ -1,35 +1,24 @@
 const fetch = require('node-fetch');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
-
-const rateLimitMap = new Map();
-function isRateLimited(ip) {
-  const now = Date.now();
-  const windowMs = 60 * 1000;
-  const maxRequests = 20;
-  if (!rateLimitMap.has(ip)) rateLimitMap.set(ip, []);
-  const timestamps = rateLimitMap.get(ip).filter(t => now - t < windowMs);
-  timestamps.push(now);
-  rateLimitMap.set(ip, timestamps);
-  return timestamps.length > maxRequests;
-}
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || 'unknown';
-  if (isRateLimited(ip)) return res.status(429).json({ error: 'Too many requests' });
 
   try {
+    if (!SUPABASE_URL) return res.status(500).json({ error: 'Missing SUPABASE_URL' });
+    if (!SUPABASE_KEY) return res.status(500).json({ error: 'Missing SUPABASE_SERVICE_KEY' });
+
     const r = await fetch(
-      SUPABASE_URL + '/rest/v1/summaries?select=title,author,lookup_key&lookup_key=like.*nospoilers*&order=title.asc',
+      SUPABASE_URL + '/rest/v1/summaries?select=title,author,lookup_key&lookup_key=like.*nospoilers*&order=title.asc&limit=1000',
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } }
     );
-    if (!r.ok) throw new Error('Supabase error ' + r.status);
+    if (!r.ok) {
+      const txt = await r.text();
+      return res.status(500).json({ error: 'Supabase error ' + r.status, detail: txt.substring(0,200) });
+    }
     const data = await r.json();
 
     const seen = new Set();
@@ -43,7 +32,6 @@ module.exports = async (req, res) => {
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
     return res.status(200).json(books);
   } catch (err) {
-    console.error('library-list error:', err.message);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: err.message });
   }
 };
