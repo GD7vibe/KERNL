@@ -90,33 +90,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
 </div>
 <script>
-var ICON_BOOKS = "&#x1F4DA;";
-var ICON_MIND = "&#x1F9E0;";
-var ICON_MONEY = "&#x1F4B0;";
-var ICON_SELF = "&#x1F331;";
-var ICON_CLASSIC = "&#x1F4D6;";
-var ICON_FAMILY = "&#x1F9D2;";
-var ICON_HISTORY = "&#x1F30D;";
-var ICON_SCIENCE = "&#x1F52C;";
-var ICON_LEADERSHIP = "&#x1F4AA;";
-var ICON_HEALTH = "&#x2764;&#xFE0F;";
-var ICON_BIO = "&#x1F9ED;";
-var ICON_PHIL = "&#x1F3AF;";
-
+// Build emoji strings safely at runtime using codepoints - no literals in source
+function e(cp){return String.fromCodePoint(cp);}
 var CATEGORIES = [
-  { id: 'all', label: 'All Books', icon: ICON_BOOKS },
-  { id: 'mind', label: 'Mind & Psychology', icon: ICON_MIND },
-  { id: 'money', label: 'Money & Business', icon: ICON_MONEY },
-  { id: 'self', label: 'Self Improvement', icon: ICON_SELF },
-  { id: 'classic', label: 'Classic Fiction', icon: ICON_CLASSIC },
-  { id: 'family', label: 'Family & Children', icon: ICON_FAMILY },
-  { id: 'history', label: 'History & Politics', icon: ICON_HISTORY },
-  { id: 'science', label: 'Science & Nature', icon: ICON_SCIENCE },
-  { id: 'leadership', label: 'Leadership', icon: ICON_LEADERSHIP },
-  { id: 'health', label: 'Health & Wellbeing', icon: ICON_HEALTH },
-  { id: 'fiction', label: 'Modern Fiction', icon: ICON_BOOKS },
-  { id: 'biography', label: 'Biography', icon: ICON_BIO },
-  { id: 'philosophy', label: 'Philosophy', icon: ICON_PHIL },
+  { id: 'all',        label: 'All Books',           icon: e(0x1F4DA) },
+  { id: 'mind',       label: 'Mind & Psychology',   icon: e(0x1F9E0) },
+  { id: 'money',      label: 'Money & Business',    icon: e(0x1F4B0) },
+  { id: 'self',       label: 'Self Improvement',    icon: e(0x1F331) },
+  { id: 'classic',    label: 'Classic Fiction',     icon: e(0x1F4D6) },
+  { id: 'family',     label: 'Family & Children',   icon: e(0x1F9D2) },
+  { id: 'history',    label: 'History & Politics',  icon: e(0x1F30D) },
+  { id: 'science',    label: 'Science & Nature',    icon: e(0x1F52C) },
+  { id: 'leadership', label: 'Leadership',          icon: e(0x1F4AA) },
+  { id: 'health',     label: 'Health & Wellbeing',  icon: e(0x2764)+e(0xFE0F) },
+  { id: 'fiction',    label: 'Modern Fiction',      icon: e(0x1F4DA) },
+  { id: 'biography',  label: 'Biography',           icon: e(0x1F9ED) },
+  { id: 'philosophy', label: 'Philosophy',          icon: e(0x1F3AF) },
 ];
 
 var BOOK_CATEGORIES = {
@@ -177,15 +166,12 @@ function initDark() {
 function getCategory(title) {
   return BOOK_CATEGORIES[(title||'').toLowerCase().trim()] || 'fiction';
 }
-
 function getCategoryInfo(id) {
   return CATEGORIES.find(function(c){ return c.id === id; }) || CATEGORIES[0];
 }
-
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 function openBook(title, author) {
   window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
 }
@@ -202,9 +188,7 @@ function loadLibrary() {
       if (seen.has(titleKey)) return false;
       seen.add(titleKey);
       return true;
-    }).map(function(b) {
-      return Object.assign({}, b, { category: getCategory(b.title) });
-    });
+    }).map(function(b) { return { title: b.title, author: b.author, category: getCategory(b.title) }; });
     renderCategories();
     renderGrid();
   }).catch(function() {
@@ -217,7 +201,7 @@ function renderCategories() {
   container.innerHTML = CATEGORIES.map(function(cat) {
     var count = cat.id === 'all' ? allBooks.length : allBooks.filter(function(b){ return b.category === cat.id; }).length;
     if (count === 0 && cat.id !== 'all') return '';
-    return '<button class="cat-btn ' + (activeCategory === cat.id ? 'active' : '') + '" onclick="setCategory('' + cat.id + '')">'
+    return '<button class="cat-btn ' + (activeCategory === cat.id ? 'active' : '') + '" onclick="setCategory(\'' + cat.id + '\')">'
       + '<span class="cat-icon">' + cat.icon + '</span> ' + cat.label
       + ' <span style="opacity:0.6;font-size:0.75em">(' + count + ')</span>'
       + '</button>';
@@ -230,7 +214,6 @@ function setCategory(id) {
   renderCategories();
   renderGrid();
 }
-
 function filterBooks() {
   activeCategory = 'all';
   renderCategories();
@@ -241,10 +224,9 @@ function renderGrid() {
   var query = document.getElementById('search-input').value.toLowerCase().trim();
   var filtered = allBooks.filter(function(b) {
     var matchCat = activeCategory === 'all' || b.category === activeCategory;
-    var matchSearch = !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query);
+    var matchSearch = !query || b.title.toLowerCase().indexOf(query) >= 0 || b.author.toLowerCase().indexOf(query) >= 0;
     return matchCat && matchSearch;
   });
-
   var countEl = document.getElementById('stats-count');
   var catInfo = getCategoryInfo(activeCategory);
   if (query) {
@@ -254,12 +236,10 @@ function renderGrid() {
   } else {
     countEl.innerHTML = catInfo.icon + ' <span>' + filtered.length + '</span> books in ' + catInfo.label;
   }
-
   if (!filtered.length) {
     document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">No books found.</div>';
     return;
   }
-
   var wrap = document.createElement('div');
   wrap.className = 'book-grid';
   filtered.forEach(function(b) {
@@ -278,16 +258,15 @@ function renderGrid() {
       + '</div>'
       + '<div class="book-card-footer">'
         + '<div class="audio-badge"><div class="audio-dot"></div> Audio available</div>'
-        + '<button class="read-btn">Read &rsaquo;</button>'
+        + '<button class="read-btn">Read &#x203A;</button>'
       + '</div>';
     card.addEventListener('click', function() { openBook(this.dataset.title, this.dataset.author); });
-    card.querySelector('.read-btn').addEventListener('click', function(e) {
-      e.stopPropagation();
+    card.querySelector('.read-btn').addEventListener('click', function(ev) {
+      ev.stopPropagation();
       openBook(card.dataset.title, card.dataset.author);
     });
     wrap.appendChild(card);
   });
-
   var gridWrap = document.getElementById('book-grid-wrap');
   gridWrap.innerHTML = '';
   gridWrap.appendChild(wrap);
