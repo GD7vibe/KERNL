@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KERNL Library — for the curious</title>
+<title>KERNL Library &mdash; for the curious</title>
 <meta name="description" content="Explore our free sample library of book summaries.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,7 +70,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 <div id="app">
   <div class="masthead">
     <button class="dark-toggle" onclick="toggleDark()">
-      <span id="dark-icon">🌙</span>
+      <span id="dark-icon">&#x1F319;</span>
       <span id="dark-label">Dark</span>
     </button>
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
@@ -79,7 +79,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
   <div class="search-wrap">
     <input class="search-input" id="search-input" type="text" placeholder="Search by title or author..." oninput="filterBooks()" autocomplete="off"/>
-    <span class="search-icon">🔍</span>
+    <span class="search-icon">&#x1F50D;</span>
   </div>
   <div class="categories" id="categories"></div>
   <div class="stats-bar">
@@ -90,23 +90,36 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
 </div>
 <script>
-const CATEGORIES = [
-  { id: 'all', label: 'All Books', icon: '📚' },
-  { id: 'mind', label: 'Mind & Psychology', icon: '🧠' },
-  { id: 'money', label: 'Money & Business', icon: '💰' },
-  { id: 'self', label: 'Self Improvement', icon: '🌱' },
-  { id: 'classic', label: 'Classic Fiction', icon: '📖' },
-  { id: 'family', label: 'Family & Children', icon: '🧒' },
-  { id: 'history', label: 'History & Politics', icon: '🌍' },
-  { id: 'science', label: 'Science & Nature', icon: '🔬' },
-  { id: 'leadership', label: 'Leadership', icon: '💪' },
-  { id: 'health', label: 'Health & Wellbeing', icon: '❤️' },
-  { id: 'fiction', label: 'Modern Fiction', icon: '📚' },
-  { id: 'biography', label: 'Biography', icon: '🧭' },
-  { id: 'philosophy', label: 'Philosophy', icon: '🎯' },
+var ICON_BOOKS = "&#x1F4DA;";
+var ICON_MIND = "&#x1F9E0;";
+var ICON_MONEY = "&#x1F4B0;";
+var ICON_SELF = "&#x1F331;";
+var ICON_CLASSIC = "&#x1F4D6;";
+var ICON_FAMILY = "&#x1F9D2;";
+var ICON_HISTORY = "&#x1F30D;";
+var ICON_SCIENCE = "&#x1F52C;";
+var ICON_LEADERSHIP = "&#x1F4AA;";
+var ICON_HEALTH = "&#x2764;&#xFE0F;";
+var ICON_BIO = "&#x1F9ED;";
+var ICON_PHIL = "&#x1F3AF;";
+
+var CATEGORIES = [
+  { id: 'all', label: 'All Books', icon: ICON_BOOKS },
+  { id: 'mind', label: 'Mind & Psychology', icon: ICON_MIND },
+  { id: 'money', label: 'Money & Business', icon: ICON_MONEY },
+  { id: 'self', label: 'Self Improvement', icon: ICON_SELF },
+  { id: 'classic', label: 'Classic Fiction', icon: ICON_CLASSIC },
+  { id: 'family', label: 'Family & Children', icon: ICON_FAMILY },
+  { id: 'history', label: 'History & Politics', icon: ICON_HISTORY },
+  { id: 'science', label: 'Science & Nature', icon: ICON_SCIENCE },
+  { id: 'leadership', label: 'Leadership', icon: ICON_LEADERSHIP },
+  { id: 'health', label: 'Health & Wellbeing', icon: ICON_HEALTH },
+  { id: 'fiction', label: 'Modern Fiction', icon: ICON_BOOKS },
+  { id: 'biography', label: 'Biography', icon: ICON_BIO },
+  { id: 'philosophy', label: 'Philosophy', icon: ICON_PHIL },
 ];
 
-const BOOK_CATEGORIES = {
+var BOOK_CATEGORIES = {
   'atomic habits':'self','sapiens':'history','the 7 habits of highly effective people':'self',
   'think and grow rich':'money','the power of now':'philosophy',"man's search for meaning":'philosophy',
   'how to win friends and influence people':'mind','the 4-hour work week':'self','rich dad poor dad':'money',
@@ -140,23 +153,23 @@ const BOOK_CATEGORIES = {
   'shoe dog':'biography','born to run':'health','the power of the dog':'fiction',
 };
 
-let allBooks = [];
-let activeCategory = 'all';
+var allBooks = [];
+var activeCategory = 'all';
 
 function toggleDark() {
-  const isDark = document.documentElement.classList.toggle('dark');
+  var isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
-  document.getElementById('dark-icon').textContent = isDark ? '☀️' : '🌙';
+  document.getElementById('dark-icon').innerHTML = isDark ? '&#x2600;&#xFE0F;' : '&#x1F319;';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
 
 function initDark() {
-  const saved = localStorage.getItem('kernl_dark');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const isDark = saved !== null ? saved === '1' : prefersDark;
+  var saved = localStorage.getItem('kernl_dark');
+  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var isDark = saved !== null ? saved === '1' : prefersDark;
   if (isDark) {
     document.documentElement.classList.add('dark');
-    document.getElementById('dark-icon').textContent = '☀️';
+    document.getElementById('dark-icon').innerHTML = '&#x2600;&#xFE0F;';
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
@@ -166,7 +179,7 @@ function getCategory(title) {
 }
 
 function getCategoryInfo(id) {
-  return CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
+  return CATEGORIES.find(function(c){ return c.id === id; }) || CATEGORIES[0];
 }
 
 function esc(s) {
@@ -177,30 +190,32 @@ function openBook(title, author) {
   window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
 }
 
-async function loadLibrary() {
-  try {
-    const res = await fetch('/api/library-list');
+function loadLibrary() {
+  fetch('/api/library-list').then(function(res) {
     if (!res.ok) throw new Error('Failed');
-    const data = await res.json();
-    const seen = new Set();
-    allBooks = data.filter(b => {
-      const titleKey = (b.title||'').toLowerCase().trim();
+    return res.json();
+  }).then(function(data) {
+    var seen = new Set();
+    allBooks = data.filter(function(b) {
+      var titleKey = (b.title||'').toLowerCase().trim();
       if (!(titleKey in BOOK_CATEGORIES)) return false;
       if (seen.has(titleKey)) return false;
       seen.add(titleKey);
       return true;
-    }).map(b => ({ ...b, category: getCategory(b.title) }));
+    }).map(function(b) {
+      return Object.assign({}, b, { category: getCategory(b.title) });
+    });
     renderCategories();
     renderGrid();
-  } catch(err) {
+  }).catch(function() {
     document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">Could not load library. Please try again.</div>';
-  }
+  });
 }
 
 function renderCategories() {
-  const container = document.getElementById('categories');
-  container.innerHTML = CATEGORIES.map(cat => {
-    const count = cat.id === 'all' ? allBooks.length : allBooks.filter(b => b.category === cat.id).length;
+  var container = document.getElementById('categories');
+  container.innerHTML = CATEGORIES.map(function(cat) {
+    var count = cat.id === 'all' ? allBooks.length : allBooks.filter(function(b){ return b.category === cat.id; }).length;
     if (count === 0 && cat.id !== 'all') return '';
     return '<button class="cat-btn ' + (activeCategory === cat.id ? 'active' : '') + '" onclick="setCategory('' + cat.id + '')">'
       + '<span class="cat-icon">' + cat.icon + '</span> ' + cat.label
@@ -223,15 +238,15 @@ function filterBooks() {
 }
 
 function renderGrid() {
-  const query = document.getElementById('search-input').value.toLowerCase().trim();
-  const filtered = allBooks.filter(b => {
-    const matchCat = activeCategory === 'all' || b.category === activeCategory;
-    const matchSearch = !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query);
+  var query = document.getElementById('search-input').value.toLowerCase().trim();
+  var filtered = allBooks.filter(function(b) {
+    var matchCat = activeCategory === 'all' || b.category === activeCategory;
+    var matchSearch = !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query);
     return matchCat && matchSearch;
   });
 
-  const countEl = document.getElementById('stats-count');
-  const catInfo = getCategoryInfo(activeCategory);
+  var countEl = document.getElementById('stats-count');
+  var catInfo = getCategoryInfo(activeCategory);
   if (query) {
     countEl.innerHTML = '<span>' + filtered.length + '</span> book' + (filtered.length!==1?'s':'') + ' matching "' + query + '"';
   } else if (activeCategory === 'all') {
@@ -245,11 +260,11 @@ function renderGrid() {
     return;
   }
 
-  const wrap = document.createElement('div');
+  var wrap = document.createElement('div');
   wrap.className = 'book-grid';
-  filtered.forEach(b => {
-    const cat = getCategoryInfo(b.category);
-    const card = document.createElement('div');
+  filtered.forEach(function(b) {
+    var cat = getCategoryInfo(b.category);
+    var card = document.createElement('div');
     card.className = 'book-card';
     card.dataset.title = b.title;
     card.dataset.author = b.author;
@@ -263,7 +278,7 @@ function renderGrid() {
       + '</div>'
       + '<div class="book-card-footer">'
         + '<div class="audio-badge"><div class="audio-dot"></div> Audio available</div>'
-        + '<button class="read-btn">Read ›</button>'
+        + '<button class="read-btn">Read &rsaquo;</button>'
       + '</div>';
     card.addEventListener('click', function() { openBook(this.dataset.title, this.dataset.author); });
     card.querySelector('.read-btn').addEventListener('click', function(e) {
@@ -273,7 +288,7 @@ function renderGrid() {
     wrap.appendChild(card);
   });
 
-  const gridWrap = document.getElementById('book-grid-wrap');
+  var gridWrap = document.getElementById('book-grid-wrap');
   gridWrap.innerHTML = '';
   gridWrap.appendChild(wrap);
 }
