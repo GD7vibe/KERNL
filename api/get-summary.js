@@ -24,7 +24,7 @@ async function sbFetch(path) {
   });
   if (!r.ok) {
     const txt = await r.text();
-    throw new Error('Supabase ' + r.status + ': ' + txt.substring(0, 100));
+    throw new Error('Supabase ' + r.status + ': ' + txt.substring(0, 150));
   }
   return r.json();
 }
@@ -58,18 +58,19 @@ module.exports = async (req, res) => {
 
   const normTitle = normalise(title);
   const normAuthor = normalise(author || '');
+  const SELECT = 'select=title,author,html,plain,words';
 
   try {
     // Step 1: exact lookup_key match
     if (author) {
       const keyNS = title + '||' + author + '||nospoilers';
       const keyS  = title + '||' + author + '||spoilers';
-      const rows = await sbFetch('/rest/v1/summaries?select=title,author,html,plain,words,genre&lookup_key=in.(' + encodeURIComponent(keyNS) + ',' + encodeURIComponent(keyS) + ')&limit=1');
+      const rows = await sbFetch('/rest/v1/summaries?' + SELECT + '&lookup_key=in.(' + encodeURIComponent(keyNS) + ',' + encodeURIComponent(keyS) + ')&limit=1');
       if (rows && rows.length) return res.status(200).json(sanitise(rows[0]));
     }
 
     // Step 2: title ILIKE
-    const titleRows = await sbFetch('/rest/v1/summaries?select=title,author,html,plain,words,genre&title=ilike.' + encodeURIComponent('%' + title + '%') + '&limit=20');
+    const titleRows = await sbFetch('/rest/v1/summaries?' + SELECT + '&title=ilike.' + encodeURIComponent('%' + title + '%') + '&limit=20');
     if (titleRows && titleRows.length) {
       let best = titleRows[0];
       if (normAuthor) {
@@ -84,7 +85,7 @@ module.exports = async (req, res) => {
     // Step 3: distinctive word search
     const words = normTitle.split(' ').filter(w => w.length > 4);
     for (const word of words) {
-      const wordRows = await sbFetch('/rest/v1/summaries?select=title,author,html,plain,words,genre&title=ilike.' + encodeURIComponent('%' + word + '%') + '&limit=10');
+      const wordRows = await sbFetch('/rest/v1/summaries?' + SELECT + '&title=ilike.' + encodeURIComponent('%' + word + '%') + '&limit=10');
       if (wordRows && wordRows.length) {
         const best = wordRows.sort((a, b) =>
           levenshtein(normalise(a.title), normTitle) - levenshtein(normalise(b.title), normTitle)
@@ -102,5 +103,5 @@ module.exports = async (req, res) => {
 };
 
 function sanitise(row) {
-  return { title: row.title, author: row.author, html: row.html, plain: row.plain, words: row.words || [], genre: row.genre || 'NONFICTION' };
+  return { title: row.title, author: row.author, html: row.html, plain: row.plain, words: row.words || [] };
 }
