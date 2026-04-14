@@ -1,19 +1,7 @@
 const fetch = require('node-fetch');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
-
-const rateLimitMap = new Map();
-function isRateLimited(ip) {
-  const now = Date.now();
-  const windowMs = 60 * 1000;
-  const maxRequests = 30;
-  if (!rateLimitMap.has(ip)) rateLimitMap.set(ip, []);
-  const timestamps = rateLimitMap.get(ip).filter(t => now - t < windowMs);
-  timestamps.push(now);
-  rateLimitMap.set(ip, timestamps);
-  return timestamps.length > maxRequests;
-}
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
@@ -34,8 +22,23 @@ async function sbFetch(path) {
   const r = await fetch(SUPABASE_URL + path, {
     headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
   });
-  if (!r.ok) throw new Error('Supabase error ' + r.status);
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error('Supabase ' + r.status + ': ' + txt.substring(0, 100));
+  }
   return r.json();
+}
+
+const rateLimitMap = new Map();
+function isRateLimited(ip) {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxRequests = 30;
+  if (!rateLimitMap.has(ip)) rateLimitMap.set(ip, []);
+  const timestamps = rateLimitMap.get(ip).filter(t => now - t < windowMs);
+  timestamps.push(now);
+  rateLimitMap.set(ip, timestamps);
+  return timestamps.length > maxRequests;
 }
 
 module.exports = async (req, res) => {
@@ -49,7 +52,9 @@ module.exports = async (req, res) => {
   if (isRateLimited(ip)) return res.status(429).json({ error: 'Too many requests' });
 
   const { title, author } = req.query;
-  if (!title) return res.status(400).json({ error: 'title parameter required' });
+  if (!title) return res.status(400).json({ error: 'title required' });
+  if (!SUPABASE_URL) return res.status(500).json({ error: 'Missing SUPABASE_URL' });
+  if (!SUPABASE_KEY) return res.status(500).json({ error: 'Missing SUPABASE_SERVICE_KEY' });
 
   const normTitle = normalise(title);
   const normAuthor = normalise(author || '');
@@ -57,13 +62,13 @@ module.exports = async (req, res) => {
   try {
     // Step 1: exact lookup_key match
     if (author) {
-      const keyNS = encodeURIComponent(title + '||' + author + '||nospoilers');
-      const keyS  = encodeURIComponent(title + '||' + author + '||spoilers');
-      const rows = await sbFetch('/rest/v1/summaries?select=title,author,html,plain,words,genre&lookup_key=in.(' + keyNS + ',' + keyS + ')&limit=1');
+      const keyNS = title + '||' + author + '||nospoilers';
+      const keyS  = title + '||' + author + '||spoilers';
+      const rows = await sbFetch('/rest/v1/summaries?select=title,author,html,plain,words,genre&lookup_key=in.(' + encodeURIComponent(keyNS) + ',' + encodeURIComponent(keyS) + ')&limit=1');
       if (rows && rows.length) return res.status(200).json(sanitise(rows[0]));
     }
 
-    // Step 2: title ILIKE search
+    // Step 2: title ILIKE
     const titleRows = await sbFetch('/rest/v1/summaries?select=title,author,html,plain,words,genre&title=ilike.' + encodeURIComponent('%' + title + '%') + '&limit=20');
     if (titleRows && titleRows.length) {
       let best = titleRows[0];
@@ -72,8 +77,8 @@ module.exports = async (req, res) => {
           levenshtein(normalise(a.author), normAuthor) - levenshtein(normalise(b.author), normAuthor)
         )[0];
       }
-      const dist = levenshtein(normalise(best.title), normTitle);
-      if (dist <= Math.max(5, normTitle.length * 0.3)) return res.status(200).json(sanitise(best));
+      if (levenshtein(normalise(best.title), normTitle) <= Math.max(5, normTitle.length * 0.3))
+        return res.status(200).json(sanitise(best));
     }
 
     // Step 3: distinctive word search
@@ -84,25 +89,18 @@ module.exports = async (req, res) => {
         const best = wordRows.sort((a, b) =>
           levenshtein(normalise(a.title), normTitle) - levenshtein(normalise(b.title), normTitle)
         )[0];
-        const dist = levenshtein(normalise(best.title), normTitle);
-        if (dist <= Math.max(5, normTitle.length * 0.4)) return res.status(200).json(sanitise(best));
+        if (levenshtein(normalise(best.title), normTitle) <= Math.max(5, normTitle.length * 0.4))
+          return res.status(200).json(sanitise(best));
       }
     }
 
     return res.status(404).json({ error: 'Summary not found' });
   } catch (err) {
     console.error('get-summary error:', err.message);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: err.message });
   }
 };
 
 function sanitise(row) {
-  return {
-    title: row.title,
-    author: row.author,
-    html: row.html,
-    plain: row.plain,
-    words: row.words || [],
-    genre: row.genre || 'NONFICTION'
-  };
+  return { title: row.title, author: row.author, html: row.html, plain: row.plain, words: row.words || [], genre: row.genre || 'NONFICTION' };
 }
