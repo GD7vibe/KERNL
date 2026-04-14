@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KERNL Library â for the curious</title>
+<title>KERNL Library — for the curious</title>
 <meta name="description" content="Explore our free sample library of book summaries.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,7 +70,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 <div id="app">
   <div class="masthead">
     <button class="dark-toggle" onclick="toggleDark()">
-      <span id="dark-icon">ð</span>
+      <span id="dark-icon">🌙</span>
       <span id="dark-label">Dark</span>
     </button>
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
@@ -79,7 +79,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
   <div class="search-wrap">
     <input class="search-input" id="search-input" type="text" placeholder="Search by title or author..." oninput="filterBooks()" autocomplete="off"/>
-    <span class="search-icon">ð</span>
+    <span class="search-icon">🔍</span>
   </div>
   <div class="categories" id="categories"></div>
   <div class="stats-bar">
@@ -89,20 +89,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     <div class="loading"><div class="spinner"></div>Loading library...</div>
   </div>
 </div>
-<script> const CATEGORIES = [
-  { id: 'all', label: 'All Books', icon: 'ð' },
-  { id: 'mind', label: 'Mind & Psychology', icon: 'ð§ ' },
-  { id: 'money', label: 'Money & Business', icon: 'ð°' },
-  { id: 'self', label: 'Self Improvement', icon: 'ð±' },
-  { id: 'classic', label: 'Classic Fiction', icon: 'ð' },
-  { id: 'family', label: 'Family & Children', icon: 'ð§' },
-  { id: 'history', label: 'History & Politics', icon: 'ð' },
-  { id: 'science', label: 'Science & Nature', icon: 'ð¬' },
-  { id: 'leadership', label: 'Leadership', icon: 'ðª' },
-  { id: 'health', label: 'Health & Wellbeing', icon: 'â¤ï¸' },
-  { id: 'fiction', label: 'Modern Fiction', icon: 'ð' },
-  { id: 'biography', label: 'Biography', icon: 'ð§­' },
-  { id: 'philosophy', label: 'Philosophy', icon: 'ð¯' },
+<script>
+const CATEGORIES = [
+  { id: 'all', label: 'All Books', icon: '📚' },
+  { id: 'mind', label: 'Mind & Psychology', icon: '🧠' },
+  { id: 'money', label: 'Money & Business', icon: '💰' },
+  { id: 'self', label: 'Self Improvement', icon: '🌱' },
+  { id: 'classic', label: 'Classic Fiction', icon: '📖' },
+  { id: 'family', label: 'Family & Children', icon: '🧒' },
+  { id: 'history', label: 'History & Politics', icon: '🌍' },
+  { id: 'science', label: 'Science & Nature', icon: '🔬' },
+  { id: 'leadership', label: 'Leadership', icon: '💪' },
+  { id: 'health', label: 'Health & Wellbeing', icon: '❤️' },
+  { id: 'fiction', label: 'Modern Fiction', icon: '📚' },
+  { id: 'biography', label: 'Biography', icon: '🧭' },
+  { id: 'philosophy', label: 'Philosophy', icon: '🎯' },
 ];
 
 const BOOK_CATEGORIES = {
@@ -145,24 +146,33 @@ let activeCategory = 'all';
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
-  document.getElementById('dark-icon').textContent = isDark ? 'âï¸' : 'ð';
+  document.getElementById('dark-icon').textContent = isDark ? '☀️' : '🌙';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
+
 function initDark() {
   const saved = localStorage.getItem('kernl_dark');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = saved !== null ? saved === '1' : prefersDark;
   if (isDark) {
     document.documentElement.classList.add('dark');
-    document.getElementById('dark-icon').textContent = 'âï¸';
+    document.getElementById('dark-icon').textContent = '☀️';
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
-function getCategory(title) { return BOOK_CATEGORIES[(title||'').toLowerCase().trim()] || 'fiction'; }
-function getCategoryInfo(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// KEY FIX: use data attributes instead of inline onclick with apostrophes
+function getCategory(title) {
+  return BOOK_CATEGORIES[(title||'').toLowerCase().trim()] || 'fiction';
+}
+
+function getCategoryInfo(id) {
+  return CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function openBook(title, author) {
   window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
 }
@@ -192,19 +202,25 @@ function renderCategories() {
   container.innerHTML = CATEGORIES.map(cat => {
     const count = cat.id === 'all' ? allBooks.length : allBooks.filter(b => b.category === cat.id).length;
     if (count === 0 && cat.id !== 'all') return '';
-    return `<button class="cat-btn ${activeCategory === cat.id ? 'active' : ''}" onclick="setCategory('${cat.id}')">
-      <span class="cat-icon">${cat.icon}</span> ${cat.label}
-      <span style="opacity:0.6;font-size:0.75em">(${count})</span>
-    </button>`;
+    return '<button class="cat-btn ' + (activeCategory === cat.id ? 'active' : '') + '" onclick="setCategory('' + cat.id + '')">'
+      + '<span class="cat-icon">' + cat.icon + '</span> ' + cat.label
+      + ' <span style="opacity:0.6;font-size:0.75em">(' + count + ')</span>'
+      + '</button>';
   }).join('');
 }
+
 function setCategory(id) {
   activeCategory = id;
   document.getElementById('search-input').value = '';
   renderCategories();
   renderGrid();
 }
-function filterBooks() { activeCategory = 'all'; renderCategories(); renderGrid(); }
+
+function filterBooks() {
+  activeCategory = 'all';
+  renderCategories();
+  renderGrid();
+}
 
 function renderGrid() {
   const query = document.getElementById('search-input').value.toLowerCase().trim();
@@ -213,15 +229,22 @@ function renderGrid() {
     const matchSearch = !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query);
     return matchCat && matchSearch;
   });
+
   const countEl = document.getElementById('stats-count');
   const catInfo = getCategoryInfo(activeCategory);
-  if (query) { countEl.innerHTML = `<span>${filtered.length}</span> book${filtered.length!==1?'s':''} matching "${query}"`; }
-  else if (activeCategory === 'all') { countEl.innerHTML = `<span>${filtered.length}</span> books in the library`; }
-  else { countEl.innerHTML = `${catInfo.icon} <span>${filtered.length}</span> books in ${catInfo.label}`; }
+  if (query) {
+    countEl.innerHTML = '<span>' + filtered.length + '</span> book' + (filtered.length!==1?'s':'') + ' matching "' + query + '"';
+  } else if (activeCategory === 'all') {
+    countEl.innerHTML = '<span>' + filtered.length + '</span> books in the library';
+  } else {
+    countEl.innerHTML = catInfo.icon + ' <span>' + filtered.length + '</span> books in ' + catInfo.label;
+  }
 
-  if (!filtered.length) { document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">No books found.</div>'; return; }
+  if (!filtered.length) {
+    document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">No books found.</div>';
+    return;
+  }
 
-  // KEY FIX: store title/author as data attributes, attach click via JS â no apostrophe-in-onclick problem
   const wrap = document.createElement('div');
   wrap.className = 'book-grid';
   filtered.forEach(b => {
@@ -231,17 +254,17 @@ function renderGrid() {
     card.dataset.title = b.title;
     card.dataset.author = b.author;
     card.innerHTML =
-      '<div class="book-card-top">' +
-        '<div>' +
-          '<div class="book-title">' + esc(b.title) + '</div>' +
-          '<div class="book-author">by ' + esc(b.author) + '</div>' +
-        '</div>' +
-        '<div class="book-cat-badge">' + cat.icon + ' ' + cat.label + '</div>' +
-      '</div>' +
-      '<div class="book-card-footer">' +
-        '<div class="audio-badge"><div class="audio-dot"></div> Audio available</div>' +
-        '<button class="read-btn">Read âº</button>' +
-      '</div>';
+      '<div class="book-card-top">'
+        + '<div>'
+          + '<div class="book-title">' + esc(b.title) + '</div>'
+          + '<div class="book-author">by ' + esc(b.author) + '</div>'
+        + '</div>'
+        + '<div class="book-cat-badge">' + cat.icon + ' ' + cat.label + '</div>'
+      + '</div>'
+      + '<div class="book-card-footer">'
+        + '<div class="audio-badge"><div class="audio-dot"></div> Audio available</div>'
+        + '<button class="read-btn">Read ›</button>'
+      + '</div>';
     card.addEventListener('click', function() { openBook(this.dataset.title, this.dataset.author); });
     card.querySelector('.read-btn').addEventListener('click', function(e) {
       e.stopPropagation();
@@ -249,6 +272,7 @@ function renderGrid() {
     });
     wrap.appendChild(card);
   });
+
   const gridWrap = document.getElementById('book-grid-wrap');
   gridWrap.innerHTML = '';
   gridWrap.appendChild(wrap);
