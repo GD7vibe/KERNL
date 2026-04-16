@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KERNL â for the curious</title>
-<meta name="description" content="for the curious â AI-powered book summaries you can read or listen to in 10 minutes.">
+<title>KERNL &mdash; for the curious</title>
+<meta name="description" content="for the curious &mdash; AI-powered book summaries you can read or listen to in 10 minutes.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
@@ -35,50 +35,33 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-book-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:1rem;transition:color var(--transition)}
 .summary-chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);transition:all var(--transition)}
-
-/* ââ PLAYER ââ */
 .player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);transition:background var(--transition),border-color var(--transition)}
 .player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
-
-/* Play button â idle and playing states */
 .play-btn{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.1s,box-shadow 0.3s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
 .play-btn:hover{background:var(--accent-light)}
 .play-btn:active{transform:scale(0.95)}
 .play-btn svg{width:18px;height:18px;fill:white}
-/* Glow ring when playing */
 .play-btn.playing{box-shadow:0 0 0 5px var(--accent-pale),0 2px 8px rgba(139,69,19,0.35)}
-
 .player-center{flex:1;min-width:120px}
 .player-title{font-size:0.85rem;font-weight:500;color:var(--ink);transition:color var(--transition)}
 .player-sub{font-size:0.75rem;color:var(--muted);margin-top:2px;transition:color var(--transition)}
-/* Sub text accent when playing */
 .player-sub.playing{color:var(--accent);font-weight:500}
-
 .player-voice-btns{display:flex;gap:6px;flex-shrink:0}
 .pvb{height:30px;padding:0 14px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 .pvb.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb:hover:not(.on):not(.active){border-color:var(--accent-light);color:var(--accent)}
-
-/* ââ SCRUB ROW â idle ââ */
 .player-scrub-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;border:1px solid transparent;background:transparent;transition:background 0.3s,border-color 0.3s}
-
-/* ââ SCRUB ROW â active/playing highlight ââ */
 .player-scrub-row.active{background:var(--accent-pale);border-color:var(--border)}
 html.dark .player-scrub-row.active{background:rgba(196,122,58,0.1);border-color:rgba(196,122,58,0.25)}
-
 .skip-btn{width:34px;height:34px;flex-shrink:0;border-radius:50%;background:transparent;border:1.5px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:'DM Sans',sans-serif;font-size:0.62rem;font-weight:700;color:var(--muted);line-height:1}
 .skip-btn:hover{border-color:var(--accent-light);color:var(--accent);background:var(--accent-pale)}
 .skip-btn:active{transform:scale(0.92)}
-/* Skip buttons accent when row is active */
 .player-scrub-row.active .skip-btn{border-color:var(--accent);color:var(--accent)}
 .player-scrub-row.active .skip-btn:hover{background:var(--accent);color:#fff}
-
 .scrub-time{font-size:0.75rem;color:var(--muted);white-space:nowrap;min-width:34px;transition:color 0.3s;font-variant-numeric:tabular-nums;font-weight:500}
 .scrub-time.right{text-align:right}
-/* Time accent when playing */
 .player-scrub-row.active .scrub-time{color:var(--accent);font-weight:600}
-
 .scrub-track{flex:1;height:6px;background:var(--warm);border-radius:3px;cursor:pointer;position:relative;overflow:visible;transition:background var(--transition)}
 .player-scrub-row.active .scrub-track{height:7px;background:rgba(139,69,19,0.15)}
 html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)}
@@ -86,7 +69,6 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .scrub-thumb{position:absolute;top:50%;left:0%;transform:translateY(-50%) translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(139,69,19,0.4);pointer-events:none;opacity:0;transition:opacity 0.15s}
 .scrub-track:hover .scrub-thumb,.scrub-track.dragging .scrub-thumb{opacity:1}
 .player-scrub-row.active .scrub-thumb{opacity:1}
-
 .summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center;transition:background var(--transition),border-color var(--transition)}
 .summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink);transition:color var(--transition)}
 .summary-body h2{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--accent);margin:2rem 0 0.75rem;padding-bottom:8px;border-bottom:1px solid var(--border);transition:color var(--transition),border-color var(--transition)}
@@ -115,7 +97,6 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .summary-footer{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end;transition:background var(--transition),border-color var(--transition)}
 .btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
-
 @media(max-width:560px){
   body{overflow-x:hidden}
   #app{padding:0 0 5rem}
@@ -138,9 +119,9 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 <body>
 <div id="app">
   <div class="masthead">
-    <a class="back-link" href="/library.html">â Library</a>
+    <a class="back-link" href="/library.html">&#8592; Library</a>
     <button class="dark-toggle" onclick="toggleDark()">
-      <span id="dark-icon">ð</span>
+      <span id="dark-icon">&#127769;</span>
       <span id="dark-label">Dark</span>
     </button>
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
@@ -153,7 +134,8 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     </div>
   </div>
 </div>
-<script> const AMAZON_TAG = 'kernl-21';
+<script>
+const AMAZON_TAG = 'kernl-21';
 
 let currentSummary = null;
 let audioEl = null;
@@ -162,12 +144,12 @@ let playbackRate = 1;
 let currentVoice = 'female';
 let prefetchedAudioUrl = null;
 let prefetchedBlobUrl = null;
-let currentTimings = []; // Whisper word timestamps for Swift sync
+let currentTimings = [];
 
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
-  document.getElementById('dark-icon').textContent = isDark ? 'âï¸' : 'ð';
+  document.getElementById('dark-icon').textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
 function initDark() {
@@ -176,7 +158,7 @@ function initDark() {
   const isDark = saved !== null ? saved === '1' : prefersDark;
   if (isDark) {
     document.documentElement.classList.add('dark');
-    document.getElementById('dark-icon').textContent = 'âï¸';
+    document.getElementById('dark-icon').textContent = '\u2600\uFE0F';
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
@@ -201,7 +183,6 @@ function fmtTime(secs) {
   return m + ':' + String(s).padStart(2,'0');
 }
 
-/* ââ Visual active state for scrub row ââ */
 function setScrubActive(active) {
   var row = document.getElementById('scrub-row');
   var btn = document.getElementById('play-btn-el');
@@ -219,7 +200,7 @@ function resetScrubUI() {
   var el = document.getElementById('scrub-elapsed');
   var re = document.getElementById('scrub-remaining');
   if (el) el.textContent = '0:00';
-  if (re) re.textContent = 'â0:00';
+  if (re) re.textContent = '\u22120:00';
   setScrubActive(false);
 }
 
@@ -233,7 +214,7 @@ function updateScrubUI() {
   var el = document.getElementById('scrub-elapsed');
   var re = document.getElementById('scrub-remaining');
   if (el) el.textContent = fmtTime(audioEl.currentTime);
-  if (re) re.textContent = 'â' + fmtTime(audioEl.duration - audioEl.currentTime);
+  if (re) re.textContent = '\u2212' + fmtTime(audioEl.duration - audioEl.currentTime);
 }
 
 function initScrubEvents() {
@@ -282,14 +263,14 @@ function stopAudio() {
 }
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
-  setPlayerState(false, 'Paused â press play to continue');
+  setPlayerState(false, 'Paused \u2014 press play to continue');
   setScrubActive(false);
 }
 function resumeAudio() {
   if (audioEl && audioEl.paused) {
     var p = audioEl.play();
     if (p && p.catch) p.catch(function(){});
-    setPlayerState(true, 'Now playing â Nova voice');
+    setPlayerState(true, 'Now playing \u2014 Nova voice');
     setScrubActive(true);
     return true;
   }
@@ -320,7 +301,7 @@ async function prefetchAudio() {
 
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-  setPlayerState(true, 'Loading audioâ¦');
+  setPlayerState(true, 'Loading audio\u2026');
   var audioUrl = prefetchedAudioUrl;
   var blobUrl = prefetchedBlobUrl;
   if (!audioUrl) {
@@ -333,7 +314,7 @@ async function startOpenAIAudio() {
       var ct = res.headers.get('content-type') || '';
       if (ct.includes('application/json')) { var data = await res.json(); audioUrl = data.url; if (data.timings && data.timings.length) currentTimings = data.timings; }
       else { var blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl; }
-    } catch(err) { setPlayerState(false, 'Audio unavailable â please try again'); return; }
+    } catch(err) { setPlayerState(false, 'Audio unavailable \u2014 please try again'); return; }
   }
   prefetchedAudioUrl = null; prefetchedBlobUrl = null;
   audioEl = new Audio(audioUrl);
@@ -342,7 +323,7 @@ async function startOpenAIAudio() {
   audioEl.addEventListener('ended', function() {
     var fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
-    setPlayerState(false, 'Finished â press play to replay');
+    setPlayerState(false, 'Finished \u2014 press play to replay');
     setScrubActive(false);
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
@@ -351,14 +332,14 @@ async function startOpenAIAudio() {
   audioEl.addEventListener('error', function() {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable â please try again');
+    setPlayerState(false, 'Audio unavailable \u2014 please try again');
     setScrubActive(false);
   });
   var playPromise = audioEl.play();
   if (playPromise && playPromise.catch) {
     playPromise.catch(function(err) { console.warn('Play blocked:', err); setPlayerState(false, 'Tap play to listen'); });
   }
-  setPlayerState(true, 'Now playing â Nova voice');
+  setPlayerState(true, 'Now playing \u2014 Nova voice');
   setScrubActive(true);
   initScrubEvents();
 }
@@ -377,12 +358,11 @@ function toggleMeganWords() {
   arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
-
 function downloadEpub() {
   if (!currentSummary) return;
   var id='kernl-'+Date.now(), t=esc(currentSummary.title), a=esc(currentSummary.author);
-  var contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' â KERNL Deep Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL â for the curious</div></body></html>';
-  var opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' â KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
+  var contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' \u2014 KERNL Deep Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>';
+  var opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' \u2014 KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
   var ncx='<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="'+id+'"/></head><docTitle><text>'+t+'</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
   var container='<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
   var script=document.createElement('script');
@@ -396,6 +376,7 @@ function downloadEpub() {
   };
   document.head.appendChild(script);
 }
+
 function printSummary() {
   if (!currentSummary) return;
   var meganGrid=document.getElementById('megan-words-grid');
@@ -407,9 +388,10 @@ function printSummary() {
     meganSection='<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">'+wordRows+'</table></div>';
   }
   var w=window.open('','_blank');
-  w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' â KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>'+esc(currentSummary.title)+'</h1><div class="byline">by '+esc(currentSummary.author)+' â KERNL Deep Summary</div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL â for the curious</div></body></html>');
+  w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' \u2014 KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>'+esc(currentSummary.title)+'</h1><div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Deep Summary</div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>');
   w.document.close(); setTimeout(function(){w.print();},400);
 }
+
 function triggerDownload(blob,filename){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(a.href);},1000);}
 
 function renderMeganWords(words) {
@@ -434,7 +416,6 @@ function renderSummary(data) {
         '<div class="summary-chips">' +
           '<div class="chip">KERNL Deep</div>' +
           '<div class="chip">' + wc.toLocaleString() + ' words</div>' +
-          '<div class="chip">Spoiler-free</div>' +
           '<div class="chip">Free library</div>' +
         '</div>' +
       '</div>' +
@@ -451,33 +432,33 @@ function renderSummary(data) {
             '<span class="pvb on" id="pvf" style="cursor:default;">&#9792; Nova</span>' +
           '</div>' +
           '<div class="player-voice-btns">' +
-            '<button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1Ã</button>' +
-            '<button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5Ã</button>' +
-            '<button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2Ã</button>' +
+            '<button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1&times;</button>' +
+            '<button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5&times;</button>' +
+            '<button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2&times;</button>' +
           '</div>' +
         '</div>' +
         '<div class="player-scrub-row" id="scrub-row">' +
           '<span class="scrub-time" id="scrub-elapsed">0:00</span>' +
-          '<button class="skip-btn" onclick="skipAudio(-10)">â10</button>' +
+          '<button class="skip-btn" onclick="skipAudio(-10)">&#8722;10</button>' +
           '<div class="scrub-track" id="scrub-track">' +
             '<div class="scrub-fill" id="scrub-fill"></div>' +
             '<div class="scrub-thumb" id="scrub-thumb"></div>' +
           '</div>' +
           '<button class="skip-btn" onclick="skipAudio(10)">+10</button>' +
-          '<span class="scrub-time right" id="scrub-remaining">â0:00</span>' +
+          '<span class="scrub-time right" id="scrub-remaining">&#8722;0:00</span>' +
         '</div>' +
       '</div>' +
       '<div class="summary-actions">' +
-          '<button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>' +
+        '<button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>' +
         '<button class="btn-action" onclick="printSummary()">&#128438; Print</button>' +
         '<a class="buy-btn" href="' + amazonUrl + '" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>' +
-      '<button class="btn-action" onclick="openSwift()" style="gap:6px;">&#9889; Swift</button>' +
+        '<button class="btn-action" onclick="openSwift()" style="gap:6px;">&#9889; Swift</button>' +
       '</div>' +
       '<div class="summary-body">' + data.html + '</div>' +
       '<div class="megan-words-section" id="megan-words-section" style="display:none">' +
         '<div class="megan-words-header" onclick="toggleMeganWords()">' +
-          '<div class="megan-words-title"><span>&#128218;</span> Mega Words <span class="megan-words-subtitle">â interesting words from this book</span></div>' +
-          '<span class="megan-arrow" id="megan-arrow">â¼</span>' +
+          '<div class="megan-words-title"><span>&#128218;</span> Mega Words <span class="megan-words-subtitle">\u2014 interesting words from this book</span></div>' +
+          '<span class="megan-arrow" id="megan-arrow">&#9660;</span>' +
         '</div>' +
         '<div class="megan-words-grid" id="megan-words-grid"></div>' +
         '<div class="disclaimer-bar">' +
@@ -485,7 +466,7 @@ function renderSummary(data) {
         '</div>' +
       '</div>' +
       '<div class="summary-footer">' +
-        '<a class="btn-action" href="/library.html">â Back to Library</a>' +
+        '<a class="btn-action" href="/library.html">&#8592; Back to Library</a>' +
       '</div>' +
     '</div>';
   renderMeganWords(data.words||[]);
@@ -496,21 +477,19 @@ async function loadSummary() {
   var params = new URLSearchParams(window.location.search);
   var title = params.get('title');
   var author = params.get('author');
-  if (!title) { document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">â Back to Library</a></div>'; return; }
-  document.title = 'KERNL â ' + title;
+  if (!title) { document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">&#8592; Back to Library</a></div>'; return; }
+  document.title = 'KERNL \u2014 ' + title;
   try {
-    // Fetch via secure server-side API
     var url = '/api/get-summary?title=' + encodeURIComponent(title);
     if (author) url += '&author=' + encodeURIComponent(author);
     var res = await fetch(url);
     if (!res.ok) throw new Error('Not found');
     var data = await res.json();
-    var row = data;
     var words = [];
     try { words = data.words ? (typeof data.words === 'string' ? JSON.parse(data.words) : data.words) : []; } catch(e) {}
     renderSummary({title:title, author:author||data.author||'', html:data.html, plain:data.plain, words:words});
   } catch(err) {
-    document.getElementById('content').innerHTML='<div class="loading-card">Could not load summary. <a href="/library.html">â Back to Library</a></div>';
+    document.getElementById('content').innerHTML='<div class="loading-card">Could not load summary. <a href="/library.html">&#8592; Back to Library</a></div>';
   }
 }
 

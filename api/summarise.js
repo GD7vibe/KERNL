@@ -94,7 +94,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { title, author, spoilers } = req.body;
+  const { title, author } = req.body; const spoilers = false;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
   try {
