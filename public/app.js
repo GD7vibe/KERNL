@@ -113,7 +113,6 @@ function renderArchive() {
       <div class="archive-footer">
         <div class="archive-date">${fmtDate(e.savedAt)}</div>
         <div style="display:flex;gap:6px;align-items:center">
-          ${e.spoilers ? '<div class="archive-chip spoiler-chip">Spoilers</div>' : '<div class="archive-chip">No spoilers</div>'}
           <div class="archive-chip">Archived</div>
         </div>
       </div>
@@ -121,7 +120,7 @@ function renderArchive() {
 }
 function loadEntry(idx) {
   const e = getArchive()[idx];
-  if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], e.spoilers || false, true);
+  if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], true);
 }
 
 // ── Status / error ─────────────────────────────────────────────────────────
@@ -165,7 +164,7 @@ function setVoice(v) {
 async function handleGenerate() {
   const title = document.getElementById('book-input').value.trim();
   const author = document.getElementById('author-input').value.trim();
-  const spoilers = document.getElementById('spoiler-toggle').checked;
+  const spoilers = false;
   setError('');
   hideDropdown();
   if (!title) { setError('Please enter a book title to continue.'); return; }
@@ -194,7 +193,7 @@ async function handleGenerate() {
     saveEntry({ title, author: displayAuthor, html, plain, words: words || [], spoilers, savedAt: Date.now() });
     setStatus('', false);
     renderArchive();
-    displaySummary(title, displayAuthor, html, plain, words || [], spoilers, false);
+    displaySummary(title, displayAuthor, html, plain, words || [], false);
   } catch (err) {
     setStatus('', false);
     setError('Could not generate summary: ' + err.message);
@@ -240,10 +239,7 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   const wc = countWords(plain);
   document.getElementById('s-words').textContent = wc.toLocaleString() + ' words';
   document.getElementById('s-source').textContent = fromArchive ? 'From library' : 'Just generated';
-  const spoilerChip = document.getElementById('s-spoiler');
-  spoilerChip.textContent = spoilers ? 'Spoilers included' : 'Spoiler-free';
-  spoilerChip.className = 'chip' + (spoilers ? ' chip-spoiler' : '');
-  document.getElementById('summary-body').innerHTML = html;
+    document.getElementById('summary-body').innerHTML = html;
   const amazonUrl = makeAmazonUrl(title, author);
   const buyBtn = document.getElementById('buy-btn');
   buyBtn.href = amazonUrl;
