@@ -6,7 +6,7 @@ let isPlaying = false;
 let audioEl = null;
 let playbackRate = 1;
 let autocompleteTimer = null;
-let currentTimings = []; // Whisper word timestamps for Swift sync
+let currentTimings = [];
 
 // \u2500\u2500 Dark mode \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function toggleDark() {
@@ -268,7 +268,6 @@ function fmtTime(secs) {
   return m + ':' + String(s).padStart(2, '0');
 }
 
-// \u2500\u2500 Active highlight for scrub row \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function setScrubActive(active) {
   const row = document.getElementById('scrub-row');
   const btn = document.getElementById('play-btn');
@@ -367,7 +366,7 @@ function pauseAudio() {
 function resumeAudio() {
   if (audioEl) {
     audioEl.play();
-    setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+    setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Female' : 'Male') + ' voice');
     setScrubActive(true);
     return true;
   }
@@ -397,7 +396,7 @@ async function startOpenAIAudio() {
     }
     playSingleAudio(audioUrl, blobUrl);
   } catch (err) {
-    console.warn('OpenAI TTS failed:', err.message);
+    console.warn('TTS failed:', err.message);
     setPlayerState(false, 'Audio unavailable \u2014 please try again');
     unlockVoiceButtons();
   }
@@ -423,7 +422,7 @@ function playSingleAudio(audioUrl, blobUrl) {
   });
   audioEl.play();
   audioEl.playbackRate = playbackRate;
-  setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+  setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Female' : 'Male') + ' voice');
   setScrubActive(true);
   initScrubEvents();
 }
@@ -435,7 +434,6 @@ function togglePlay() {
 }
 
 // \u2500\u2500 Download / Print \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
 function downloadEpub() {
   if (!currentSummary) return;
   const id = 'kernl-' + Date.now();
@@ -517,4 +515,4 @@ function openSwift() {
 initDark();
 setVoice('female');
 renderArchive();
-// v20
+// v21
