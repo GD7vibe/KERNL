@@ -425,10 +425,10 @@ function renderSummary(data) {
           '</button>' +
           '<div class="player-center">' +
             '<div class="player-title">' + esc(data.title) + '</div>' +
-            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice â press play</div>' +
+            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice Ã¢ÂÂ press play</div>' +
           '</div>' +
           '<div class="player-voice-btns">' +
-            '<span class="pvb on" id="pvf" style="cursor:default;">\u2640 Nova</span>' +
+            '<span class="pvb on" id="pvf" style="cursor:default;">\u2640 Female</span>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1&times;</button>' +
@@ -517,7 +517,7 @@ function setVoiceLib(v) {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
   var ps = document.getElementById('player-sub');
-  if (ps) ps.textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+  if (ps) ps.textContent = v === 'female' ? 'Female voice â press play' : 'Male voice â press play';
 }
 initDark();
 loadSummary();
