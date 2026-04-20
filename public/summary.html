@@ -425,7 +425,7 @@ function renderSummary(data) {
           '</button>' +
           '<div class="player-center">' +
             '<div class="player-title">' + esc(data.title) + '</div>' +
-            '<div class="player-sub" id="player-sub">Press play to listen</div>' +
+            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice — press play</div>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<span class="pvb on" id="pvf" style="cursor:default;">\u2640 Nova</span>' +
@@ -475,6 +475,8 @@ function renderSummary(data) {
 async function loadSummary() {
   var params = new URLSearchParams(window.location.search);
   var title = params.get('title');
+  var voiceParam = params.get('voice');
+  if (voiceParam === 'male') { currentVoice = 'male'; }
   var author = params.get('author');
   if (!title) { document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">&#8592; Back to Library</a></div>'; return; }
   document.title = 'KERNL \u2014 ' + title;
