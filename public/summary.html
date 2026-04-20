@@ -425,7 +425,7 @@ function renderSummary(data) {
           '</button>' +
           '<div class="player-center">' +
             '<div class="player-title">' + esc(data.title) + '</div>' +
-            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice â press play</div>' +
+            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice Ã¢ÂÂ press play</div>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<span class="pvb ' + (currentVoice==="female"?"on":"") + '" id="pvf" onclick="setVoiceLib(\"female\")">\u2640 Female</span>' +
@@ -517,8 +517,19 @@ function setVoiceLib(v) {
   if (pvm) { pvm.classList.toggle('on', v === 'male'); pvm.classList.toggle('active', v === 'male'); }
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
+  prefetchedAudioUrl = null;
+  prefetchedBlobUrl = null;
+  setPlayerState(false, null);
+  resetScrubUI();
   var ps = document.getElementById('player-sub');
-  if (ps) ps.textContent = v === 'female' ? 'Female voice â press play' : 'Male voice â press play';
+  if (ps) ps.textContent = (v === 'male' ? 'Male' : 'Female') + ' voice — press play';
+  prefetchAudio();
+}
+  if (pvm) { pvm.classList.toggle('on', v === 'male'); pvm.classList.toggle('active', v === 'male'); }
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
+  isPlaying = false;
+  var ps = document.getElementById('player-sub');
+  if (ps) ps.textContent = v === 'female' ? 'Female voice Ã¢ÂÂ press play' : 'Male voice Ã¢ÂÂ press play';
 }
 initDark();
 loadSummary();
