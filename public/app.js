@@ -6,12 +6,12 @@ let isPlaying = false;
 let audioEl = null;
 let playbackRate = 1;
 let autocompleteTimer = null;
+let currentTimings = [];
 
-// ââ Dark mode ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
-  document.getElementById('dark-icon').textContent = isDark ? 'âï¸' : 'ð';
+  document.getElementById('dark-icon').textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
 function initDark() {
@@ -20,12 +20,11 @@ function initDark() {
   const isDark = saved !== null ? saved === '1' : prefersDark;
   if (isDark) {
     document.documentElement.classList.add('dark');
-    document.getElementById('dark-icon').textContent = 'âï¸';
+    document.getElementById('dark-icon').textContent = '\u2600\uFE0F';
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
 
-// ââ Autocomplete âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function fetchBookSuggestions(query) {
   if (!query || query.length < 3) { hideDropdown(); return; }
   try {
@@ -50,7 +49,7 @@ function showDropdown(results) {
   dropdown.innerHTML = results.map((r, i) => `
     <div class="dropdown-item" onmousedown="selectBook(${i})" data-title="${esc(r.title)}" data-author="${esc(r.author)}">
       <div class="dropdown-title">${esc(r.title)}</div>
-      <div class="dropdown-author">${esc(r.author)}${r.year ? ' Â· ' + r.year : ''}</div>
+      <div class="dropdown-author">${esc(r.author)}${r.year ? ' \u00b7 ' + r.year : ''}</div>
     </div>`).join('');
   dropdown.style.display = 'block';
 }
@@ -73,7 +72,6 @@ function selectBook(idx) {
   hideDropdown();
 }
 
-// ââ Archive ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function getArchive() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; } }
 function saveEntry(entry) {
   const arc = getArchive();
@@ -102,7 +100,7 @@ function renderArchive() {
   countEl.textContent = arc.length + ' summar' + (arc.length === 1 ? 'y' : 'ies');
   clearBtn.style.display = arc.length ? 'inline' : 'none';
   if (!arc.length) {
-    container.innerHTML = '<div class="archive-empty">Your library is empty â summarise a book above to begin.</div>';
+    container.innerHTML = '<div class="archive-empty">Your library is empty \u2014 summarise a book above to begin.</div>';
     return;
   }
   container.innerHTML = '<div class="archive-grid">' + arc.map((e, i) => `
@@ -122,7 +120,6 @@ function loadEntry(idx) {
   if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], true);
 }
 
-// ââ Status / error âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function setStatus(msg, show) {
   const bar = document.getElementById('status-bar');
   document.getElementById('status-text').textContent = msg;
@@ -134,7 +131,6 @@ function setError(msg) {
   bar.classList.toggle('show', !!msg);
 }
 
-// ââ Speed ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function setSpeed(rate) {
   playbackRate = rate;
   document.querySelectorAll('.speed-btn').forEach(btn => {
@@ -143,7 +139,6 @@ function setSpeed(rate) {
   if (audioEl) audioEl.playbackRate = rate;
 }
 
-// ââ Voice ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function setVoice(v) {
   currentVoice = v;
   document.getElementById('vbf').classList.toggle('active', v === 'female');
@@ -154,12 +149,11 @@ function setVoice(v) {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
   if (currentSummary) {
-    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice â press play' : 'Male voice â press play';
+    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
     if (wasPlaying) setTimeout(startOpenAIAudio, 150);
   }
 }
 
-// ââ Generate âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function handleGenerate() {
   const title = document.getElementById('book-input').value.trim();
   const author = document.getElementById('author-input').value.trim();
@@ -173,12 +167,12 @@ async function handleGenerate() {
     (e.spoilers || false) === spoilers
   );
   if (cached) {
-    setStatus('Found in your library â loading instantly!', true);
+    setStatus('Found in your library \u2014 loading instantly!', true);
     setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
   document.getElementById('gen-btn').disabled = true;
-  setStatus('Generating summary with AI â please wait about 30 seconds...', true);
+  setStatus('Generating summary with AI \u2014 please wait about 30 seconds...', true);
   try {
     const res = await fetch('/api/summarise', {
       method: 'POST',
@@ -202,7 +196,6 @@ async function handleGenerate() {
 }
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
-// ââ Mega Words âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function renderMeganWords(words) {
   const section = document.getElementById('megan-words-section');
   if (!words || !words.length) { section.style.display = 'none'; return; }
@@ -228,7 +221,6 @@ function toggleMeganWords() {
   arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
-// ââ Display summary ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function displaySummary(title, author, html, plain, words, spoilers, fromArchive) {
   stopAudio();
   unlockVoiceButtons();
@@ -237,13 +229,12 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   document.getElementById('s-author').textContent = 'by ' + author;
   const wc = countWords(plain);
   document.getElementById('s-words').textContent = wc.toLocaleString() + ' words';
-  document.getElementById('s-source').textContent = fromArchive ? 'From library' : 'Just generated';
-    document.getElementById('summary-body').innerHTML = html;
+  document.getElementById('summary-body').innerHTML = html;
   const amazonUrl = makeAmazonUrl(title, author);
   const buyBtn = document.getElementById('buy-btn');
   buyBtn.href = amazonUrl;
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice â press play' : 'Male voice â press play';
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
   resetScrubUI();
   const grid = document.getElementById('megan-words-grid');
   const arrow = document.getElementById('megan-arrow');
@@ -260,15 +251,12 @@ function closeSummary() {
   currentSummary = null;
 }
 
-// ââ Scrub UI helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function fmtTime(secs) {
   if (!isFinite(secs) || secs < 0) secs = 0;
   const m = Math.floor(secs / 60);
   const s = Math.floor(secs % 60);
   return m + ':' + String(s).padStart(2, '0');
 }
-
-// ââ Active highlight for scrub row âââââââââââââââââââââââââââââââââââââââââ
 function setScrubActive(active) {
   const row = document.getElementById('scrub-row');
   const btn = document.getElementById('play-btn');
@@ -277,7 +265,6 @@ function setScrubActive(active) {
   if (btn) btn.classList.toggle('playing', active);
   if (sub) sub.classList.toggle('playing', active);
 }
-
 function resetScrubUI() {
   const fill = document.getElementById('scrub-fill');
   const thumb = document.getElementById('scrub-thumb');
@@ -285,7 +272,7 @@ function resetScrubUI() {
   const el = document.getElementById('scrub-elapsed');
   const re = document.getElementById('scrub-remaining');
   if (el) el.textContent = '0:00';
-  if (re) re.textContent = 'â0:00';
+  if (re) re.textContent = '\u22120:00';
   setScrubActive(false);
 }
 function updateScrubUI() {
@@ -298,10 +285,9 @@ function updateScrubUI() {
   const el = document.getElementById('scrub-elapsed');
   const re = document.getElementById('scrub-remaining');
   if (el) el.textContent = fmtTime(audioEl.currentTime);
-  if (re) re.textContent = 'â' + fmtTime(audioEl.duration - audioEl.currentTime);
+  if (re) re.textContent = '\u2212' + fmtTime(audioEl.duration - audioEl.currentTime);
 }
 
-// ââ Scrub interaction ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function initScrubEvents() {
   const track = document.getElementById('scrub-track');
   if (!track || track._scrubInit) return;
@@ -323,14 +309,12 @@ function initScrubEvents() {
   document.addEventListener('touchend', () => { dragging = false; track.classList.remove('dragging'); });
 }
 
-// ââ Skip Â±10s ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function skipAudio(secs) {
   if (!audioEl) return;
   audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, audioEl.currentTime + secs));
   updateScrubUI();
 }
 
-// ââ Audio engine âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function lockVoiceButtons() {
   ['pvf','pvm','vbf','vbm'].forEach(id => {
     const el = document.getElementById(id);
@@ -361,13 +345,13 @@ function stopAudio() {
 }
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
-  setPlayerState(false, 'Paused â press play to continue');
+  setPlayerState(false, 'Paused \u2014 press play to continue');
   setScrubActive(false);
 }
 function resumeAudio() {
   if (audioEl) {
     audioEl.play();
-    setPlayerState(true, 'Now playing â ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+    setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Female' : 'Male') + ' voice');
     setScrubActive(true);
     return true;
   }
@@ -375,7 +359,7 @@ function resumeAudio() {
 }
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-  setPlayerState(true, 'Loading audioâ¦');
+  setPlayerState(true, 'Loading audio\u2026');
   lockVoiceButtons();
   try {
     const res = await fetch('/api/tts', {
@@ -397,8 +381,8 @@ async function startOpenAIAudio() {
     }
     playSingleAudio(audioUrl, blobUrl);
   } catch (err) {
-    console.warn('OpenAI TTS failed:', err.message);
-    setPlayerState(false, 'Audio unavailable â please try again');
+    console.warn('TTS failed:', err.message);
+    setPlayerState(false, 'Audio unavailable \u2014 please try again');
     unlockVoiceButtons();
   }
 }
@@ -408,7 +392,7 @@ function playSingleAudio(audioUrl, blobUrl) {
   audioEl.addEventListener('ended', () => {
     const fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
-    setPlayerState(false, 'Finished â press play to replay');
+    setPlayerState(false, 'Finished \u2014 press play to replay');
     setScrubActive(false);
     unlockVoiceButtons();
     if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -417,13 +401,13 @@ function playSingleAudio(audioUrl, blobUrl) {
   audioEl.addEventListener('error', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable â please try again');
+    setPlayerState(false, 'Audio unavailable \u2014 please try again');
     setScrubActive(false);
     unlockVoiceButtons();
   });
   audioEl.play();
   audioEl.playbackRate = playbackRate;
-  setPlayerState(true, 'Now playing â ' + (currentVoice === 'female' ? 'Nova' : 'Onyx') + ' voice');
+  setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Female' : 'Male') + ' voice');
   setScrubActive(true);
   initScrubEvents();
 }
@@ -434,14 +418,12 @@ function togglePlay() {
   startOpenAIAudio();
 }
 
-// ââ Download / Print âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-
 function downloadEpub() {
   if (!currentSummary) return;
   const id = 'kernl-' + Date.now();
   const t = esc(currentSummary.title), a = esc(currentSummary.author);
-  const contentHtml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + t + '</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>' + t + '</h1><div class="byline">by ' + a + ' â KERNL Deep Summary</div>' + currentSummary.html + '<div class="footer">Generated by KERNL â for the curious</div></body></html>';
-  const opf = '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + t + ' â KERNL</dc:title><dc:creator>' + a + '</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">' + id + '</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
+  const contentHtml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + t + '</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>' + t + '</h1><div class="byline">by ' + a + ' \u2014 KERNL Summary</div>' + currentSummary.html + '<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>';
+  const opf = '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + t + ' \u2014 KERNL</dc:title><dc:creator>' + a + '</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">' + id + '</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
   const ncx = '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="' + id + '"/></head><docTitle><text>' + t + '</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
   const container = '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
   const script = document.createElement('script');
@@ -466,10 +448,10 @@ function printSummary() {
   let meganSection = '';
   if (meganOpen && words.length) {
     const wordRows = words.map(w => `<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">${esc(w.word)}</td><td style="padding:5pt 0;color:#444;line-height:1.5">${esc(w.definition)}</td></tr>`).join('');
-    meganSection = `<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">ð Mega Words â Interesting vocabulary from this book</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`;
+    meganSection = `<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`;
   }
   const w = window.open('', '_blank');
-  w.document.write('<!DOCTYPE html><html><head><title>' + esc(currentSummary.title) + ' â KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>' + esc(currentSummary.title) + '</h1><div class="byline">by ' + esc(currentSummary.author) + ' â KERNL Deep Summary</div>' + currentSummary.html + meganSection + '<div class="footer">Generated by KERNL â for the curious</div></body></html>');
+  w.document.write('<!DOCTYPE html><html><head><title>' + esc(currentSummary.title) + ' \u2014 KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>' + esc(currentSummary.title) + '</h1><div class="byline">by ' + esc(currentSummary.author) + ' \u2014 KERNL Summary</div>' + currentSummary.html + meganSection + '<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>');
   w.document.close();
   setTimeout(() => w.print(), 400);
 }
@@ -483,7 +465,6 @@ function triggerDownload(blob, filename) {
 }
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').slice(0, 60); }
 
-// ââ Event listeners ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 document.getElementById('book-input').addEventListener('input', e => {
   clearTimeout(autocompleteTimer);
   autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 500);
@@ -499,19 +480,6 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#book-input') && !e.target.closest('#book-dropdown')) hideDropdown();
 });
 
-// ââ KERNL SWIFT âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-function  {
-  if (!currentSummary || !currentSummary.plain) return;
-  var wpmMap = {1: 250, 1.5: 375, 2: 500};
-  var wpm = wpmMap[playbackRate] || 250;
-   },
-    function() { togglePlay(); },
-    function() { pauseAudio(); },
-    currentTimings
-  );
-}
-
 initDark();
 setVoice('female');
 renderArchive();
-// v19
