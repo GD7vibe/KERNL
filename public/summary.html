@@ -306,45 +306,60 @@ async function prefetchAudio() {
 
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-  setPlayerState(true, 'Loading audio\u2026');
-  var audioUrl = (prefetchedVoice === currentVoice) ? prefetchedAudioUrl : null;
-  var blobUrl = (prefetchedVoice === currentVoice) ? prefetchedBlobUrl : null;
-  if (!audioUrl) {
-    try {
-      var res = await fetch('/api/tts', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({text:currentSummary.plain, voice:currentVoice, title:currentSummary.title, author:currentSummary.author})
-      });
-      if (!res.ok) throw new Error('TTS failed');
-      var ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) { var data = await res.json(); audioUrl = data.url; if (data.timings && data.timings.length) currentTimings = data.timings; }
-      else { var blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl; }
-    } catch(err) { setPlayerState(false, 'Audio unavailable \u2014 please try again'); return; }
+  var voiceForThisRequest = currentVoice;
+  setPlayerState(true, 'Loading audio…');
+  // Always fetch fresh - ignore any prefetch cache to avoid wrong-voice bugs
+  prefetchedAudioUrl = null;
+  prefetchedBlobUrl = null;
+  prefetchedVoice = null;
+  var audioUrl = null;
+  var blobUrl = null;
+  try {
+    var res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text:currentSummary.plain, voice:voiceForThisRequest, title:currentSummary.title, author:currentSummary.author})
+    });
+    if (!res.ok) throw new Error('TTS failed');
+    var ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      var data = await res.json();
+      audioUrl = data.url;
+      if (data.timings && data.timings.length) currentTimings = data.timings;
+    } else {
+      var blob = await res.blob();
+      blobUrl = URL.createObjectURL(blob);
+      audioUrl = blobUrl;
+    }
+  } catch(err) {
+    setPlayerState(false, 'Audio unavailable — please try again');
+    return;
   }
-  prefetchedAudioUrl = null; prefetchedBlobUrl = null;
+  // If voice changed while loading, abort
+  if (currentVoice !== voiceForThisRequest) { if (blobUrl) URL.revokeObjectURL(blobUrl); setPlayerState(false, (currentVoice==='male'?'Male':'Female') + ' voice - press play'); return; }
   audioEl = new Audio(audioUrl);
   audioEl.playbackRate = playbackRate;
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', function() {
     var fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
-    setPlayerState(false, 'Finished \u2014 press play to replay');
+    setPlayerState(false, 'Finished — press play to replay');
     setScrubActive(false);
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    prefetchAudio();
   });
   audioEl.addEventListener('error', function() {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable \u2014 please try again');
+    setPlayerState(false, 'Audio unavailable — please try again');
     setScrubActive(false);
   });
   var playPromise = audioEl.play();
   if (playPromise && playPromise.catch) {
     playPromise.catch(function(err) { console.warn('Play blocked:', err); setPlayerState(false, 'Tap play to listen'); });
   }
-  loadedVoice = currentVoice; setPlayerState(true, (currentVoice === 'male' ? 'Male' : 'Female') + ' voice - now playing');
+  loadedVoice = voiceForThisRequest;
+  setPlayerState(true, (voiceForThisRequest === 'male' ? 'Male' : 'Female') + ' voice - now playing');
   setScrubActive(true);
   initScrubEvents();
 }
@@ -516,20 +531,24 @@ function openSwift() {
 
 function setVoiceLib(v) {
   currentVoice = v;
+  // Update button states
   var pvf = document.getElementById('pvf');
   var pvm = document.getElementById('pvm');
   if (pvf) { pvf.classList.toggle('on', v === 'female'); pvf.classList.toggle('active', v === 'female'); }
   if (pvm) { pvm.classList.toggle('on', v === 'male'); pvm.classList.toggle('active', v === 'male'); }
+  // Kill any current audio
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
+  // Clear ALL prefetch cache so next play fetches correct voice
   prefetchedAudioUrl = null;
   prefetchedBlobUrl = null;
   prefetchedVoice = null;
   setPlayerState(false, null);
   resetScrubUI();
+  // Update subtitle
   var ps = document.getElementById('player-sub');
   if (ps) ps.textContent = (v === 'male' ? 'Male' : 'Female') + ' voice - press play';
-  prefetchAudio();
+  // Do NOT prefetch here - let user press play to fetch the correct voice
 }
 initDark();
 loadSummary();
