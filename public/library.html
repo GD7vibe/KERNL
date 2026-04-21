@@ -31,6 +31,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .search-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:1.1rem;pointer-events:none}
 .categories{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2rem}
 .cat-btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.cat-btn:hover{border-color:var(--accent-light);color:var(--accent)}
+.cat-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.cat-icon{font-size:0.9rem}
 @media(max-width:560px){
   body{overflow-x:hidden}
   #app{padding:0 0.75rem 5rem}
@@ -39,26 +42,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   .cat-icon{font-size:0.8rem}
   .cat-btn:first-child{grid-column:1/-1}
 }
-.cat-btn:hover{border-color:var(--accent-light);color:var(--accent)}
-.cat-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
-.cat-icon{font-size:0.9rem}
 .stats-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
 .stats-count{font-size:0.82rem;color:var(--muted);font-style:italic}
 .stats-count span{color:var(--accent);font-weight:500}
 .book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
 @media(max-width:560px){.book-grid{grid-template-columns:1fr}}
-.book-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;cursor:pointer;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s,background var(--transition);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+.book-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s,background var(--transition);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
 .book-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:0;transition:opacity 0.2s}
 .book-card:hover{border-color:var(--accent-light);box-shadow:0 4px 20px rgba(139,69,19,0.12);transform:translateY(-2px)}
 .book-card:hover::before{opacity:1}
-.book-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.book-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer}
 .book-cat-badge{font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:3px 10px;border-radius:20px;font-weight:500;white-space:nowrap;flex-shrink:0;border:1px solid rgba(139,69,19,0.12)}
 .book-title{font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--ink);line-height:1.3;transition:color var(--transition)}
 .book-author{font-size:0.8rem;color:var(--muted);font-style:italic}
 .book-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:10px;border-top:1px solid var(--border)}
-.audio-badge{font-size:0.7rem;color:var(--muted);display:flex;align-items:center;gap:4px}
-.audio-dot{width:6px;height:6px;border-radius:50%;background:#2d6a4f;flex-shrink:0}
-.read-btn{height:28px;padding:0 14px;background:var(--accent);color:#fff;border:none;border-radius:20px;font-family:'DM Sans',sans-serif;font-size:0.75rem;font-weight:500;cursor:pointer;transition:background 0.2s}
+.voice-btns{display:flex;gap:6px}
+.voice-pick-btn{height:30px;padding:0 12px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:4px}
+.voice-pick-btn:hover{border-color:var(--accent-light);color:var(--accent)}
+.voice-pick-btn.selected{background:var(--accent);border-color:var(--accent);color:#fff}
+.read-btn{height:30px;padding:0 14px;background:var(--accent);color:#fff;border:none;border-radius:20px;font-family:'DM Sans',sans-serif;font-size:0.75rem;font-weight:500;cursor:pointer;transition:background 0.2s;white-space:nowrap}
 .read-btn:hover{background:var(--accent-light)}
 .empty-state{text-align:center;padding:4rem 2rem;color:var(--muted);font-style:italic}
 .loading{text-align:center;padding:4rem;color:var(--muted)}
@@ -90,8 +92,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
 </div>
 <script>
-// Build emoji strings safely at runtime using codepoints - no literals in source
 function e(cp){return String.fromCodePoint(cp);}
+
 var CATEGORIES = [
   { id: 'all',        label: 'All Books',           icon: e(0x1F4DA) },
   { id: 'mind',       label: 'Mind & Psychology',   icon: e(0x1F9E0) },
@@ -108,41 +110,40 @@ var CATEGORIES = [
   { id: 'philosophy', label: 'Philosophy',          icon: e(0x1F3AF) },
 ];
 
-var BOOK_CATEGORIES = {
-  'atomic habits':'self','sapiens':'history','the 7 habits of highly effective people':'self',
-  'think and grow rich':'money','the power of now':'philosophy',"man's search for meaning":'philosophy',
-  'how to win friends and influence people':'mind','the 4-hour work week':'self','rich dad poor dad':'money',
-  '12 rules for life':'philosophy','the subtle art of not giving a f*ck':'self','outliers':'mind',
-  'thinking fast and slow':'mind','the lean startup':'money','zero to one':'money','good to great':'leadership',
-  'the e-myth revisited':'money','deep work':'self','start with why':'leadership','dare to lead':'leadership',
-  'the alchemist':'fiction','1984':'classic','to kill a mockingbird':'classic','the great gatsby':'classic',
-  'brave new world':'classic','animal farm':'classic','of mice and men':'classic','lord of the flies':'classic',
-  'the catcher in the rye':'classic','fahrenheit 451':'classic','the hobbit':'classic',
-  "harry potter and the philosopher's stone":'family','the lion the witch and the wardrobe':'family',
-  'charlie and the chocolate factory':'family','matilda':'family','the bfg':'family',
-  'james and the giant peach':'family','the hunger games':'fiction','the da vinci code':'fiction',
-  'gone girl':'fiction','the girl with the dragon tattoo':'fiction','the road':'fiction',
-  'life of pi':'fiction','the kite runner':'fiction','a thousand splendid suns':'fiction',
-  'the book thief':'fiction','all quiet on the western front':'classic','the old man and the sea':'classic',
-  'crime and punishment':'classic','a brief history of time':'science','the selfish gene':'science',
-  'cosmos':'science','the gene':'science','educated':'biography','becoming':'biography',
-  'long walk to freedom':'biography','steve jobs':'biography','elon musk':'biography',
-  'leonardo da vinci':'biography','homo deus':'history','21 lessons for the 21st century':'history',
-  'guns germs and steel':'history','the silk roads':'history','prisoners of geography':'history',
-  'a short history of nearly everything':'science','notes from a small island':'biography',
-  'the diary of a young girl':'biography','night':'biography','the art of war':'philosophy',
-  'meditations':'philosophy','the prince':'philosophy','influence':'mind',
-  'the psychology of money':'money','the millionaire next door':'money','i will teach you to be rich':'money',
-  'the total money makeover':'money','why we sleep':'health','the body':'health','ikigai':'health',
-  'the blue zones':'health','breath':'health','lost connections':'health','stolen focus':'health',
-  'digital minimalism':'self','the social animal':'mind','quiet':'mind','emotional intelligence':'mind',
-  'the gifts of imperfection':'self','feel the fear and do it anyway':'self','the miracle morning':'self',
-  "can't hurt me":'self','extreme ownership':'leadership','the 48 laws of power':'leadership',
-  'mastery':'self','the art of thinking clearly':'mind','black box thinking':'mind','bounce':'self',
-  'shoe dog':'biography','born to run':'health','the power of the dog':'fiction',
-};
+// Exactly 24 curated books â 2 per category
+var CURATED_BOOKS = [
+  { title: 'Thinking Fast and Slow',              author: 'Daniel Kahneman',   category: 'mind'       },
+  { title: 'Quiet',                               author: 'Susan Cain',        category: 'mind'       },
+  { title: 'The Psychology of Money',             author: 'Morgan Housel',     category: 'money'      },
+  { title: 'Rich Dad Poor Dad',                   author: 'Robert Kiyosaki',   category: 'money'      },
+  { title: 'Atomic Habits',                       author: 'James Clear',       category: 'self'       },
+  { title: 'Deep Work',                           author: 'Cal Newport',       category: 'self'       },
+  { title: '1984',                                author: 'George Orwell',     category: 'classic'    },
+  { title: 'To Kill a Mockingbird',               author: 'Harper Lee',        category: 'classic'    },
+  { title: 'The Lion the Witch and the Wardrobe', author: 'C.S. Lewis',        category: 'family'     },
+  { title: 'Matilda',                             author: 'Roald Dahl',        category: 'family'     },
+  { title: 'Sapiens',                             author: 'Yuval Noah Harari', category: 'history'    },
+  { title: 'Guns Germs and Steel',                author: 'Jared Diamond',     category: 'history'    },
+  { title: 'A Brief History of Time',             author: 'Stephen Hawking',   category: 'science'    },
+  { title: 'Why We Sleep',                        author: 'Matthew Walker',    category: 'science'    },
+  { title: 'Start With Why',                      author: 'Simon Sinek',       category: 'leadership' },
+  { title: 'Good to Great',                       author: 'Jim Collins',       category: 'leadership' },
+  { title: 'Ikigai',                              author: 'Hector Garcia',     category: 'health'     },
+  { title: 'Breath',                              author: 'James Nestor',      category: 'health'     },
+  { title: 'The Alchemist',                       author: 'Paulo Coelho',      category: 'fiction'    },
+  { title: 'The Kite Runner',                     author: 'Khaled Hosseini',   category: 'fiction'    },
+  { title: 'Shoe Dog',                            author: 'Phil Knight',       category: 'biography'  },
+  { title: 'Long Walk to Freedom',                author: 'Nelson Mandela',    category: 'biography'  },
+  { title: "Man's Search for Meaning",            author: 'Viktor Frankl',     category: 'philosophy' },
+  { title: 'Meditations',                         author: 'Marcus Aurelius',   category: 'philosophy' },
+];
 
-var allBooks = [];
+// Track selected voice per book (default female)
+var voiceSelections = {};
+CURATED_BOOKS.forEach(function(b) {
+  voiceSelections[b.title] = 'female';
+});
+
 var activeCategory = 'all';
 
 function toggleDark() {
@@ -151,7 +152,6 @@ function toggleDark() {
   document.getElementById('dark-icon').innerHTML = isDark ? '&#x2600;&#xFE0F;' : '&#x1F319;';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
-
 function initDark() {
   var saved = localStorage.getItem('kernl_dark');
   var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -162,47 +162,40 @@ function initDark() {
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function getCategory(title) {
-  return BOOK_CATEGORIES[(title||'').toLowerCase().trim()] || 'fiction';
-}
 function getCategoryInfo(id) {
   return CATEGORIES.find(function(c){ return c.id === id; }) || CATEGORIES[0];
 }
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+
 function openBook(title, author) {
-  window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
+  var voice = voiceSelections[title] || 'female';
+  window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author) + '&voice=' + voice;
 }
 
-function loadLibrary() {
-  fetch('/api/library-list').then(function(res) {
-    if (!res.ok) throw new Error('Failed');
-    return res.json();
-  }).then(function(data) {
-    var seen = new Set();
-    allBooks = data.filter(function(b) {
-      var titleKey = (b.title||'').toLowerCase().trim();
-      if (!(titleKey in BOOK_CATEGORIES)) return false;
-      if (seen.has(titleKey)) return false;
-      seen.add(titleKey);
-      return true;
-    }).map(function(b) { return { title: b.title, author: b.author, category: getCategory(b.title) }; });
-    renderCategories();
-    renderGrid();
-  }).catch(function() {
-    document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">Could not load library. Please try again.</div>';
+function setVoice(title, voice) {
+  voiceSelections[title] = voice;
+  // Update button states for this card
+  var cards = document.querySelectorAll('.book-card');
+  cards.forEach(function(card) {
+    if (card.dataset.title === title) {
+      card.querySelectorAll('.voice-pick-btn').forEach(function(btn) {
+        btn.classList.toggle('selected', btn.dataset.voice === voice);
+      });
+    }
   });
 }
 
 function renderCategories() {
   var container = document.getElementById('categories');
   container.innerHTML = CATEGORIES.map(function(cat) {
-    var count = cat.id === 'all' ? allBooks.length : allBooks.filter(function(b){ return b.category === cat.id; }).length;
+    var count = cat.id === 'all'
+      ? CURATED_BOOKS.length
+      : CURATED_BOOKS.filter(function(b){ return b.category === cat.id; }).length;
     if (count === 0 && cat.id !== 'all') return '';
     return '<button class="cat-btn ' + (activeCategory === cat.id ? 'active' : '') + '" onclick="setCategory(\'' + cat.id + '\')">'
-      + '<span class="cat-icon">' + cat.icon + '</span> ' + cat.label
+      + '<span class="cat-icon">' + cat.icon + '</span> '
+      + cat.label
       + ' <span style="opacity:0.6;font-size:0.75em">(' + count + ')</span>'
       + '</button>';
   }).join('');
@@ -214,6 +207,7 @@ function setCategory(id) {
   renderCategories();
   renderGrid();
 }
+
 function filterBooks() {
   activeCategory = 'all';
   renderCategories();
@@ -222,58 +216,88 @@ function filterBooks() {
 
 function renderGrid() {
   var query = document.getElementById('search-input').value.toLowerCase().trim();
-  var filtered = allBooks.filter(function(b) {
+  var filtered = CURATED_BOOKS.filter(function(b) {
     var matchCat = activeCategory === 'all' || b.category === activeCategory;
     var matchSearch = !query || b.title.toLowerCase().indexOf(query) >= 0 || b.author.toLowerCase().indexOf(query) >= 0;
     return matchCat && matchSearch;
   });
+
   var countEl = document.getElementById('stats-count');
   var catInfo = getCategoryInfo(activeCategory);
   if (query) {
-    countEl.innerHTML = '<span>' + filtered.length + '</span> book' + (filtered.length!==1?'s':'') + ' matching "' + query + '"';
+    countEl.innerHTML = '<span>' + filtered.length + '</span> book' + (filtered.length !== 1 ? 's' : '') + ' matching "' + query + '"';
   } else if (activeCategory === 'all') {
-    countEl.innerHTML = '<span>' + filtered.length + '</span> books in the library';
+    countEl.innerHTML = '<span>' + filtered.length + '</span> books in the free library';
   } else {
     countEl.innerHTML = catInfo.icon + ' <span>' + filtered.length + '</span> books in ' + catInfo.label;
   }
+
   if (!filtered.length) {
     document.getElementById('book-grid-wrap').innerHTML = '<div class="empty-state">No books found.</div>';
     return;
   }
+
   var wrap = document.createElement('div');
   wrap.className = 'book-grid';
+
   filtered.forEach(function(b) {
     var cat = getCategoryInfo(b.category);
+    var selectedVoice = voiceSelections[b.title] || 'female';
     var card = document.createElement('div');
     card.className = 'book-card';
     card.dataset.title = b.title;
     card.dataset.author = b.author;
+
     card.innerHTML =
-      '<div class="book-card-top">'
-        + '<div>'
-          + '<div class="book-title">' + esc(b.title) + '</div>'
-          + '<div class="book-author">by ' + esc(b.author) + '</div>'
-        + '</div>'
-        + '<div class="book-cat-badge">' + cat.icon + ' ' + cat.label + '</div>'
-      + '</div>'
-      + '<div class="book-card-footer">'
-        + '<div class="audio-badge"><div class="audio-dot"></div> Audio available</div>'
-        + '<button class="read-btn">Read &#x203A;</button>'
-      + '</div>';
-    card.addEventListener('click', function() { openBook(this.dataset.title, this.dataset.author); });
+      '<div class="book-card-top">' +
+        '<div>' +
+          '<div class="book-title">' + esc(b.title) + '</div>' +
+          '<div class="book-author">by ' + esc(b.author) + '</div>' +
+        '</div>' +
+        '<div class="book-cat-badge">' + cat.icon + ' ' + cat.label + '</div>' +
+      '</div>' +
+      '<div class="book-card-footer">' +
+        '<div class="voice-btns">' +
+          '<button class="voice-pick-btn ' + (selectedVoice === 'female' ? 'selected' : '') + '" data-voice="female" data-title="' + esc(b.title) + '">' +
+            '&#9792; Female' +
+          '</button>' +
+          '<button class="voice-pick-btn ' + (selectedVoice === 'male' ? 'selected' : '') + '" data-voice="male" data-title="' + esc(b.title) + '">' +
+            '&#9794; Male' +
+          '</button>' +
+        '</div>' +
+        '<button class="read-btn">Read &#x203A;</button>' +
+      '</div>';
+
+    // Click card body to open
+    card.querySelector('.book-card-top').addEventListener('click', function() {
+      openBook(b.title, b.author);
+    });
+
+    // Voice buttons
+    card.querySelectorAll('.voice-pick-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        setVoice(btn.dataset.title, btn.dataset.voice);
+      });
+    });
+
+    // Read button
     card.querySelector('.read-btn').addEventListener('click', function(ev) {
       ev.stopPropagation();
-      openBook(card.dataset.title, card.dataset.author);
+      openBook(b.title, b.author);
     });
+
     wrap.appendChild(card);
   });
+
   var gridWrap = document.getElementById('book-grid-wrap');
   gridWrap.innerHTML = '';
   gridWrap.appendChild(wrap);
 }
 
 initDark();
-loadLibrary();
+renderCategories();
+renderGrid();
 </script>
 </body>
 </html>
