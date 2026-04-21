@@ -145,6 +145,7 @@ let playbackRate = 1;
 let currentVoice = 'female';
 let loadedVoice = 'female';
 let prefetchedAudioUrl = null;
+let prefetchedVoice = null;
 let prefetchedBlobUrl = null;
 let currentTimings = [];
 
@@ -291,12 +292,14 @@ async function prefetchAudio() {
     var ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) {
       var data = await res.json();
-      prefetchedAudioUrl = data.url; prefetchedBlobUrl = null;
+      prefetchedAudioUrl = data.url;
+      prefetchedVoice = currentVoice; prefetchedBlobUrl = null;
       if (data.timings && data.timings.length) currentTimings = data.timings;
     } else {
       var blob = await res.blob();
       prefetchedBlobUrl = URL.createObjectURL(blob);
       prefetchedAudioUrl = prefetchedBlobUrl;
+      prefetchedVoice = currentVoice;
     }
   } catch(e) { prefetchedAudioUrl = null; }
 }
@@ -304,8 +307,8 @@ async function prefetchAudio() {
 async function startOpenAIAudio() {
   if (!currentSummary) return;
   setPlayerState(true, 'Loading audio\u2026');
-  var audioUrl = prefetchedAudioUrl;
-  var blobUrl = prefetchedBlobUrl;
+  var audioUrl = (prefetchedVoice === currentVoice) ? prefetchedAudioUrl : null;
+  var blobUrl = (prefetchedVoice === currentVoice) ? prefetchedBlobUrl : null;
   if (!audioUrl) {
     try {
       var res = await fetch('/api/tts', {
@@ -521,6 +524,7 @@ function setVoiceLib(v) {
   isPlaying = false;
   prefetchedAudioUrl = null;
   prefetchedBlobUrl = null;
+  prefetchedVoice = null;
   setPlayerState(false, null);
   resetScrubUI();
   var ps = document.getElementById('player-sub');
