@@ -498,14 +498,11 @@ document.addEventListener('click', e => {
 });
 
 // \u2500\u2500 KERNL SWIFT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-function openSwift() {
+function  {
   if (!currentSummary || !currentSummary.plain) return;
   var wpmMap = {1: 250, 1.5: 375, 2: 500};
   var wpm = wpmMap[playbackRate] || 250;
-  KernlSwift.open(
-    currentSummary.plain,
-    wpm,
-    function() { return audioEl; },
+   },
     function() { togglePlay(); },
     function() { pauseAudio(); },
     currentTimings
