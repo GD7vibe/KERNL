@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KERNL — for the curious</title>
-<meta name="description" content="for the curious — AI-powered book summaries you can read or listen to in 10 minutes.">
-<meta property="og:title" content="KERNL — for the curious">
+<title>KERNL â for the curious</title>
+<meta name="description" content="for the curious â AI-powered book summaries you can read or listen to in 10 minutes.">
+<meta property="og:title" content="KERNL â for the curious">
 <meta property="og:description" content="AI-powered book summaries you can read or listen to in 10 minutes.">
 <meta property="og:url" content="https://kernl-three.vercel.app/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="KERNL — for the curious">
+<meta name="twitter:title" content="KERNL â for the curious">
 <meta name="twitter:description" content="AI-powered book summaries you can read or listen to in 10 minutes.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -81,7 +81,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .chip{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);transition:all var(--transition)}
 .chip-spoiler{color:#8B1A1A;background:rgba(139,26,26,0.08);border-color:rgba(139,26,26,0.2)}
 
-/* ── PLAYER ── */
+/* ââ PLAYER ââ */
 .player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);transition:background var(--transition),border-color var(--transition)}
 .player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
 .play-btn{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.1s,box-shadow 0.3s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
@@ -99,9 +99,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .pvb.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb:hover:not(.on):not(.active){border-color:var(--accent-light);color:var(--accent)}
 
-/* ── SCRUB ROW — idle ── */
+/* ââ SCRUB ROW â idle ââ */
 .player-scrub-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;border:1px solid transparent;background:transparent;transition:background 0.3s,border-color 0.3s}
-/* ── SCRUB ROW — active/playing ── */
+/* ââ SCRUB ROW â active/playing ââ */
 .player-scrub-row.active{background:var(--accent-pale);border-color:var(--border)}
 html.dark .player-scrub-row.active{background:rgba(196,122,58,0.1);border-color:rgba(196,122,58,0.25)}
 
@@ -204,14 +204,14 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   if (input === ACCESS_CODE) {
     localStorage.setItem(ADMIN_KEY, ACCESS_CODE);
   } else {
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#7a7060;font-size:1rem;">Access denied. <a href="/library.html" style="margin-left:8px;color:#8B4513;">Browse the free library →</a></div>';
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#7a7060;font-size:1rem;">Access denied. <a href="/library.html" style="margin-left:8px;color:#8B4513;">Browse the free library â</a></div>';
   }
 })();
 </script>
 <div id="app">
   <div class="masthead">
     <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()">
-      <span class="dark-toggle-icon" id="dark-icon">🌙</span>
+      <span class="dark-toggle-icon" id="dark-icon">ð</span>
       <span id="dark-label">Dark</span>
     </button>
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
@@ -226,7 +226,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
       </div>
       <div class="field">
         <label>Author</label>
-        <input type="text" id="author-input" placeholder="e.g. Henri Charrière" autocomplete="off" />
+        <input type="text" id="author-input" placeholder="e.g. Henri CharriÃ¨re" autocomplete="off" />
       </div>
     </div>
     <div class="search-bottom">
@@ -238,11 +238,11 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
         </div>
         
       </div>
-      <button class="btn-generate" id="gen-btn" onclick="handleGenerate()">Summarise ›</button>
+      <button class="btn-generate" id="gen-btn" onclick="handleGenerate()">Summarise âº</button>
     </div>
     <div class="status-bar" id="status-bar">
       <div class="spinner"></div>
-      <span id="status-text">Generating summary — please wait about 30 seconds...</span>
+      <span id="status-text">Generating summary â please wait about 30 seconds...</span>
     </div>
     <div class="error-bar" id="error-bar"></div>
   </div>
@@ -274,21 +274,21 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
           <button class="pvb" id="pvm" onclick="setVoice('male')">&#9794;</button>
         </div>
         <div class="player-voice-btns">
-          <button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1×</button>
-          <button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5×</button>
-          <button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2×</button>
+          <button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1Ã</button>
+          <button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5Ã</button>
+          <button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2Ã</button>
         </div>
       </div>
-      <!-- SCRUB ROW — id added for active state targeting -->
+      <!-- SCRUB ROW â id added for active state targeting -->
       <div class="player-scrub-row" id="scrub-row">
         <span class="scrub-time" id="scrub-elapsed">0:00</span>
-        <button class="skip-btn" onclick="skipAudio(-10)" title="Back 10s">−10</button>
+        <button class="skip-btn" onclick="skipAudio(-10)" title="Back 10s">â10</button>
         <div class="scrub-track" id="scrub-track">
           <div class="scrub-fill" id="scrub-fill"></div>
           <div class="scrub-thumb" id="scrub-thumb"></div>
         </div>
         <button class="skip-btn" onclick="skipAudio(10)" title="Forward 10s">+10</button>
-        <span class="scrub-time right" id="scrub-remaining">−0:00</span>
+        <span class="scrub-time right" id="scrub-remaining">â0:00</span>
       </div>
     </div>
 
@@ -296,17 +296,16 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
       <button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
       <a id="buy-btn" class="buy-btn" href="#" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>
-      <button class="btn-action" id="swift-btn" onclick="openSwift()">&#9889; Swift</button>
     </div>
     <div class="summary-body" id="summary-body"></div>
     <div class="megan-words-section" id="megan-words-section" style="display:none">
       <div class="megan-words-header" onclick="toggleMeganWords()">
         <div class="megan-words-title">
-          <span class="megan-words-title-icon">📖</span>
+          <span class="megan-words-title-icon">ð</span>
           Mega Words
-          <span class="megan-words-subtitle">— interesting words from this book</span>
+          <span class="megan-words-subtitle">â interesting words from this book</span>
         </div>
-        <span class="megan-arrow" id="megan-arrow">▼</span>
+        <span class="megan-arrow" id="megan-arrow">â¼</span>
       </div>
       <div class="megan-words-grid" id="megan-words-grid"></div>
       <div class="disclaimer-bar">
@@ -329,7 +328,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   </div>
   <div id="archive-container"></div>
 </div>
-<script src="/kernl-swift.js"></script>
+
 <script src="/app.js?v=19"></script>
 </body>
 </html>
