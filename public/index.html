@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KERNL â for the curious</title>
-<meta name="description" content="for the curious â AI-powered book summaries you can read or listen to in 10 minutes.">
-<meta property="og:title" content="KERNL â for the curious">
+<title>KERNL &mdash; for the curious</title>
+<meta name="description" content="for the curious &mdash; AI-powered book summaries you can read or listen to in 10 minutes.">
+<meta property="og:title" content="KERNL &mdash; for the curious">
 <meta property="og:description" content="AI-powered book summaries you can read or listen to in 10 minutes.">
 <meta property="og:url" content="https://kernl-three.vercel.app/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="KERNL â for the curious">
+<meta name="twitter:title" content="KERNL &mdash; for the curious">
 <meta name="twitter:description" content="AI-powered book summaries you can read or listen to in 10 minutes.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +28,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .logo{font-family:'Playfair Display',serif;font-size:clamp(2.8rem,8vw,4rem);font-weight:600;letter-spacing:0.12em;color:var(--ink);line-height:1;transition:color var(--transition)}
 .logo-e{color:var(--accent)}
 .tagline{font-size:0.95rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--muted);margin-top:0.6rem;font-weight:500;transition:color var(--transition)}
-
 .dark-toggle{position:absolute;top:1rem;right:1rem;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);display:flex;align-items:center;gap:6px;opacity:0.7}
 .dark-toggle:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
 .dark-toggle-icon{font-size:0.85rem}
@@ -54,14 +53,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .voice-btn{height:34px;padding:0 18px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
 .voice-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
 .voice-btn:hover:not(.active){border-color:var(--accent-light);color:var(--accent)}
-.spoiler-row{display:flex;align-items:center;gap:8px}
-.spoiler-label{font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);font-weight:500;transition:color var(--transition)}
-.spoiler-switch{position:relative;display:inline-block;width:38px;height:22px}
-.spoiler-switch input{opacity:0;width:0;height:0}
-.spoiler-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:var(--border);border-radius:22px;transition:background 0.2s}
-.spoiler-slider:before{position:absolute;content:"";height:16px;width:16px;left:3px;bottom:3px;background:white;border-radius:50%;transition:transform 0.2s}
-.spoiler-switch input:checked + .spoiler-slider{background:var(--accent)}
-.spoiler-switch input:checked + .spoiler-slider:before{transform:translateX(16px)}
 .btn-generate{height:46px;padding:0 32px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.92rem;font-weight:500;cursor:pointer;letter-spacing:0.04em;transition:background 0.2s,transform 0.1s,box-shadow 0.2s;white-space:nowrap;box-shadow:0 2px 8px rgba(139,69,19,0.25)}
 .btn-generate:hover:not(:disabled){background:var(--accent-light)}
 .btn-generate:disabled{opacity:0.45;cursor:not-allowed;box-shadow:none}
@@ -75,13 +66,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-card.show{display:block}
 .summary-header{padding:2rem 2rem 1.75rem;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--warm) 0%,var(--warm) 100%);position:relative;transition:background var(--transition)}
 .summary-header-ornament{position:absolute;top:1rem;right:1.5rem;font-family:'Playfair Display',serif;font-size:5rem;color:var(--accent);opacity:0.06;line-height:1;pointer-events:none}
-.summary-book-title{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,4vw,2rem);font-weight:600;line-height:1.2;color:var(--ink);margin-bottom:0.3rem;transition:color var(--transition)}
-.summary-book-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:1rem;transition:color var(--transition)}
-.summary-chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);transition:all var(--transition)}
-.chip-spoiler{color:#8B1A1A;background:rgba(139,26,26,0.08);border-color:rgba(139,26,26,0.2)}
-
-/* ââ PLAYER ââ */
+.summary-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:0.3rem}
+.summary-book-title{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,4vw,2rem);font-weight:600;line-height:1.2;color:var(--ink);transition:color var(--transition)}
+.summary-word-count{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);white-space:nowrap;flex-shrink:0;transition:all var(--transition)}
+.summary-book-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:0.5rem;transition:color var(--transition)}
 .player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);transition:background var(--transition),border-color var(--transition)}
 .player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
 .play-btn{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.1s,box-shadow 0.3s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
@@ -98,23 +86,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .pvb.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .pvb:hover:not(.on):not(.active){border-color:var(--accent-light);color:var(--accent)}
-
-/* ââ SCRUB ROW â idle ââ */
 .player-scrub-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;border:1px solid transparent;background:transparent;transition:background 0.3s,border-color 0.3s}
-/* ââ SCRUB ROW â active/playing ââ */
 .player-scrub-row.active{background:var(--accent-pale);border-color:var(--border)}
 html.dark .player-scrub-row.active{background:rgba(196,122,58,0.1);border-color:rgba(196,122,58,0.25)}
-
 .skip-btn{width:34px;height:34px;flex-shrink:0;border-radius:50%;background:transparent;border:1.5px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:'DM Sans',sans-serif;font-size:0.62rem;font-weight:700;color:var(--muted);line-height:1}
 .skip-btn:hover{border-color:var(--accent-light);color:var(--accent);background:var(--accent-pale)}
 .skip-btn:active{transform:scale(0.92)}
 .player-scrub-row.active .skip-btn{border-color:var(--accent);color:var(--accent)}
 .player-scrub-row.active .skip-btn:hover{background:var(--accent);color:#fff}
-
 .scrub-time{font-size:0.75rem;color:var(--muted);white-space:nowrap;min-width:34px;transition:color 0.3s;font-variant-numeric:tabular-nums;font-weight:500}
 .scrub-time.right{text-align:right}
 .player-scrub-row.active .scrub-time{color:var(--accent);font-weight:600}
-
 .scrub-track{flex:1;height:6px;background:var(--warm);border-radius:3px;cursor:pointer;position:relative;overflow:visible;transition:background var(--transition)}
 .player-scrub-row.active .scrub-track{height:7px;background:rgba(139,69,19,0.15)}
 html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)}
@@ -122,7 +104,6 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .scrub-thumb{position:absolute;top:50%;left:0%;transform:translateY(-50%) translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(139,69,19,0.4);pointer-events:none;opacity:0;transition:opacity 0.15s}
 .scrub-track:hover .scrub-thumb,.scrub-track.dragging .scrub-thumb{opacity:1}
 .player-scrub-row.active .scrub-thumb{opacity:1}
-
 .summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center;transition:background var(--transition),border-color var(--transition)}
 .summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink);transition:color var(--transition)}
 .summary-body h2{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--accent);margin:2rem 0 0.75rem;padding-bottom:8px;border-bottom:1px solid var(--border);transition:color var(--transition),border-color var(--transition)}
@@ -171,9 +152,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .archive-footer{display:flex;align-items:center;justify-content:space-between}
 .archive-date{font-size:0.72rem;color:var(--muted);opacity:0.7}
 .archive-chip{font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--success-fg);background:var(--success-bg);padding:2px 8px;border-radius:10px;font-weight:500;transition:all var(--transition)}
-.spoiler-chip{color:#8B1A1A !important;background:rgba(139,26,26,0.1) !important}
 .archive-empty{text-align:center;padding:2rem;color:var(--muted);font-size:0.9rem;font-style:italic;border:1px dashed var(--border);border-radius:var(--radius-sm);margin-bottom:2.5rem;background:var(--warm);opacity:0.7;transition:all var(--transition)}
-
 @media(max-width:560px){
   body{overflow-x:hidden}
   #app{padding:0 0 5rem}
@@ -190,6 +169,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   .btn-action{font-size:0.78rem;padding:0 12px}
   .player-top{margin-bottom:8px}
   .player-scrub-row{padding:8px 6px}
+  .summary-title-row{flex-wrap:wrap;gap:0.5rem}
 }
 </style>
 </head>
@@ -204,14 +184,14 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   if (input === ACCESS_CODE) {
     localStorage.setItem(ADMIN_KEY, ACCESS_CODE);
   } else {
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#7a7060;font-size:1rem;">Access denied. <a href="/library.html" style="margin-left:8px;color:#8B4513;">Browse the free library â</a></div>';
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#7a7060;font-size:1rem;">Access denied. <a href="/library.html" style="margin-left:8px;color:#8B4513;">Browse the free library \u2192</a></div>';
   }
 })();
 </script>
 <div id="app">
   <div class="masthead">
     <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()">
-      <span class="dark-toggle-icon" id="dark-icon">ð</span>
+      <span class="dark-toggle-icon" id="dark-icon">&#127769;</span>
       <span id="dark-label">Dark</span>
     </button>
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
@@ -226,7 +206,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
       </div>
       <div class="field">
         <label>Author</label>
-        <input type="text" id="author-input" placeholder="e.g. Henri CharriÃ¨re" autocomplete="off" />
+        <input type="text" id="author-input" placeholder="e.g. Henri Charri&egrave;re" autocomplete="off" />
       </div>
     </div>
     <div class="search-bottom">
@@ -236,30 +216,26 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
           <button class="voice-btn active" id="vbf" onclick="setVoice('female')">&#9792; Female</button>
           <button class="voice-btn" id="vbm" onclick="setVoice('male')">&#9794; Male</button>
         </div>
-        
       </div>
-      <button class="btn-generate" id="gen-btn" onclick="handleGenerate()">Summarise âº</button>
+      <button class="btn-generate" id="gen-btn" onclick="handleGenerate()">Summarise &rsaquo;</button>
     </div>
     <div class="status-bar" id="status-bar">
       <div class="spinner"></div>
-      <span id="status-text">Generating summary â please wait about 30 seconds...</span>
+      <span id="status-text">Generating summary &mdash; please wait about 30 seconds...</span>
     </div>
     <div class="error-bar" id="error-bar"></div>
   </div>
 
   <div class="summary-card" id="summary-card">
     <div class="summary-header">
-      <div class="summary-header-ornament">"</div>
-      <div class="summary-book-title" id="s-title"></div>
+      <div class="summary-header-ornament">&ldquo;</div>
+      <div class="summary-title-row">
+        <div class="summary-book-title" id="s-title"></div>
+        <div class="summary-word-count" id="s-words"></div>
+      </div>
       <div class="summary-book-author" id="s-author"></div>
-      <div class="summary-chips">
-        <div class="chip">KERNL Deep</div>
-        <div class="chip" id="s-words"></div>
-        <div class="chip" id="s-source"></div>
-        </div>
     </div>
 
-    <!-- PLAYER -->
     <div class="player">
       <div class="player-top">
         <button class="play-btn" id="play-btn" onclick="togglePlay()">
@@ -274,21 +250,20 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
           <button class="pvb" id="pvm" onclick="setVoice('male')">&#9794;</button>
         </div>
         <div class="player-voice-btns">
-          <button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1Ã</button>
-          <button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5Ã</button>
-          <button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2Ã</button>
+          <button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1&times;</button>
+          <button class="pvb speed-btn" data-rate="1.5" onclick="setSpeed(1.5)">1.5&times;</button>
+          <button class="pvb speed-btn" data-rate="2" onclick="setSpeed(2)">2&times;</button>
         </div>
       </div>
-      <!-- SCRUB ROW â id added for active state targeting -->
       <div class="player-scrub-row" id="scrub-row">
         <span class="scrub-time" id="scrub-elapsed">0:00</span>
-        <button class="skip-btn" onclick="skipAudio(-10)" title="Back 10s">â10</button>
+        <button class="skip-btn" onclick="skipAudio(-10)" title="Back 10s">&minus;10</button>
         <div class="scrub-track" id="scrub-track">
           <div class="scrub-fill" id="scrub-fill"></div>
           <div class="scrub-thumb" id="scrub-thumb"></div>
         </div>
         <button class="skip-btn" onclick="skipAudio(10)" title="Forward 10s">+10</button>
-        <span class="scrub-time right" id="scrub-remaining">â0:00</span>
+        <span class="scrub-time right" id="scrub-remaining">&minus;0:00</span>
       </div>
     </div>
 
@@ -301,11 +276,11 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     <div class="megan-words-section" id="megan-words-section" style="display:none">
       <div class="megan-words-header" onclick="toggleMeganWords()">
         <div class="megan-words-title">
-          <span class="megan-words-title-icon">ð</span>
+          <span class="megan-words-title-icon">&#128218;</span>
           Mega Words
-          <span class="megan-words-subtitle">â interesting words from this book</span>
+          <span class="megan-words-subtitle">&mdash; interesting words from this book</span>
         </div>
-        <span class="megan-arrow" id="megan-arrow">â¼</span>
+        <span class="megan-arrow" id="megan-arrow">&#9660;</span>
       </div>
       <div class="megan-words-grid" id="megan-words-grid"></div>
       <div class="disclaimer-bar">
@@ -329,6 +304,6 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   <div id="archive-container"></div>
 </div>
 
-<script src="/app.js?v=19"></script>
+<script src="/app.js?v=20"></script>
 </body>
 </html>
