@@ -8,7 +8,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
-<script defer src="/_vercel/insights/script.js"></script>
+<script defer src="/_vercel/insights/script.js">
+function setVoiceLib(voice) {
+  currentVoice = voice;
+  prefetchedAudioUrl = null;
+  prefetchedBlobUrl = null;
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; }
+  isPlaying = false;
+  document.getElementById('play-btn-el').innerHTML = '<svg id="play-icon" viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"></polygon></svg>';
+  var pvf = document.getElementById('pvf');
+  var pvm = document.getElementById('pvm');
+  if (pvf) pvf.className = 'pvb' + (voice === 'female' ? ' on' : '');
+  if (pvm) pvm.className = 'pvb' + (voice === 'male' ? ' on' : '');
+  var sub = document.getElementById('player-sub');
+  if (sub) sub.textContent = (voice === 'female' ? 'Female' : 'Male') + ' voice Ã¢ÂÂ press play';
+  prefetchAudio();
+}
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--success-bg:#e8f5ee;--success-fg:#2d6a4f;--error-bg:#fdf0f0;--error-fg:#8B1A1A;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
@@ -270,7 +286,7 @@ function resumeAudio() {
   if (audioEl && audioEl.paused) {
     var p = audioEl.play();
     if (p && p.catch) p.catch(function(){});
-    setPlayerState(true, 'Now playing \u2014 Nova voice');
+    setPlayerState(true, 'Now playing \u2014 Female voice');
     setScrubActive(true);
     return true;
   }
@@ -339,7 +355,7 @@ async function startOpenAIAudio() {
   if (playPromise && playPromise.catch) {
     playPromise.catch(function(err) { console.warn('Play blocked:', err); setPlayerState(false, 'Tap play to listen'); });
   }
-  setPlayerState(true, 'Now playing \u2014 Nova voice');
+  setPlayerState(true, 'Now playing \u2014 Female voice');
   setScrubActive(true);
   initScrubEvents();
 }
@@ -429,7 +445,8 @@ function renderSummary(data) {
             '<div class="player-sub" id="player-sub">Press play to listen</div>' +
           '</div>' +
           '<div class="player-voice-btns">' +
-            '<span class="pvb on" id="pvf" style="cursor:default;">&#9792; Nova</span>' +
+            '<span class="pvb ' + (currentVoice==='female'?'on':'') + '" id="pvf" onclick="setVoiceLib('female')">&#9792; Female</span>' +
+            '<span class="pvb ' + (currentVoice==='male'?'on':'') + '" id="pvm" onclick="setVoiceLib('male')">&#9794; Male</span>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1&times;</button>' +
@@ -492,7 +509,17 @@ async function loadSummary() {
   }
 }
 
-
+  if (!currentSummary || !currentSummary.plain) return;
+  var wpmMap = {1: 250, 1.5: 375, 2: 500};
+  var wpm = wpmMap[playbackRate] || 250;
+    currentSummary.plain,
+    wpm,
+    function() { return audioEl; },
+    function() { togglePlay(); },
+    function() { pauseAudio(); },
+    currentTimings
+  );
+}
 
 initDark();
 loadSummary();
