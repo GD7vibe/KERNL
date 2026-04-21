@@ -429,14 +429,11 @@ function renderSummary(data) {
   document.getElementById('content').innerHTML =
     '<div class="summary-card">' +
       '<div class="summary-header">' +
-        '<div class="summary-header-ornament">"</div>' +
-        '<div class="summary-book-title">' + esc(data.title) + '</div>' +
-        '<div class="summary-book-author">by ' + esc(data.author) + '</div>' +
-        '<div class="summary-chips">' +
-          '<div class="chip">KERNL Deep</div>' +
-          '<div class="chip">' + wc.toLocaleString() + ' words</div>' +
-          '<div class="chip">Free library</div>' +
+                '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;">' +
+          '<div class="summary-book-title">' + esc(data.title) + '</div>' +
+          '<div class="chip" style="flex-shrink:0;">' + wc.toLocaleString() + ' words</div>' +
         '</div>' +
+        '<div class="summary-book-author">by ' + esc(data.author) + '</div>' +
       '</div>' +
       '<div class="player">' +
         '<div class="player-top">' +
