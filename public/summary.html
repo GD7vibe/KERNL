@@ -143,9 +143,7 @@ let audioEl = null;
 let isPlaying = false;
 let playbackRate = 1;
 let currentVoice = 'female';
-let loadedVoice = 'female';
 let prefetchedAudioUrl = null;
-let prefetchedVoice = null;
 let prefetchedBlobUrl = null;
 let currentTimings = [];
 
@@ -273,7 +271,7 @@ function resumeAudio() {
   if (audioEl && audioEl.paused) {
     var p = audioEl.play();
     if (p && p.catch) p.catch(function(){});
-    loadedVoice = currentVoice; setPlayerState(true, (currentVoice === 'male' ? 'Male' : 'Female') + ' voice - now playing');
+    setPlayerState(true, 'Now playing \u2014 Female voice');
     setScrubActive(true);
     return true;
   }
@@ -292,74 +290,57 @@ async function prefetchAudio() {
     var ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) {
       var data = await res.json();
-      prefetchedAudioUrl = data.url;
-      prefetchedVoice = currentVoice; prefetchedBlobUrl = null;
+      prefetchedAudioUrl = data.url; prefetchedBlobUrl = null;
       if (data.timings && data.timings.length) currentTimings = data.timings;
     } else {
       var blob = await res.blob();
       prefetchedBlobUrl = URL.createObjectURL(blob);
       prefetchedAudioUrl = prefetchedBlobUrl;
-      prefetchedVoice = currentVoice;
     }
   } catch(e) { prefetchedAudioUrl = null; }
 }
 
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-  var voiceForThisRequest = currentVoice;
-  setPlayerState(true, 'Loading audioâ¦');
-  // Always fetch fresh - ignore any prefetch cache to avoid wrong-voice bugs
-  prefetchedAudioUrl = null;
-  prefetchedBlobUrl = null;
-  prefetchedVoice = null;
-  var audioUrl = null;
-  var blobUrl = null;
-  try {
-    var res = await fetch('/api/tts', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({text:currentSummary.plain, voice:voiceForThisRequest, title:currentSummary.title, author:currentSummary.author})
-    });
-    if (!res.ok) throw new Error('TTS failed');
-    var ct = res.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      var data = await res.json();
-      audioUrl = data.url;
-      if (data.timings && data.timings.length) currentTimings = data.timings;
-    } else {
-      var blob = await res.blob();
-      blobUrl = URL.createObjectURL(blob);
-      audioUrl = blobUrl;
-    }
-  } catch(err) {
-    setPlayerState(false, 'Audio unavailable â please try again');
-    return;
+  setPlayerState(true, 'Loading audio\u2026');
+  var audioUrl = prefetchedAudioUrl;
+  var blobUrl = prefetchedBlobUrl;
+  if (!audioUrl) {
+    try {
+      var res = await fetch('/api/tts', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({text:currentSummary.plain, voice:currentVoice, title:currentSummary.title, author:currentSummary.author})
+      });
+      if (!res.ok) throw new Error('TTS failed');
+      var ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) { var data = await res.json(); audioUrl = data.url; if (data.timings && data.timings.length) currentTimings = data.timings; }
+      else { var blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl; }
+    } catch(err) { setPlayerState(false, 'Audio unavailable \u2014 please try again'); return; }
   }
-  // If voice changed while loading, abort
-  if (currentVoice !== voiceForThisRequest) { if (blobUrl) URL.revokeObjectURL(blobUrl); setPlayerState(false, (currentVoice==='male'?'Male':'Female') + ' voice - press play'); return; }
+  prefetchedAudioUrl = null; prefetchedBlobUrl = null;
   audioEl = new Audio(audioUrl);
   audioEl.playbackRate = playbackRate;
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', function() {
     var fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
-    setPlayerState(false, 'Finished â press play to replay');
+    setPlayerState(false, 'Finished \u2014 press play to replay');
     setScrubActive(false);
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
+    prefetchAudio();
   });
   audioEl.addEventListener('error', function() {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable â please try again');
+    setPlayerState(false, 'Audio unavailable \u2014 please try again');
     setScrubActive(false);
   });
   var playPromise = audioEl.play();
   if (playPromise && playPromise.catch) {
     playPromise.catch(function(err) { console.warn('Play blocked:', err); setPlayerState(false, 'Tap play to listen'); });
   }
-  loadedVoice = voiceForThisRequest;
-  setPlayerState(true, (voiceForThisRequest === 'male' ? 'Male' : 'Female') + ' voice - now playing');
+  setPlayerState(true, 'Now playing \u2014 Female voice');
   setScrubActive(true);
   initScrubEvents();
 }
@@ -367,8 +348,7 @@ async function startOpenAIAudio() {
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
-  if (audioEl && audioEl.paused && audioEl.src && loadedVoice === currentVoice) { resumeAudio(); return; }
-  if (audioEl && loadedVoice !== currentVoice) { stopAudio(); }
+  if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
   startOpenAIAudio();
 }
 
@@ -445,7 +425,7 @@ function renderSummary(data) {
           '</button>' +
           '<div class="player-center">' +
             '<div class="player-title">' + esc(data.title) + '</div>' +
-            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice -  press play</div>' +
+            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ press play</div>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<span class="pvb ' + (currentVoice==="female"?"on":"") + '" id="pvf" onclick="setVoiceLib('female')">\u2640 Female</span>' +
@@ -531,24 +511,30 @@ function openSwift() {
 
 function setVoiceLib(v) {
   currentVoice = v;
-  // Update button states
   var pvf = document.getElementById('pvf');
   var pvm = document.getElementById('pvm');
   if (pvf) { pvf.classList.toggle('on', v === 'female'); pvf.classList.toggle('active', v === 'female'); }
   if (pvm) { pvm.classList.toggle('on', v === 'male'); pvm.classList.toggle('active', v === 'male'); }
-  // Kill any current audio
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
-  // Clear ALL prefetch cache so next play fetches correct voice
+  var ps = document.getElementById('player-sub');
+  if (ps) ps.textContent = v === 'female' ? 'Female voice ÃÂ¢ÃÂÃÂ press play' : 'Male voice ÃÂ¢ÃÂÃÂ press play';
+}
+function setVoiceLib(v) {
+  currentVoice = v;
+  var pvf = document.getElementById('pvf');
+  var pvm = document.getElementById('pvm');
+  if (pvf) { pvf.classList.toggle('on', v === 'female'); pvf.classList.toggle('active', v === 'female'); }
+  if (pvm) { pvm.classList.toggle('on', v === 'male'); pvm.classList.toggle('active', v === 'male'); }
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
+  isPlaying = false;
   prefetchedAudioUrl = null;
   prefetchedBlobUrl = null;
-  prefetchedVoice = null;
   setPlayerState(false, null);
   resetScrubUI();
-  // Update subtitle
   var ps = document.getElementById('player-sub');
-  if (ps) ps.textContent = (v === 'male' ? 'Male' : 'Female') + ' voice - press play';
-  // Do NOT prefetch here - let user press play to fetch the correct voice
+  if (ps) ps.textContent = (v === 'male' ? 'Male' : 'Female') + ' voice â press play';
+  prefetchAudio();
 }
 initDark();
 loadSummary();
