@@ -425,7 +425,7 @@ function renderSummary(data) {
           '</button>' +
           '<div class="player-center">' +
             '<div class="player-title">' + esc(data.title) + '</div>' +
-            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice ÃÂ¢ÃÂÃÂ press play</div>' +
+            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice — press play</div>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<span class="pvb ' + (currentVoice==="female"?"on":"") + '" id="pvf" onclick="setVoiceLib(\"female\")">\u2640 Female</span>' +
@@ -518,7 +518,7 @@ function setVoiceLib(v) {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
   var ps = document.getElementById('player-sub');
-  if (ps) ps.textContent = v === 'female' ? 'Female voice Ã¢ÂÂ press play' : 'Male voice Ã¢ÂÂ press play';
+  if (ps) ps.textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
 }
 function setVoiceLib(v) {
   currentVoice = v;
