@@ -307,7 +307,7 @@ async function prefetchAudio() {
 async function startOpenAIAudio() {
   if (!currentSummary) return;
   var voiceForThisRequest = currentVoice;
-  setPlayerState(true, 'Loading audioâ¦');
+  setPlayerState(true, 'Loading audioÃ¢ÂÂ¦');
   // Always fetch fresh - ignore any prefetch cache to avoid wrong-voice bugs
   prefetchedAudioUrl = null;
   prefetchedBlobUrl = null;
@@ -332,7 +332,7 @@ async function startOpenAIAudio() {
       audioUrl = blobUrl;
     }
   } catch(err) {
-    setPlayerState(false, 'Audio unavailable â please try again');
+    setPlayerState(false, 'Audio unavailable Ã¢ÂÂ please try again');
     return;
   }
   // If voice changed while loading, abort
@@ -343,7 +343,7 @@ async function startOpenAIAudio() {
   audioEl.addEventListener('ended', function() {
     var fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
-    setPlayerState(false, 'Finished â press play to replay');
+    setPlayerState(false, 'Finished Ã¢ÂÂ press play to replay');
     setScrubActive(false);
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
@@ -351,7 +351,7 @@ async function startOpenAIAudio() {
   audioEl.addEventListener('error', function() {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable â please try again');
+    setPlayerState(false, 'Audio unavailable Ã¢ÂÂ please try again');
     setScrubActive(false);
   });
   var playPromise = audioEl.play();
