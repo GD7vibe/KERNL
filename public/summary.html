@@ -21,7 +21,7 @@ function setVoiceLib(voice) {
   if (pvf) pvf.className = 'pvb' + (voice === 'female' ? ' on' : '');
   if (pvm) pvm.className = 'pvb' + (voice === 'male' ? ' on' : '');
   var sub = document.getElementById('player-sub');
-  if (sub) sub.textContent = (voice === 'female' ? 'Female' : 'Male') + ' voice — press play';
+  if (sub) sub.textContent = (voice === 'female' ? 'Female' : 'Male') + ' voice â press play';
   prefetchAudio();
 }
 </script>
@@ -468,7 +468,6 @@ function renderSummary(data) {
         '<button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>' +
         '<button class="btn-action" onclick="printSummary()">&#128438; Print</button>' +
         '<a class="buy-btn" href="' + amazonUrl + '" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>' +
-        '<button class="btn-action" onclick="openSwift()" style="gap:6px;">&#9889; Swift</button>' +
       '</div>' +
       '<div class="summary-body">' + data.html + '</div>' +
       '<div class="megan-words-section" id="megan-words-section" style="display:none">' +
@@ -509,11 +508,9 @@ async function loadSummary() {
   }
 }
 
-function openSwift() {
   if (!currentSummary || !currentSummary.plain) return;
   var wpmMap = {1: 250, 1.5: 375, 2: 500};
   var wpm = wpmMap[playbackRate] || 250;
-  KernlSwift.open(
     currentSummary.plain,
     wpm,
     function() { return audioEl; },
