@@ -8,7 +8,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
-<script defer src="/_vercel/insights/script.js"></script>
+<script defer src="/_vercel/insights/script.js">
+function setVoiceLib(voice) {
+  currentVoice = voice;
+  prefetchedAudioUrl = null;
+  prefetchedBlobUrl = null;
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; }
+  isPlaying = false;
+  document.getElementById('play-btn-el').innerHTML = '<svg id="play-icon" viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"></polygon></svg>';
+  var pvf = document.getElementById('pvf');
+  var pvm = document.getElementById('pvm');
+  if (pvf) pvf.className = 'pvb' + (voice === 'female' ? ' on' : '');
+  if (pvm) pvm.className = 'pvb' + (voice === 'male' ? ' on' : '');
+  var sub = document.getElementById('player-sub');
+  if (sub) sub.textContent = (voice === 'female' ? 'Female' : 'Male') + ' voice — press play';
+  prefetchAudio();
+}
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--success-bg:#e8f5ee;--success-fg:#2d6a4f;--error-bg:#fdf0f0;--error-fg:#8B1A1A;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
@@ -31,10 +47,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .summary-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 4px 24px rgba(139,69,19,0.1);margin-bottom:2rem;transition:background var(--transition),border-color var(--transition)}
 .summary-header{padding:2rem 2rem 1.75rem;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--warm) 0%,var(--warm) 100%);position:relative;transition:background var(--transition)}
 .summary-header-ornament{position:absolute;top:1rem;right:1.5rem;font-family:'Playfair Display',serif;font-size:5rem;color:var(--accent);opacity:0.06;line-height:1;pointer-events:none}
-.summary-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:0.3rem}
-.summary-book-title{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,4vw,2rem);font-weight:600;line-height:1.2;color:var(--ink);transition:color var(--transition)}
-.summary-word-count{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);white-space:nowrap;flex-shrink:0;transition:all var(--transition)}
-.summary-book-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:0.5rem;transition:color var(--transition)}
+.summary-book-title{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,4vw,2rem);font-weight:600;line-height:1.2;color:var(--ink);margin-bottom:0.3rem;transition:color var(--transition)}
+.summary-book-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:1rem;transition:color var(--transition)}
+.summary-chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);transition:all var(--transition)}
 .player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);transition:background var(--transition),border-color var(--transition)}
 .player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
 .play-btn{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.1s,box-shadow 0.3s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
@@ -113,7 +129,6 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   .summary-footer{padding:0.75rem 1rem}
   .btn-action{font-size:0.78rem;padding:0 12px}
   .player-scrub-row{padding:8px 6px}
-  .summary-title-row{flex-wrap:wrap;gap:0.5rem}
 }
 </style>
 </head>
@@ -362,7 +377,7 @@ function toggleMeganWords() {
 function downloadEpub() {
   if (!currentSummary) return;
   var id='kernl-'+Date.now(), t=esc(currentSummary.title), a=esc(currentSummary.author);
-  var contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' \u2014 KERNL Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>';
+  var contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' \u2014 KERNL Deep Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>';
   var opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' \u2014 KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
   var ncx='<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="'+id+'"/></head><docTitle><text>'+t+'</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
   var container='<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
@@ -389,7 +404,7 @@ function printSummary() {
     meganSection='<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">'+wordRows+'</table></div>';
   }
   var w=window.open('','_blank');
-  w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' \u2014 KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>'+esc(currentSummary.title)+'</h1><div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Summary</div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>');
+  w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' \u2014 KERNL</title><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}</style></head><body><h1>'+esc(currentSummary.title)+'</h1><div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Deep Summary</div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>');
   w.document.close(); setTimeout(function(){w.print();},400);
 }
 
@@ -411,12 +426,14 @@ function renderSummary(data) {
   document.getElementById('content').innerHTML =
     '<div class="summary-card">' +
       '<div class="summary-header">' +
-        '<div class="summary-header-ornament">\u201c</div>' +
-        '<div class="summary-title-row">' +
-          '<div class="summary-book-title">' + esc(data.title) + '</div>' +
-          '<div class="summary-word-count">' + wc.toLocaleString() + ' words</div>' +
-        '</div>' +
+        '<div class="summary-header-ornament">"</div>' +
+        '<div class="summary-book-title">' + esc(data.title) + '</div>' +
         '<div class="summary-book-author">by ' + esc(data.author) + '</div>' +
+        '<div class="summary-chips">' +
+          '<div class="chip">KERNL Deep</div>' +
+          '<div class="chip">' + wc.toLocaleString() + ' words</div>' +
+          '<div class="chip">Free library</div>' +
+        '</div>' +
       '</div>' +
       '<div class="player">' +
         '<div class="player-top">' +
@@ -425,11 +442,10 @@ function renderSummary(data) {
           '</button>' +
           '<div class="player-center">' +
             '<div class="player-title">' + esc(data.title) + '</div>' +
-            '<div class="player-sub" id="player-sub">' + (currentVoice === 'male' ? 'Male' : 'Female') + ' voice Ã¢ÂÂ press play</div>' +
+            '<div class="player-sub" id="player-sub">Press play to listen</div>' +
           '</div>' +
           '<div class="player-voice-btns">' +
-            '<span class="pvb ' + (currentVoice==="female"?"on":"") + '" id="pvf" onclick="setVoiceLib(\"female\")">\u2640 Female</span>' +
-            '<span class="pvb ' + (currentVoice==="male"?"on":"") + '" id="pvm" onclick="setVoiceLib(\"male\")">\u2642 Male</span>' +
+            '<span class="pvb on" id="pvf" style="cursor:default;">&#9792; Female</span>' +
           '</div>' +
           '<div class="player-voice-btns">' +
             '<button class="pvb speed-btn active" data-rate="1" onclick="setSpeed(1)">1&times;</button>' +
@@ -439,25 +455,25 @@ function renderSummary(data) {
         '</div>' +
         '<div class="player-scrub-row" id="scrub-row">' +
           '<span class="scrub-time" id="scrub-elapsed">0:00</span>' +
-          '<button class="skip-btn" onclick="skipAudio(-10)">\u221210</button>' +
+          '<button class="skip-btn" onclick="skipAudio(-10)">&#8722;10</button>' +
           '<div class="scrub-track" id="scrub-track">' +
             '<div class="scrub-fill" id="scrub-fill"></div>' +
             '<div class="scrub-thumb" id="scrub-thumb"></div>' +
           '</div>' +
           '<button class="skip-btn" onclick="skipAudio(10)">+10</button>' +
-          '<span class="scrub-time right" id="scrub-remaining">\u22120:00</span>' +
+          '<span class="scrub-time right" id="scrub-remaining">&#8722;0:00</span>' +
         '</div>' +
       '</div>' +
       '<div class="summary-actions">' +
-        '<button class="btn-action" onclick="downloadEpub()">\uD83D\uDCDA EPUB / Kindle</button>' +
-        '<button class="btn-action" onclick="printSummary()">\uD83D\uDDB6 Print</button>' +
-        '<a class="buy-btn" href="' + amazonUrl + '" target="_blank" rel="noopener noreferrer">\uD83D\uDCDA Buy this book</a>' +
-        '<button class="btn-action" onclick="openSwift()" style="gap:6px;">\u26A1 Swift</button>' +
+        '<button class="btn-action" onclick="downloadEpub()">&#128218; EPUB / Kindle</button>' +
+        '<button class="btn-action" onclick="printSummary()">&#128438; Print</button>' +
+        '<a class="buy-btn" href="' + amazonUrl + '" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>' +
+        '<button class="btn-action" onclick="openSwift()" style="gap:6px;">&#9889; Swift</button>' +
       '</div>' +
       '<div class="summary-body">' + data.html + '</div>' +
       '<div class="megan-words-section" id="megan-words-section" style="display:none">' +
         '<div class="megan-words-header" onclick="toggleMeganWords()">' +
-          '<div class="megan-words-title"><span>\uD83D\uDCDA</span> Mega Words <span class="megan-words-subtitle">\u2014 interesting words from this book</span></div>' +
+          '<div class="megan-words-title"><span>&#128218;</span> Mega Words <span class="megan-words-subtitle">\u2014 interesting words from this book</span></div>' +
           '<span class="megan-arrow" id="megan-arrow">&#9660;</span>' +
         '</div>' +
         '<div class="megan-words-grid" id="megan-words-grid"></div>' +
@@ -476,8 +492,6 @@ function renderSummary(data) {
 async function loadSummary() {
   var params = new URLSearchParams(window.location.search);
   var title = params.get('title');
-  var voiceParam = params.get('voice');
-  if (voiceParam === 'male') { currentVoice = 'male'; }
   var author = params.get('author');
   if (!title) { document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">&#8592; Back to Library</a></div>'; return; }
   document.title = 'KERNL \u2014 ' + title;
@@ -509,28 +523,6 @@ function openSwift() {
   );
 }
 
-function setVoiceLib(v) {
-  currentVoice = v;
-  var pvf = document.getElementById('pvf');
-  var pvm = document.getElementById('pvm');
-  if (pvf) { pvf.classList.toggle('on', v === 'female'); pvf.classList.toggle('active', v === 'female'); }
-  if (pvm) { pvm.classList.toggle('on', v === 'male'); pvm.classList.toggle('active', v === 'male'); }
-  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
-  isPlaying = false;
-  prefetchedAudioUrl = null;
-  prefetchedBlobUrl = null;
-  setPlayerState(false, null);
-  resetScrubUI();
-  var ps = document.getElementById('player-sub');
-  if (ps) ps.textContent = (v === 'male' ? 'Male' : 'Female') + ' voice — press play';
-  prefetchAudio();
-}
-  if (pvm) { pvm.classList.toggle('on', v === 'male'); pvm.classList.toggle('active', v === 'male'); }
-  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
-  isPlaying = false;
-  var ps = document.getElementById('player-sub');
-  if (ps) ps.textContent = v === 'female' ? 'Female voice Ã¢ÂÂ press play' : 'Male voice Ã¢ÂÂ press play';
-}
 initDark();
 loadSummary();
 </script>
