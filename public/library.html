@@ -110,7 +110,7 @@ var CATEGORIES = [
   { id: 'philosophy', label: 'Philosophy',          icon: e(0x1F3AF) },
 ];
 
-// Exactly 24 curated books — 2 per category
+// Exactly 24 curated books â 2 per category
 var CURATED_BOOKS = [
   { title: 'Thinking Fast and Slow',              author: 'Daniel Kahneman',   category: 'mind'       },
   { title: 'Quiet',                               author: 'Susan Cain',        category: 'mind'       },
@@ -144,6 +144,7 @@ CURATED_BOOKS.forEach(function(b) {
   voiceSelections[b.title] = 'female';
 });
 
+var voiceSelections = {};
 var activeCategory = 'all';
 
 function toggleDark() {
