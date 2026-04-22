@@ -63,10 +63,38 @@ function buildPrompt(title,author,spoilers) {
   return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. '+spoilerInstruction+' IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags — return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: Every word must be completely unique — no word may appear more than once in the list. Double-check your list before finalising it. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END';
 }
 
+function parseWordsBlock(raw) {
+  const wordsStart = raw.indexOf('WORDS_START');
+  const wordsEnd = raw.indexOf('WORDS_END');
+  if (wordsStart === -1 || wordsEnd === -1) return [];
+  const wordsBlock = raw.slice(wordsStart + 11, wordsEnd).trim();
+  const seen = new Set();
+  return wordsBlock.split('\n')
+    .map(line => { try { return JSON.parse(line.trim()); } catch(e) { return null; } })
+    .filter(w => w && w.word && w.definition)
+    .filter(w => { const k = w.word.toLowerCase().trim(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 21);
+}
+
+function stripWordsBlock(raw) {
+  const wordsStart = raw.indexOf('WORDS_START');
+  return wordsStart > -1 ? raw.slice(0, wordsStart).trim() : raw.trim();
+}
+
+function htmlToPlain(html) {
+  return html
+    .replace(/<h2[^>]*>/gi, '\n\n').replace(/<\/h2>/gi, '\n\n')
+    .replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n').trim();
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // ── Patch words mode: generate + save words for a book by title ──
+  // ── Patch words mode ──
   if (req.body && req.body.patchWords) {
     const { title, author } = req.body;
     try {
@@ -77,7 +105,6 @@ module.exports = async (req, res) => {
       if (!words || words.length === 0) {
         words = await generateWordsOnly(cached.plain, cached.title, cached.author || author || '');
       }
-      // Patch using server-side key (has update permission)
       const pRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + cached.id, {
         method: 'PATCH',
         headers: {
@@ -94,63 +121,132 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { title, author } = req.body; const spoilers = false;
+  const { title, author } = req.body;
+  const spoilers = false;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
+  // ── Cache check — return instantly as JSON (no streaming needed) ──
   try {
     const cached = await findCached(title, author, spoilers);
     if (cached) {
       let words = [];
       try { words = cached.words ? JSON.parse(cached.words) : []; } catch(e) {}
-
-      // ── KEY FIX: if cached but words missing, generate them now ──
       if (!words || words.length === 0) {
-        console.log('Cache hit but words missing — generating words for:', cached.title);
         try {
           words = await generateWordsOnly(cached.plain, cached.title, cached.author || author || '');
-          if (words.length > 0 && cached.id) {
-            await patchWordsById(cached.id, words);
-            console.log('Words patched for id:', cached.id);
-          }
-        } catch(e) {
-          console.error('Word generation failed:', e.message);
-          words = [];
-        }
+          if (words.length > 0 && cached.id) await patchWordsById(cached.id, words);
+        } catch(e) { words = []; }
       }
-
       return res.status(200).json({ html: cached.html, plain: cached.plain, words, source: 'cache' });
     }
   } catch(e) { console.error('Cache lookup error:', e.message); }
 
+  // ── Not cached — stream from Anthropic ──
   const prompt = buildPrompt(title, author, spoilers);
   const nonfictionKey = makeKey(title, author, false);
+
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
-      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:3000, messages:[{role:'user',content:prompt}] })
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
     });
-    const data = await response.json();
-    if (!response.ok) return res.status(500).json({ error: data.error?.message||'Anthropic API error' });
-    let raw = data.content[0].text.trim();
+
+    if (!anthropicRes.ok) {
+      const err = await anthropicRes.json();
+      return res.status(500).json({ error: err.error?.message || 'Anthropic API error' });
+    }
+
+    // Set up SSE headers so browser receives chunks immediately
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const reader = anthropicRes.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let genreStripped = false;
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            const chunk = parsed.delta.text;
+            fullText += chunk;
+
+            // Strip the GENRE: line before streaming to client
+            let toSend = fullText;
+            if (!genreStripped) {
+              const firstNewline = toSend.indexOf('\n');
+              if (firstNewline > -1) {
+                const firstLine = toSend.slice(0, firstNewline).trim();
+                if (firstLine.toUpperCase().startsWith('GENRE:')) {
+                  toSend = toSend.slice(firstNewline).trimStart();
+                  genreStripped = true;
+                }
+              } else {
+                continue; // still on the GENRE line, don't send yet
+              }
+            }
+
+            // Only send content before WORDS_START to the client
+            const wordsStartIdx = toSend.indexOf('WORDS_START');
+            const visibleText = wordsStartIdx > -1 ? toSend.slice(0, wordsStartIdx) : toSend;
+
+            // Send the chunk as SSE
+            res.write(`data: ${JSON.stringify({ chunk: visibleText })}\n\n`);
+          }
+        } catch(e) { /* ignore parse errors */ }
+      }
+    }
+
+    // ── Stream complete — parse full response and save ──
+    let raw = fullText.trim();
     const firstLine = raw.split('\n')[0].trim();
     const isNonFiction = firstLine.toUpperCase().includes('NONFICTION');
     if (firstLine.toUpperCase().startsWith('GENRE:')) raw = raw.slice(firstLine.length).trim();
+
     const saveKey = isNonFiction ? nonfictionKey : makeKey(title, author, spoilers);
-    const wordsStart = raw.indexOf('WORDS_START'), wordsEnd = raw.indexOf('WORDS_END');
-    const summaryRaw = wordsStart > -1 ? raw.slice(0, wordsStart).trim() : raw;
-    let words = [];
-    if (wordsStart > -1 && wordsEnd > -1) {
-      const wordsBlock = raw.slice(wordsStart+11, wordsEnd).trim();
-      const seen = new Set();
-      words = wordsBlock.split('\n').map(line => { try { return JSON.parse(line.trim()); } catch(e) { return null; } })
-        .filter(w => w && w.word && w.definition)
-        .filter(w => { const k=w.word.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true; })
-        .slice(0, 21);
+    const words = parseWordsBlock(raw);
+    const html = stripWordsBlock(raw);
+    const plain = htmlToPlain(html);
+
+    // Save to Supabase in background
+    saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Save failed:', e.message));
+
+    // Send final event with complete data (html, plain, words)
+    res.write(`data: ${JSON.stringify({ done: true, html, plain, words, source: 'generated' })}\n\n`);
+    res.end();
+
+  } catch(err) {
+    // If headers already sent (streaming started), end gracefully
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    } else {
+      res.status(500).json({ error: err.message || 'Failed to generate summary' });
     }
-    const html = summaryRaw;
-    const plain = html.replace(/<h2[^>]*>/gi,'\n\n').replace(/<\/h2>/gi,'\n\n').replace(/<p[^>]*>/gi,'').replace(/<\/p>/gi,'\n\n').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/\n{3,}/g,'\n\n').trim();
-    await saveToSupabase(title, author, saveKey, html, plain, words);
-    res.status(200).json({ html, plain, words, source: 'generated' });
-  } catch(err) { res.status(500).json({ error: err.message||'Failed to generate summary' }); }
+  }
 };
