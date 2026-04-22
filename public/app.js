@@ -168,13 +168,13 @@ async function handleGenerate() {
     (e.spoilers || false) === spoilers
   );
   if (cached) {
-    setStatus('Found in your library — loading instantly!', true);
+    setStatus('Found in your library â loading instantly!', true);
     setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
 
   document.getElementById('gen-btn').disabled = true;
-  setStatus('Generating summary — appearing shortly…', true);
+  setStatus('Generating summary â appearing shortlyâ¦', true);
 
   try {
     const res = await fetch('/api/summarise', {
@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached — plain JSON
+    // Cached â plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -249,10 +249,10 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
   currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = 'generating…';
-  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">▊</span>';
+  document.getElementById('s-words').textContent = 'generatingâ¦';
+  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">â</span>';
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice â press play' : 'Male voice â press play';
   resetScrubUI();
   document.getElementById('megan-words-section').style.display = 'none';
   document.getElementById('summary-card').classList.add('show');
@@ -261,7 +261,7 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
 
 function updateStreamingBody(htmlSoFar) {
   const body = document.getElementById('summary-body');
-  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">▊</span>';
+  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">â</span>';
 }
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
@@ -428,7 +428,7 @@ function resumeAudio() {
 }
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-  setPlayerState(true, 'Loading audio\u2026');
+  setPlayerState(true, 'Loading audio…');
   lockVoiceButtons();
   try {
     const res = await fetch('/api/tts', {
@@ -437,31 +437,113 @@ async function startOpenAIAudio() {
       body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
     });
     if (!res.ok) throw new Error('TTS request failed');
+
     const contentType = res.headers.get('content-type') || '';
-    let audioUrl, blobUrl = null;
+
+    // Cached — returns JSON with URL
     if (contentType.includes('application/json')) {
       const data = await res.json();
-      audioUrl = data.url;
       if (data.timings && data.timings.length) currentTimings = data.timings;
-    } else {
-      const blob = await res.blob();
-      blobUrl = URL.createObjectURL(blob);
-      audioUrl = blobUrl;
+      playSingleAudio(data.url, null);
+      return;
     }
-    playSingleAudio(audioUrl, blobUrl);
+
+    // Streaming — pipe chunks into MediaSource for instant playback
+    if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')) {
+      const mediaSource = new MediaSource();
+      const audioUrl = URL.createObjectURL(mediaSource);
+      audioEl = new Audio(audioUrl);
+      audioEl.playbackRate = playbackRate;
+      audioEl.addEventListener('timeupdate', updateScrubUI);
+      audioEl.addEventListener('ended', () => {
+        setPlayerState(false, 'Finished — press play to replay');
+        setScrubActive(false);
+        unlockVoiceButtons();
+        URL.revokeObjectURL(audioUrl);
+        audioEl = null;
+      });
+      audioEl.addEventListener('error', () => {
+        setPlayerState(false, 'Audio unavailable — please try again');
+        setScrubActive(false);
+        unlockVoiceButtons();
+        URL.revokeObjectURL(audioUrl);
+        audioEl = null;
+      });
+
+      mediaSource.addEventListener('sourceopen', async () => {
+        const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+        const reader = res.body.getReader();
+        let started = false;
+
+        const pump = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              if (!sourceBuffer.updating) {
+                try { mediaSource.endOfStream(); } catch(e) {}
+              } else {
+                sourceBuffer.addEventListener('updateend', () => {
+                  try { mediaSource.endOfStream(); } catch(e) {}
+                }, { once: true });
+              }
+              break;
+            }
+
+            // Wait if sourceBuffer is busy
+            if (sourceBuffer.updating) {
+              await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
+            }
+
+            sourceBuffer.appendBuffer(value);
+
+            // Start playing as soon as first chunk arrives
+            if (!started) {
+              started = true;
+              try {
+                await audioEl.play();
+                audioEl.playbackRate = playbackRate;
+                setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
+                setScrubActive(true);
+                initScrubEvents();
+              } catch(e) {
+                setPlayerState(false, 'Tap play to listen');
+              }
+            }
+
+            await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
+          }
+        };
+
+        pump().catch(e => {
+          console.warn('Stream pump error:', e.message);
+          setPlayerState(false, 'Audio unavailable — please try again');
+          unlockVoiceButtons();
+        });
+      });
+
+      audioEl.load();
+      return;
+    }
+
+    // Fallback — collect full blob then play
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    playSingleAudio(blobUrl, blobUrl);
+
   } catch (err) {
     console.warn('TTS failed:', err.message);
-    setPlayerState(false, 'Audio unavailable \u2014 please try again');
+    setPlayerState(false, 'Audio unavailable — please try again');
     unlockVoiceButtons();
   }
 }
+
 function playSingleAudio(audioUrl, blobUrl) {
   audioEl = new Audio(audioUrl);
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', () => {
     const fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
-    setPlayerState(false, 'Finished \u2014 press play to replay');
+    setPlayerState(false, 'Finished — press play to replay');
     setScrubActive(false);
     unlockVoiceButtons();
     if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -470,13 +552,13 @@ function playSingleAudio(audioUrl, blobUrl) {
   audioEl.addEventListener('error', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable \u2014 please try again');
+    setPlayerState(false, 'Audio unavailable — please try again');
     setScrubActive(false);
     unlockVoiceButtons();
   });
   audioEl.play();
   audioEl.playbackRate = playbackRate;
-  setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Female' : 'Male') + ' voice');
+  setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
   setScrubActive(true);
   initScrubEvents();
 }
