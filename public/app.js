@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached â plain JSON
+    // Cached Ã¢ÂÂ plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -309,6 +309,8 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   const amazonUrl = makeAmazonUrl(title, author);
   const buyBtn = document.getElementById('buy-btn');
   buyBtn.href = amazonUrl;
+  const kindleBtn = document.getElementById('send-kindle-btn');
+  if (kindleBtn) kindleBtn.onclick = showKindleModal;
   document.getElementById('player-title').textContent = title;
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
   resetScrubUI();
@@ -448,7 +450,7 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached â returns JSON with URL, play immediately
+    // Cached Ã¢ÂÂ returns JSON with URL, play immediately
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
@@ -456,7 +458,7 @@ async function startOpenAIAudio() {
       return;
     }
 
-    // Streaming SSE â decode base64 chunks and play via Web Audio API
+    // Streaming SSE Ã¢ÂÂ decode base64 chunks and play via Web Audio API
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioCtx();
     if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -566,6 +568,57 @@ function playSingleAudio(audioUrl, blobUrl) {
   setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
   setScrubActive(true);
   initScrubEvents();
+}
+
+function showKindleModal() {
+  if (!currentSummary) return;
+  const existing = document.getElementById('kindle-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'kindle-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem';
+  modal.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3>'
+    + '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p>'
+    + '<input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box">'
+    + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+    + '<button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button>'
+    + '<button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button>'
+    + '</div>'
+    + '<div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div>'
+    + '</div>';
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('kindle-email-input').focus(), 100);
+}
+
+async function sendToKindle() {
+  const email = document.getElementById('kindle-email-input').value.trim();
+  const status = document.getElementById('kindle-status');
+  const btn = document.getElementById('kindle-send-btn');
+  if (!email || !email.includes('@')) {
+    status.style.display = 'block'; status.style.color = 'var(--error-fg)';
+    status.textContent = 'Please enter a valid Kindle email address.'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Sending\u2026';
+  status.style.display = 'block'; status.style.color = 'var(--muted)';
+  status.textContent = 'Generating EPUB and sending\u2026';
+  try {
+    const res = await fetch('/api/send-to-kindle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: currentSummary.title, author: currentSummary.author, html: currentSummary.html, kindleEmail: email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Send failed');
+    status.style.color = 'var(--success-fg)';
+    status.textContent = '\u2713 Sent! Check your Kindle in a few minutes.';
+    btn.textContent = 'Sent \u2713';
+    setTimeout(() => { const m = document.getElementById('kindle-modal'); if(m) m.remove(); }, 3000);
+  } catch(err) {
+    status.style.color = 'var(--error-fg)';
+    status.textContent = 'Error: ' + err.message;
+    btn.disabled = false; btn.textContent = 'Send \u2192';
+  }
 }
 
 function togglePlay() {
