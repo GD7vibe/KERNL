@@ -168,13 +168,13 @@ async function handleGenerate() {
     (e.spoilers || false) === spoilers
   );
   if (cached) {
-    setStatus('Found in your library Ã¢ÂÂ loading instantly!', true);
+    setStatus('Found in your library ÃÂ¢ÃÂÃÂ loading instantly!', true);
     setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
 
   document.getElementById('gen-btn').disabled = true;
-  setStatus('Generating summary Ã¢ÂÂ appearing shortlyÃ¢ÂÂ¦', true);
+  setStatus('Generating summary ÃÂ¢ÃÂÃÂ appearing shortlyÃÂ¢ÃÂÃÂ¦', true);
 
   try {
     const res = await fetch('/api/summarise', {
@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached Ã¢ÂÂ plain JSON
+    // Cached ÃÂ¢ÃÂÃÂ plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -249,10 +249,10 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
   currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = 'generatingÃ¢ÂÂ¦';
-  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">Ã¢ÂÂ</span>';
+  document.getElementById('s-words').textContent = 'generatingÃÂ¢ÃÂÃÂ¦';
+  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">ÃÂ¢ÃÂÃÂ</span>';
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice Ã¢ÂÂ press play' : 'Male voice Ã¢ÂÂ press play';
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice ÃÂ¢ÃÂÃÂ press play' : 'Male voice ÃÂ¢ÃÂÃÂ press play';
   resetScrubUI();
   document.getElementById('megan-words-section').style.display = 'none';
   document.getElementById('summary-card').classList.add('show');
@@ -261,7 +261,7 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
 
 function updateStreamingBody(htmlSoFar) {
   const body = document.getElementById('summary-body');
-  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">Ã¢ÂÂ</span>';
+  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">ÃÂ¢ÃÂÃÂ</span>';
 }
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
@@ -437,16 +437,101 @@ async function startOpenAIAudio() {
       body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
     });
     if (!res.ok) throw new Error('TTS request failed');
+
     const contentType = res.headers.get('content-type') || '';
+
+    // Cached — returns JSON with URL, play immediately
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
       playSingleAudio(data.url, null);
       return;
     }
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    playSingleAudio(blobUrl, blobUrl);
+
+    // Streaming SSE — decode base64 chunks and play via Web Audio API
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let startTime = audioCtx.currentTime;
+    let started = false;
+    let totalDuration = 0;
+    const pendingBuffers = [];
+    let isScheduling = false;
+
+    // Decode and schedule audio buffers for seamless playback
+    async function scheduleBuffer(b64chunk) {
+      const bytes = Uint8Array.from(atob(b64chunk), c => c.charCodeAt(0));
+      try {
+        const decoded = await audioCtx.decodeAudioData(bytes.buffer);
+        pendingBuffers.push(decoded);
+        if (!isScheduling) drainBuffers();
+      } catch(e) {
+        // Some partial mp3 chunks can't decode alone - collect and retry
+        console.warn('Chunk decode error (may be partial):', e.message);
+      }
+    }
+
+    function drainBuffers() {
+      if (pendingBuffers.length === 0) { isScheduling = false; return; }
+      isScheduling = true;
+      const decoded = pendingBuffers.shift();
+      const source = audioCtx.createBufferSource();
+      source.buffer = decoded;
+      source.connect(audioCtx.destination);
+      const when = Math.max(startTime + totalDuration, audioCtx.currentTime);
+      source.start(when);
+      totalDuration += decoded.duration;
+
+      if (!started) {
+        started = true;
+        // Update UI as soon as first chunk plays
+        audioEl = { pause: () => audioCtx.suspend(), paused: false, src: 'streaming',
+          playbackRate: playbackRate, currentTime: 0, duration: 0 };
+        setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
+        setScrubActive(true);
+      }
+
+      source.onended = () => drainBuffers();
+    }
+
+    // Read SSE stream
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const msg = JSON.parse(line.slice(6).trim());
+          if (msg.error) throw new Error(msg.error);
+          if (msg.audio) await scheduleBuffer(msg.audio);
+          if (msg.done) {
+            // Wait for all buffers to drain then clean up
+            const checkDone = setInterval(() => {
+              if (pendingBuffers.length === 0 && !isScheduling) {
+                clearInterval(checkDone);
+                setTimeout(() => {
+                  setPlayerState(false, 'Finished — press play to replay');
+                  setScrubActive(false);
+                  unlockVoiceButtons();
+                  audioEl = null;
+                  audioCtx.close();
+                }, totalDuration * 1000);
+              }
+            }, 200);
+          }
+        } catch(e) {
+          if (e.message && e.message !== 'Unexpected end of JSON input') throw e;
+        }
+      }
+    }
+
   } catch (err) {
     console.warn('TTS failed:', err.message);
     setPlayerState(false, 'Audio unavailable — please try again');
