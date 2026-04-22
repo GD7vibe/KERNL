@@ -11,6 +11,7 @@ function makeTimingsKey(title, author, voice) {
   return `${safe(title)}__${safe(author)}__${voice}`;
 }
 
+// ── Supabase Storage: check/get cached audio ──────────────────────────────────
 async function getCachedAudioUrl(filename) {
   const res = await fetch(
     `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(filename)}`,
@@ -38,6 +39,7 @@ async function saveAudioToStorage(filename, buffer) {
   return true;
 }
 
+// ── Timings stored in Supabase: audio_timings table ──────────────────────────
 async function getTimingsFromDB(key) {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/audio_timings?audio_key=eq.${encodeURIComponent(key)}&select=timings&limit=1`,
@@ -66,6 +68,7 @@ async function saveTimingsToDB(key, timings) {
   if (!res.ok) { console.error('Timings save failed:', res.status, await res.text()); }
 }
 
+// ── Whisper: get word timestamps from audio buffer ────────────────────────────
 async function getWordTimings(audioBuffer, plain) {
   const FormData = require('form-data');
   const form = new FormData();
@@ -89,6 +92,7 @@ async function getWordTimings(audioBuffer, plain) {
   return data.words || [];
 }
 
+// ── Text chunker (14k chars to stay under Grok's 15k limit) ──────────────────
 function chunkText(text, maxChars = 14000) {
   const chunks = [];
   let remaining = text.trim();
@@ -103,13 +107,12 @@ function chunkText(text, maxChars = 14000) {
   return chunks;
 }
 
-// ── Grok TTS streaming — pipes chunks directly to response ───────────────────
-async function streamGrokAudio(text, grokVoice, res) {
+// ── Grok TTS ──────────────────────────────────────────────────────────────────
+async function generateGrokAudio(text, grokVoice) {
   const chunks = chunkText(text);
-  console.log(`Grok TTS streaming: ${chunks.length} chunk(s), voice: ${grokVoice}`);
+  console.log(`Grok TTS: ${chunks.length} chunk(s), voice: ${grokVoice}`);
 
-  const allBuffers = [];
-
+  const audioBuffers = [];
   for (const chunk of chunks) {
     const response = await fetch('https://api.x.ai/v1/tts', {
       method: 'POST',
@@ -123,27 +126,14 @@ async function streamGrokAudio(text, grokVoice, res) {
         language: 'en'
       })
     });
-
     if (!response.ok) {
       const err = await response.text();
       throw new Error(`Grok TTS error: ${err}`);
     }
-
-    // Stream this chunk's audio directly to the browser
-    const reader = response.body.getReader();
-    const chunkBuffers = [];
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-      chunkBuffers.push(Buffer.from(value));
-    }
-
-    allBuffers.push(Buffer.concat(chunkBuffers));
+    audioBuffers.push(Buffer.from(await response.arrayBuffer()));
   }
 
-  return Buffer.concat(allBuffers);
+  return Buffer.concat(audioBuffers);
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -153,11 +143,12 @@ module.exports = async (req, res) => {
   const { text, voice, title, author } = req.body;
   if (!text) return res.status(400).json({ error: 'Text is required' });
 
+  // Eve = female, Leo = male
   const grokVoice  = voice === 'male' ? 'leo' : 'eve';
   const filename   = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
   const timingsKey = makeTimingsKey(title || 'unknown', author || 'unknown', voice || 'female');
 
-  // ── Step 1: Check audio cache — return URL instantly if cached ────────────
+  // ── Step 1: Check audio cache ─────────────────────────────────────────────
   try {
     const cachedUrl = await getCachedAudioUrl(filename);
     if (cachedUrl) {
@@ -167,38 +158,35 @@ module.exports = async (req, res) => {
     }
   } catch(e) { console.warn('Cache check failed:', e.message); }
 
-  // ── Step 2: Stream audio directly to browser ──────────────────────────────
+  // ── Step 2: Generate audio via Grok TTS ──────────────────────────────────
   try {
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('X-Accel-Buffering', 'no');
+    const combined = await generateGrokAudio(text, grokVoice);
 
-    // Stream audio chunks to browser AND collect full buffer for caching
-    const combined = await streamGrokAudio(text, grokVoice, res);
-
-    // ── Step 3: Save to Supabase in background (don't block) ─────────────
+    // ── Step 3: Save audio to Supabase Storage ────────────────────────────
     saveAudioToStorage(filename, combined).catch(e => console.warn('Storage save failed:', e.message));
 
-    // ── Step 4: Get word timings from Whisper in background ───────────────
+    // ── Step 4: Get word timestamps from Whisper (async, don't block) ─────
     (async () => {
       try {
+        console.log('Getting word timings from Whisper for:', filename);
         const timings = await getWordTimings(combined, text);
         if (timings && timings.length > 0) {
           await saveTimingsToDB(timingsKey, timings);
           console.log(`Saved ${timings.length} word timings for ${filename}`);
         }
-      } catch(e) { console.warn('Whisper timings failed:', e.message); }
+      } catch(e) {
+        console.warn('Whisper timings failed:', e.message);
+      }
     })();
 
-    res.end();
+    // ── Step 5: Return audio directly ────────────────────────────────────
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', combined.length);
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).send(combined);
 
   } catch(err) {
     console.error('TTS generation error:', err.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'TTS generation failed' });
-    } else {
-      res.end();
-    }
+    res.status(500).json({ error: err.message || 'TTS generation failed' });
   }
 };
