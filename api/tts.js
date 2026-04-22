@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
   const filename   = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
   const timingsKey = makeTimingsKey(title || 'unknown', author || 'unknown', voice || 'female');
 
-  // ── Step 1: Check audio cache — return URL instantly if cached ────────────
+  // ââ Step 1: Check audio cache â return URL instantly if cached ââââââââââââ
   try {
     const cachedUrl = await getCachedAudioUrl(filename);
     if (cachedUrl) {
@@ -69,7 +69,7 @@ module.exports = async (req, res) => {
     }
   } catch(e) { console.warn('Cache check failed:', e.message); }
 
-  // ── Step 2: Stream audio via xAI WebSocket ────────────────────────────────
+  // ââ Step 2: Stream audio via xAI WebSocket ââââââââââââââââââââââââââââââââ
   try {
     const WebSocket = require('ws');
 
@@ -114,12 +114,6 @@ module.exports = async (req, res) => {
             res.end();
             ws.close();
 
-            // Save full audio to Supabase in background
-            if (allChunks.length > 0) {
-              const combined = Buffer.concat(allChunks);
-              saveAudioToStorage(filename, combined).catch(e => console.warn('Storage save failed:', e.message));
-            }
-
             resolve();
           }
 
@@ -140,6 +134,11 @@ module.exports = async (req, res) => {
 
       ws.on('close', (code, reason) => {
         console.log('WebSocket closed:', code, reason.toString());
+        // Save whatever we have even if closed early (user navigated away etc)
+        if (allChunks.length > 0) {
+          const combined = Buffer.concat(allChunks);
+          saveAudioToStorage(filename, combined).catch(e => console.warn('Storage save on close failed:', e.message));
+        }
         resolve();
       });
     });
