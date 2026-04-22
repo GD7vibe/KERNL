@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached — plain JSON
+    // Cached â plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -255,7 +255,7 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
   document.getElementById('s-words').textContent = 'generating\u2026';
-  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">\u258a</span>';
+  document.getElementById('summary-body').innerHTML = htmlSoFar;
   document.getElementById('player-title').textContent = title;
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
   resetScrubUI();
@@ -267,7 +267,7 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
 function updateStreamingBody(htmlSoFar) {
   htmlSoFar = stripGenreLine(htmlSoFar);
   const body = document.getElementById('summary-body');
-  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">\u258a</span>';
+  if (body) body.innerHTML = htmlSoFar;
 }
 
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
@@ -448,7 +448,7 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached — returns JSON with URL, play immediately
+    // Cached â returns JSON with URL, play immediately
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
@@ -456,7 +456,7 @@ async function startOpenAIAudio() {
       return;
     }
 
-    // Streaming SSE — decode base64 chunks and play via Web Audio API
+    // Streaming SSE â decode base64 chunks and play via Web Audio API
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioCtx();
     if (audioCtx.state === 'suspended') await audioCtx.resume();
