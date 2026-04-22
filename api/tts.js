@@ -11,7 +11,6 @@ function makeTimingsKey(title, author, voice) {
   return `${safe(title)}__${safe(author)}__${voice}`;
 }
 
-// ── Supabase Storage: check/get cached audio ──────────────────────────────────
 async function getCachedAudioUrl(filename) {
   const res = await fetch(
     `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(filename)}`,
@@ -39,7 +38,6 @@ async function saveAudioToStorage(filename, buffer) {
   return true;
 }
 
-// ── Timings stored in Supabase: audio_timings table ──────────────────────────
 async function getTimingsFromDB(key) {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/audio_timings?audio_key=eq.${encodeURIComponent(key)}&select=timings&limit=1`,
@@ -51,104 +49,17 @@ async function getTimingsFromDB(key) {
   try { return JSON.parse(data[0].timings); } catch(e) { return null; }
 }
 
-async function saveTimingsToDB(key, timings) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/audio_timings`,
-    {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates,return=minimal'
-      },
-      body: JSON.stringify({ audio_key: key, timings: JSON.stringify(timings) })
-    }
-  );
-  if (!res.ok) { console.error('Timings save failed:', res.status, await res.text()); }
-}
-
-// ── Whisper: get word timestamps from audio buffer ────────────────────────────
-async function getWordTimings(audioBuffer, plain) {
-  const FormData = require('form-data');
-  const form = new FormData();
-  form.append('file', audioBuffer, { filename: 'audio.mp3', contentType: 'audio/mpeg' });
-  form.append('model', 'whisper-1');
-  form.append('response_format', 'verbose_json');
-  form.append('timestamp_granularities[]', 'word');
-  form.append('prompt', plain ? plain.slice(0, 200) : '');
-
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      ...form.getHeaders()
-    },
-    body: form
-  });
-
-  if (!res.ok) throw new Error(`Whisper error: ${await res.text()}`);
-  const data = await res.json();
-  return data.words || [];
-}
-
-// ── Text chunker (14k chars to stay under Grok's 15k limit) ──────────────────
-function chunkText(text, maxChars = 14000) {
-  const chunks = [];
-  let remaining = text.trim();
-  while (remaining.length > 0) {
-    if (remaining.length <= maxChars) { chunks.push(remaining); break; }
-    let splitAt = remaining.lastIndexOf('. ', maxChars);
-    if (splitAt === -1) splitAt = remaining.lastIndexOf(' ', maxChars);
-    if (splitAt === -1) splitAt = maxChars;
-    chunks.push(remaining.slice(0, splitAt + 1).trim());
-    remaining = remaining.slice(splitAt + 1).trim();
-  }
-  return chunks;
-}
-
-// ── Grok TTS ──────────────────────────────────────────────────────────────────
-async function generateGrokAudio(text, grokVoice) {
-  const chunks = chunkText(text);
-  console.log(`Grok TTS: ${chunks.length} chunk(s), voice: ${grokVoice}`);
-
-  const audioBuffers = [];
-  for (const chunk of chunks) {
-    const response = await fetch('https://api.x.ai/v1/tts', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.XAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        text: chunk,
-        voice_id: grokVoice,
-        language: 'en'
-      })
-    });
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Grok TTS error: ${err}`);
-    }
-    audioBuffers.push(Buffer.from(await response.arrayBuffer()));
-  }
-
-  return Buffer.concat(audioBuffers);
-}
-
-// ── Main handler ──────────────────────────────────────────────────────────────
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { text, voice, title, author } = req.body;
   if (!text) return res.status(400).json({ error: 'Text is required' });
 
-  // Eve = female, Leo = male
   const grokVoice  = voice === 'male' ? 'leo' : 'eve';
   const filename   = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
   const timingsKey = makeTimingsKey(title || 'unknown', author || 'unknown', voice || 'female');
 
-  // ── Step 1: Check audio cache ─────────────────────────────────────────────
+  // ── Step 1: Check audio cache — return URL instantly if cached ────────────
   try {
     const cachedUrl = await getCachedAudioUrl(filename);
     if (cachedUrl) {
@@ -158,35 +69,109 @@ module.exports = async (req, res) => {
     }
   } catch(e) { console.warn('Cache check failed:', e.message); }
 
-  // ── Step 2: Generate audio via Grok TTS ──────────────────────────────────
+  // ── Step 2: Stream audio via xAI WebSocket ────────────────────────────────
   try {
-    const combined = await generateGrokAudio(text, grokVoice);
+    const WebSocket = require('ws');
+    const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${grokVoice}&codec=mp3&sample_rate=24000&bit_rate=128000`;
 
-    // ── Step 3: Save audio to Supabase Storage ────────────────────────────
-    saveAudioToStorage(filename, combined).catch(e => console.warn('Storage save failed:', e.message));
+    // Set up SSE so browser receives chunks immediately
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
 
-    // ── Step 4: Get word timestamps from Whisper (async, don't block) ─────
-    (async () => {
-      try {
-        console.log('Getting word timings from Whisper for:', filename);
-        const timings = await getWordTimings(combined, text);
-        if (timings && timings.length > 0) {
-          await saveTimingsToDB(timingsKey, timings);
-          console.log(`Saved ${timings.length} word timings for ${filename}`);
+    const allChunks = [];
+    let browserConnected = true;
+
+    // Track if browser disconnects — but keep WebSocket running regardless
+    res.on('close', () => {
+      browserConnected = false;
+      console.log('Browser disconnected — continuing WebSocket to completion for caching');
+    });
+
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket(wsUrl, {
+        headers: { 'Authorization': `Bearer ${process.env.XAI_API_KEY}` }
+      });
+
+      ws.on('open', () => {
+        console.log('xAI WebSocket open, sending text...');
+        // Send full summary text then signal done
+        ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
+        ws.send(JSON.stringify({ type: 'text.done' }));
+      });
+
+      ws.on('message', (data) => {
+        try {
+          const event = JSON.parse(data.toString());
+
+          if (event.type === 'audio.delta' && event.delta) {
+            // Always collect chunk — we need the full audio for Supabase
+            allChunks.push(Buffer.from(event.delta, 'base64'));
+            // Only forward to browser if still connected
+            if (browserConnected) {
+              try {
+                res.write(`data: ${JSON.stringify({ audio: event.delta })}\n\n`);
+              } catch(e) {
+                browserConnected = false;
+              }
+            }
+          }
+
+          if (event.type === 'audio.done') {
+            console.log('xAI audio.done — full audio received, saving to Supabase...');
+
+            // Signal browser completion if still connected
+            if (browserConnected) {
+              try {
+                res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+                res.end();
+              } catch(e) {}
+            }
+
+            ws.close();
+
+            // Save the complete audio file to Supabase
+            if (allChunks.length > 0) {
+              const combined = Buffer.concat(allChunks);
+              saveAudioToStorage(filename, combined)
+                .then(() => console.log('Full audio saved to Supabase:', filename))
+                .catch(e => console.warn('Storage save failed:', e.message));
+            }
+
+            resolve();
+          }
+
+          if (event.type === 'error') {
+            console.error('xAI WebSocket error event:', event.message);
+            reject(new Error(event.message));
+          }
+
+        } catch(e) {
+          console.warn('WS message parse error:', e.message);
         }
-      } catch(e) {
-        console.warn('Whisper timings failed:', e.message);
-      }
-    })();
+      });
 
-    // ── Step 5: Return audio directly ────────────────────────────────────
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Length', combined.length);
-    res.setHeader('Cache-Control', 'no-store');
-    res.status(200).send(combined);
+      ws.on('error', (err) => {
+        console.error('WebSocket error:', err.message);
+        reject(err);
+      });
+
+      ws.on('close', (code, reason) => {
+        console.log('WebSocket closed:', code, reason ? reason.toString() : '');
+        resolve();
+      });
+    });
 
   } catch(err) {
     console.error('TTS generation error:', err.message);
-    res.status(500).json({ error: err.message || 'TTS generation failed' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message || 'TTS generation failed' });
+    } else {
+      try {
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      } catch(e) {}
+    }
   }
 };
