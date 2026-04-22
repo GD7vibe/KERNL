@@ -168,13 +168,13 @@ async function handleGenerate() {
     (e.spoilers || false) === spoilers
   );
   if (cached) {
-    setStatus('Found in your library â loading instantly!', true);
+    setStatus('Found in your library Ã¢ÂÂ loading instantly!', true);
     setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
 
   document.getElementById('gen-btn').disabled = true;
-  setStatus('Generating summary â appearing shortlyâ¦', true);
+  setStatus('Generating summary Ã¢ÂÂ appearing shortlyÃ¢ÂÂ¦', true);
 
   try {
     const res = await fetch('/api/summarise', {
@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached â plain JSON
+    // Cached Ã¢ÂÂ plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -249,10 +249,10 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
   currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = 'generatingâ¦';
-  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">â</span>';
+  document.getElementById('s-words').textContent = 'generatingÃ¢ÂÂ¦';
+  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">Ã¢ÂÂ</span>';
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice â press play' : 'Male voice â press play';
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice Ã¢ÂÂ press play' : 'Male voice Ã¢ÂÂ press play';
   resetScrubUI();
   document.getElementById('megan-words-section').style.display = 'none';
   document.getElementById('summary-card').classList.add('show');
@@ -261,7 +261,7 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
 
 function updateStreamingBody(htmlSoFar) {
   const body = document.getElementById('summary-body');
-  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">â</span>';
+  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">Ã¢ÂÂ</span>';
 }
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
@@ -437,99 +437,16 @@ async function startOpenAIAudio() {
       body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
     });
     if (!res.ok) throw new Error('TTS request failed');
-
     const contentType = res.headers.get('content-type') || '';
-
-    // Cached — returns JSON with URL
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
       playSingleAudio(data.url, null);
       return;
     }
-
-    // Streaming — pipe chunks into MediaSource for instant playback
-    if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')) {
-      const mediaSource = new MediaSource();
-      const audioUrl = URL.createObjectURL(mediaSource);
-      audioEl = new Audio(audioUrl);
-      audioEl.playbackRate = playbackRate;
-      audioEl.addEventListener('timeupdate', updateScrubUI);
-      audioEl.addEventListener('ended', () => {
-        setPlayerState(false, 'Finished — press play to replay');
-        setScrubActive(false);
-        unlockVoiceButtons();
-        URL.revokeObjectURL(audioUrl);
-        audioEl = null;
-      });
-      audioEl.addEventListener('error', () => {
-        setPlayerState(false, 'Audio unavailable — please try again');
-        setScrubActive(false);
-        unlockVoiceButtons();
-        URL.revokeObjectURL(audioUrl);
-        audioEl = null;
-      });
-
-      mediaSource.addEventListener('sourceopen', async () => {
-        const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
-        const reader = res.body.getReader();
-        let started = false;
-
-        const pump = async () => {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              if (!sourceBuffer.updating) {
-                try { mediaSource.endOfStream(); } catch(e) {}
-              } else {
-                sourceBuffer.addEventListener('updateend', () => {
-                  try { mediaSource.endOfStream(); } catch(e) {}
-                }, { once: true });
-              }
-              break;
-            }
-
-            // Wait if sourceBuffer is busy
-            if (sourceBuffer.updating) {
-              await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
-            }
-
-            sourceBuffer.appendBuffer(value);
-
-            // Start playing as soon as first chunk arrives
-            if (!started) {
-              started = true;
-              try {
-                await audioEl.play();
-                audioEl.playbackRate = playbackRate;
-                setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
-                setScrubActive(true);
-                initScrubEvents();
-              } catch(e) {
-                setPlayerState(false, 'Tap play to listen');
-              }
-            }
-
-            await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
-          }
-        };
-
-        pump().catch(e => {
-          console.warn('Stream pump error:', e.message);
-          setPlayerState(false, 'Audio unavailable — please try again');
-          unlockVoiceButtons();
-        });
-      });
-
-      audioEl.load();
-      return;
-    }
-
-    // Fallback — collect full blob then play
     const blob = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
     playSingleAudio(blobUrl, blobUrl);
-
   } catch (err) {
     console.warn('TTS failed:', err.message);
     setPlayerState(false, 'Audio unavailable — please try again');
