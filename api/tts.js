@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
   const filename   = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
   const timingsKey = makeTimingsKey(title || 'unknown', author || 'unknown', voice || 'female');
 
-  // ââ Step 1: Check audio cache â return URL instantly if cached ââââââââââââ
+  // ── Step 1: Check audio cache — return URL instantly if cached ────────────
   try {
     const cachedUrl = await getCachedAudioUrl(filename);
     if (cachedUrl) {
@@ -69,29 +69,34 @@ module.exports = async (req, res) => {
     }
   } catch(e) { console.warn('Cache check failed:', e.message); }
 
-  // ââ Step 2: Stream audio via xAI WebSocket ââââââââââââââââââââââââââââââââ
+  // ── Step 2: Stream audio via xAI WebSocket ────────────────────────────────
   try {
     const WebSocket = require('ws');
-
     const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${grokVoice}&codec=mp3&sample_rate=24000&bit_rate=128000`;
+
+    // Set up SSE so browser receives chunks immediately
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const allChunks = [];
+    let browserConnected = true;
+
+    // Track if browser disconnects — but keep WebSocket running regardless
+    res.on('close', () => {
+      browserConnected = false;
+      console.log('Browser disconnected — continuing WebSocket to completion for caching');
+    });
 
     await new Promise((resolve, reject) => {
       const ws = new WebSocket(wsUrl, {
         headers: { 'Authorization': `Bearer ${process.env.XAI_API_KEY}` }
       });
 
-      // Set up SSE response headers so browser receives chunks immediately
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      const allChunks = [];
-      let headersSent = false;
-
       ws.on('open', () => {
         console.log('xAI WebSocket open, sending text...');
-        // Send full text as one delta then signal done
+        // Send full summary text then signal done
         ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
         ws.send(JSON.stringify({ type: 'text.done' }));
       });
@@ -101,18 +106,38 @@ module.exports = async (req, res) => {
           const event = JSON.parse(data.toString());
 
           if (event.type === 'audio.delta' && event.delta) {
-            // Forward base64 chunk to browser via SSE
-            if (!headersSent) headersSent = true;
-            res.write(`data: ${JSON.stringify({ audio: event.delta })}\n\n`);
+            // Always collect chunk — we need the full audio for Supabase
             allChunks.push(Buffer.from(event.delta, 'base64'));
+            // Only forward to browser if still connected
+            if (browserConnected) {
+              try {
+                res.write(`data: ${JSON.stringify({ audio: event.delta })}\n\n`);
+              } catch(e) {
+                browserConnected = false;
+              }
+            }
           }
 
           if (event.type === 'audio.done') {
-            console.log('xAI audio.done received');
-            // Signal completion to browser
-            res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-            res.end();
+            console.log('xAI audio.done — full audio received, saving to Supabase...');
+
+            // Signal browser completion if still connected
+            if (browserConnected) {
+              try {
+                res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+                res.end();
+              } catch(e) {}
+            }
+
             ws.close();
+
+            // Save the complete audio file to Supabase
+            if (allChunks.length > 0) {
+              const combined = Buffer.concat(allChunks);
+              saveAudioToStorage(filename, combined)
+                .then(() => console.log('Full audio saved to Supabase:', filename))
+                .catch(e => console.warn('Storage save failed:', e.message));
+            }
 
             resolve();
           }
@@ -133,12 +158,7 @@ module.exports = async (req, res) => {
       });
 
       ws.on('close', (code, reason) => {
-        console.log('WebSocket closed:', code, reason.toString());
-        // Save whatever we have even if closed early (user navigated away etc)
-        if (allChunks.length > 0) {
-          const combined = Buffer.concat(allChunks);
-          saveAudioToStorage(filename, combined).catch(e => console.warn('Storage save on close failed:', e.message));
-        }
+        console.log('WebSocket closed:', code, reason ? reason.toString() : '');
         resolve();
       });
     });
@@ -148,8 +168,10 @@ module.exports = async (req, res) => {
     if (!res.headersSent) {
       res.status(500).json({ error: err.message || 'TTS generation failed' });
     } else {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-      res.end();
+      try {
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      } catch(e) {}
     }
   }
 };
