@@ -149,7 +149,7 @@ function setVoice(v) {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   isPlaying = false;
   if (currentSummary) {
-    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
     if (wasPlaying) setTimeout(startOpenAIAudio, 150);
   }
 }
@@ -168,13 +168,13 @@ async function handleGenerate() {
     (e.spoilers || false) === spoilers
   );
   if (cached) {
-    setStatus('Found in your library ————Â——————— loading instantly!', true);
+    setStatus('Found in your library \u2014 loading instantly!', true);
     setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
 
   document.getElementById('gen-btn').disabled = true;
-  setStatus('generating…', true);
+  setStatus('Generating summary \u2014 appearing shortly\u2026', true);
 
   try {
     const res = await fetch('/api/summarise', {
@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached ————Â——————— plain JSON
+    // Cached — plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -245,7 +245,6 @@ async function handleGenerate() {
 }
 
 function stripGenreLine(html) {
-  // Remove GENRE:FICTION or GENRE:NONFICTION line if present at start
   return html.replace(/^GENRE:(FICTION|NONFICTION)\s*/i, '').replace(/^<p>GENRE:(FICTION|NONFICTION)<\/p>\s*/i, '');
 }
 
@@ -255,10 +254,10 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
   currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = 'generating…';
-  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">————Â———————</span>';
+  document.getElementById('s-words').textContent = 'generating\u2026';
+  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">\u258a</span>';
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
   resetScrubUI();
   document.getElementById('megan-words-section').style.display = 'none';
   document.getElementById('summary-card').classList.add('show');
@@ -268,8 +267,9 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
 function updateStreamingBody(htmlSoFar) {
   htmlSoFar = stripGenreLine(htmlSoFar);
   const body = document.getElementById('summary-body');
-  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">————Â———————</span>';
+  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">\u258a</span>';
 }
+
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
 function renderMeganWords(words) {
@@ -310,7 +310,7 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   const buyBtn = document.getElementById('buy-btn');
   buyBtn.href = amazonUrl;
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
   resetScrubUI();
   const grid = document.getElementById('megan-words-grid');
   const arrow = document.getElementById('megan-arrow');
@@ -433,9 +433,10 @@ function resumeAudio() {
   }
   return false;
 }
+
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-  setPlayerState(true, 'Loading audio—Â¦');
+  setPlayerState(true, 'Loading audio\u2026');
   lockVoiceButtons();
   try {
     const res = await fetch('/api/tts', {
@@ -447,7 +448,7 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached —Â returns JSON with URL, play immediately
+    // Cached — returns JSON with URL, play immediately
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
@@ -455,7 +456,7 @@ async function startOpenAIAudio() {
       return;
     }
 
-    // Streaming SSE —Â decode base64 chunks and play via Web Audio API
+    // Streaming SSE — decode base64 chunks and play via Web Audio API
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioCtx();
     if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -469,7 +470,6 @@ async function startOpenAIAudio() {
     const pendingBuffers = [];
     let isScheduling = false;
 
-    // Decode and schedule audio buffers for seamless playback
     async function scheduleBuffer(b64chunk) {
       const bytes = Uint8Array.from(atob(b64chunk), c => c.charCodeAt(0));
       try {
@@ -477,7 +477,6 @@ async function startOpenAIAudio() {
         pendingBuffers.push(decoded);
         if (!isScheduling) drainBuffers();
       } catch(e) {
-        // Some partial mp3 chunks can't decode alone - collect and retry
         console.warn('Chunk decode error (may be partial):', e.message);
       }
     }
@@ -495,17 +494,15 @@ async function startOpenAIAudio() {
 
       if (!started) {
         started = true;
-        // Update UI as soon as first chunk plays
         audioEl = { pause: () => audioCtx.suspend(), paused: false, src: 'streaming',
           playbackRate: playbackRate, currentTime: 0, duration: 0 };
-        setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice —Â now playing');
+        setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
         setScrubActive(true);
       }
 
       source.onended = () => drainBuffers();
     }
 
-    // Read SSE stream
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -519,12 +516,11 @@ async function startOpenAIAudio() {
           if (msg.error) throw new Error(msg.error);
           if (msg.audio) await scheduleBuffer(msg.audio);
           if (msg.done) {
-            // Wait for all buffers to drain then clean up
             const checkDone = setInterval(() => {
               if (pendingBuffers.length === 0 && !isScheduling) {
                 clearInterval(checkDone);
                 setTimeout(() => {
-                  setPlayerState(false, 'Finished —Â press play to replay');
+                  setPlayerState(false, 'Finished \u2014 press play to replay');
                   setScrubActive(false);
                   unlockVoiceButtons();
                   audioEl = null;
@@ -541,7 +537,7 @@ async function startOpenAIAudio() {
 
   } catch (err) {
     console.warn('TTS failed:', err.message);
-    setPlayerState(false, 'Audio unavailable —Â please try again');
+    setPlayerState(false, 'Audio unavailable \u2014 please try again');
     unlockVoiceButtons();
   }
 }
@@ -552,7 +548,7 @@ function playSingleAudio(audioUrl, blobUrl) {
   audioEl.addEventListener('ended', () => {
     const fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
-    setPlayerState(false, 'Finished —Â press play to replay');
+    setPlayerState(false, 'Finished \u2014 press play to replay');
     setScrubActive(false);
     unlockVoiceButtons();
     if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -561,16 +557,17 @@ function playSingleAudio(audioUrl, blobUrl) {
   audioEl.addEventListener('error', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable —Â please try again');
+    setPlayerState(false, 'Audio unavailable \u2014 please try again');
     setScrubActive(false);
     unlockVoiceButtons();
   });
   audioEl.play();
   audioEl.playbackRate = playbackRate;
-  setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice —Â now playing');
+  setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
   setScrubActive(true);
   initScrubEvents();
 }
+
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
@@ -600,6 +597,7 @@ function downloadEpub() {
   };
   document.head.appendChild(script);
 }
+
 function printSummary() {
   if (!currentSummary) return;
   const meganGrid = document.getElementById('megan-words-grid');
@@ -615,6 +613,7 @@ function printSummary() {
   w.document.close();
   setTimeout(() => w.print(), 400);
 }
+
 function triggerDownload(blob, filename) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
