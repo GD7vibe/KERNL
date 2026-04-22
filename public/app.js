@@ -161,38 +161,107 @@ async function handleGenerate() {
   setError('');
   hideDropdown();
   if (!title) { setError('Please enter a book title to continue.'); return; }
+
   const cached = getArchive().find(e =>
     norm(e.title) === norm(title) &&
     (!author || norm(e.author) === norm(author)) &&
     (e.spoilers || false) === spoilers
   );
   if (cached) {
-    setStatus('Found in your library \u2014 loading instantly!', true);
+    setStatus('Found in your library — loading instantly!', true);
     setTimeout(() => { setStatus('', false); displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true); }, 600);
     return;
   }
+
   document.getElementById('gen-btn').disabled = true;
-  setStatus('Generating summary with AI \u2014 please wait about 30 seconds...', true);
+  setStatus('Generating summary — appearing shortly…', true);
+
   try {
     const res = await fetch('/api/summarise', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, author, spoilers })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
-    const { html, plain, words } = data;
-    const displayAuthor = author || 'Unknown author';
-    saveEntry({ title, author: displayAuthor, html, plain, words: words || [], spoilers, savedAt: Date.now() });
-    setStatus('', false);
-    renderArchive();
-    displaySummary(title, displayAuthor, html, plain, words || [], false);
+    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Error ' + res.status); }
+
+    const contentType = res.headers.get('content-type') || '';
+
+    // Cached — plain JSON
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      const displayAuthor = author || data.author || 'Unknown author';
+      saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], spoilers, savedAt: Date.now() });
+      setStatus('', false);
+      renderArchive();
+      displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false);
+      return;
+    }
+
+    // Streaming SSE
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let streamingStarted = false;
+    let finalData = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const msg = JSON.parse(line.slice(6).trim());
+          if (msg.error) throw new Error(msg.error);
+          if (msg.done) { finalData = msg; continue; }
+          if (msg.chunk) {
+            if (!streamingStarted) {
+              streamingStarted = true;
+              setStatus('', false);
+              displaySummaryStreaming(title, author || 'Unknown author', msg.chunk);
+            } else {
+              updateStreamingBody(msg.chunk);
+            }
+          }
+        } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; }
+      }
+    }
+
+    if (finalData) {
+      const displayAuthor = author || 'Unknown author';
+      saveEntry({ title, author: displayAuthor, html: finalData.html, plain: finalData.plain, words: finalData.words || [], spoilers, savedAt: Date.now() });
+      renderArchive();
+      displaySummary(title, displayAuthor, finalData.html, finalData.plain, finalData.words || [], false);
+    }
+
   } catch (err) {
     setStatus('', false);
     setError('Could not generate summary: ' + err.message);
   } finally {
     document.getElementById('gen-btn').disabled = false;
   }
+}
+
+function displaySummaryStreaming(title, author, htmlSoFar) {
+  stopAudio();
+  currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
+  document.getElementById('s-title').textContent = title;
+  document.getElementById('s-author').textContent = 'by ' + author;
+  document.getElementById('s-words').textContent = 'generating…';
+  document.getElementById('summary-body').innerHTML = htmlSoFar + '<span class="kernl-cursor">▊</span>';
+  document.getElementById('player-title').textContent = title;
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice — press play' : 'Male voice — press play';
+  resetScrubUI();
+  document.getElementById('megan-words-section').style.display = 'none';
+  document.getElementById('summary-card').classList.add('show');
+  document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateStreamingBody(htmlSoFar) {
+  const body = document.getElementById('summary-body');
+  if (body) body.innerHTML = htmlSoFar + '<span class="kernl-cursor">▊</span>';
 }
 function countWords(plain) { return plain.split(/\s+/).filter(w => w.length > 0).length; }
 
