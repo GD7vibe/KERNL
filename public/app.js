@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached ÃÂ¢ÃÂÃÂ plain JSON
+    // Cached -- plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -440,6 +440,14 @@ async function startOpenAIAudio() {
   if (!currentSummary) return;
   setPlayerState(true, 'Loading audio\u2026');
   lockVoiceButtons();
+
+  // Unlock audio context immediately on the user gesture (critical for iOS Safari / Android Chrome)
+  // We must call play() synchronously within the tap handler before any await
+  const unlock = new Audio();
+  unlock.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+  unlock.volume = 0.001;
+  try { unlock.play().catch(() => {}); } catch(e) {}
+
   try {
     const res = await fetch('/api/tts', {
       method: 'POST',
@@ -450,7 +458,7 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached ÃÂ¢ÃÂÃÂ returns JSON with URL, play immediately
+    // Cached -- returns JSON with URL, play immediately
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
@@ -458,78 +466,36 @@ async function startOpenAIAudio() {
       return;
     }
 
-    // Streaming SSE ÃÂ¢ÃÂÃÂ decode base64 chunks and play via Web Audio API
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioCtx();
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
-
+    // Streaming SSE -- collect all base64 audio chunks then play as a single blob
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '';
-    let startTime = audioCtx.currentTime;
-    let started = false;
-    let totalDuration = 0;
-    const pendingBuffers = [];
-    let isScheduling = false;
-
-    async function scheduleBuffer(b64chunk) {
-      const bytes = Uint8Array.from(atob(b64chunk), c => c.charCodeAt(0));
-      try {
-        const decoded = await audioCtx.decodeAudioData(bytes.buffer);
-        pendingBuffers.push(decoded);
-        if (!isScheduling) drainBuffers();
-      } catch(e) {
-        console.warn('Chunk decode error (may be partial):', e.message);
-      }
-    }
-
-    function drainBuffers() {
-      if (pendingBuffers.length === 0) { isScheduling = false; return; }
-      isScheduling = true;
-      const decoded = pendingBuffers.shift();
-      const source = audioCtx.createBufferSource();
-      source.buffer = decoded;
-      source.connect(audioCtx.destination);
-      const when = Math.max(startTime + totalDuration, audioCtx.currentTime);
-      source.start(when);
-      totalDuration += decoded.duration;
-
-      if (!started) {
-        started = true;
-        audioEl = { pause: () => audioCtx.suspend(), paused: false, src: 'streaming',
-          playbackRate: playbackRate, currentTime: 0, duration: 0 };
-        setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
-        setScrubActive(true);
-      }
-
-      source.onended = () => drainBuffers();
-    }
+    let sseBuffer = '';
+    const audioChunks = [];
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
+      sseBuffer += decoder.decode(value, { stream: true });
+      const lines = sseBuffer.split('\n');
+      sseBuffer = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         try {
           const msg = JSON.parse(line.slice(6).trim());
           if (msg.error) throw new Error(msg.error);
-          if (msg.audio) await scheduleBuffer(msg.audio);
+          if (msg.audio) {
+            const bytes = Uint8Array.from(atob(msg.audio), ch => ch.charCodeAt(0));
+            audioChunks.push(bytes);
+          }
           if (msg.done) {
-            const checkDone = setInterval(() => {
-              if (pendingBuffers.length === 0 && !isScheduling) {
-                clearInterval(checkDone);
-                setTimeout(() => {
-                  setPlayerState(false, 'Finished \u2014 press play to replay');
-                  setScrubActive(false);
-                  unlockVoiceButtons();
-                  audioEl = null;
-                  audioCtx.close();
-                }, totalDuration * 1000);
-              }
-            }, 200);
+            if (audioChunks.length === 0) throw new Error('No audio received');
+            const totalLen = audioChunks.reduce((sum, ch) => sum + ch.length, 0);
+            const combined = new Uint8Array(totalLen);
+            let offset = 0;
+            for (const chunk of audioChunks) { combined.set(chunk, offset); offset += chunk.length; }
+            const blob = new Blob([combined], { type: 'audio/mpeg' });
+            const blobUrl = URL.createObjectURL(blob);
+            playSingleAudio(blobUrl, blobUrl);
           }
         } catch(e) {
           if (e.message && e.message !== 'Unexpected end of JSON input') throw e;
@@ -556,14 +522,22 @@ function playSingleAudio(audioUrl, blobUrl) {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
   });
-  audioEl.addEventListener('error', () => {
+  audioEl.addEventListener('error', (e) => {
+    console.warn('Audio error:', e);
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     setPlayerState(false, 'Audio unavailable \u2014 please try again');
     setScrubActive(false);
     unlockVoiceButtons();
   });
-  audioEl.play();
+  const playPromise = audioEl.play();
+  if (playPromise !== undefined) {
+    playPromise.catch(err => {
+      console.warn('play() failed:', err.message);
+      setPlayerState(false, 'Tap play to listen');
+      unlockVoiceButtons();
+    });
+  }
   audioEl.playbackRate = playbackRate;
   setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
   setScrubActive(true);
@@ -630,6 +604,7 @@ function togglePlay() {
 
 function downloadEpub() {
   if (!currentSummary) return;
+  if (typeof JSZip === 'undefined') { alert('Please wait a moment and try again.'); return; }
   const id = 'kernl-' + Date.now();
   const t = esc(currentSummary.title), a = esc(currentSummary.author);
   const contentHtml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + t + '</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>' + t + '</h1><div class="byline">by ' + a + ' \u2014 KERNL Summary</div>' + currentSummary.html + '<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>';
@@ -658,9 +633,10 @@ function printSummary() {
     meganSection = `<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`;
   }
   const w = window.open('', '_blank');
+  if (!w) { alert('Please allow popups for kernlbooks.com to use Print.'); return; }
   w.document.write('<!DOCTYPE html><html><head><title>' + esc(currentSummary.title) + ' \u2014 KERNL</title><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}.print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em}.print-header-left{flex:1}.qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em}#qr-code{margin-bottom:4pt}</style></head><body><div class="print-header"><div class="print-header-left"><h1>' + esc(currentSummary.title) + '</h1><div class="byline">by ' + esc(currentSummary.author) + ' \u2014 KERNL Summary</div></div><div class="qr-block"><div id="qr-code"></div>Scan to buy this book</div></div>' + currentSummary.html + meganSection + '<div class="footer">Generated by KERNL \u2014 for the curious</div><script>new QRCode(document.getElementById("qr-code"),{text:"' + makeAmazonUrl(currentSummary.title, currentSummary.author) + '",width:100,height:100,colorDark:"#000000",colorLight:"#ffffff"});<\/script></body></html>');
   w.document.close();
-  setTimeout(() => w.print(), 400);
+  setTimeout(() => w.print(), 500);
 }
 
 function triggerDownload(blob, filename) {
