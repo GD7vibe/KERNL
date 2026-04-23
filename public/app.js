@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached ÃÂ¢ÃÂÃÂ plain JSON
+    // Cached ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -438,8 +438,15 @@ function resumeAudio() {
 
 async function startOpenAIAudio() {
   if (!currentSummary) return;
-  setPlayerState(true, 'Loading audio\u2026');
+  setPlayerState(true, 'Loading audio…');
   lockVoiceButtons();
+
+  // Unlock audio immediately on user gesture before any async work (critical for iOS/Android)
+  const silentUnlock = new Audio();
+  silentUnlock.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+  silentUnlock.volume = 0.001;
+  try { await silentUnlock.play(); silentUnlock.pause(); } catch(e) {}
+
   try {
     const res = await fetch('/api/tts', {
       method: 'POST',
@@ -450,7 +457,7 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached ÃÂ¢ÃÂÃÂ returns JSON with URL, play immediately
+    // Cached — returns JSON with URL, play immediately
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
@@ -458,52 +465,11 @@ async function startOpenAIAudio() {
       return;
     }
 
-    // Streaming SSE ÃÂ¢ÃÂÃÂ decode base64 chunks and play via Web Audio API
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioCtx();
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
-
+    // Streaming SSE — collect all base64 chunks then play as blob
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let startTime = audioCtx.currentTime;
-    let started = false;
-    let totalDuration = 0;
-    const pendingBuffers = [];
-    let isScheduling = false;
-
-    async function scheduleBuffer(b64chunk) {
-      const bytes = Uint8Array.from(atob(b64chunk), c => c.charCodeAt(0));
-      try {
-        const decoded = await audioCtx.decodeAudioData(bytes.buffer);
-        pendingBuffers.push(decoded);
-        if (!isScheduling) drainBuffers();
-      } catch(e) {
-        console.warn('Chunk decode error (may be partial):', e.message);
-      }
-    }
-
-    function drainBuffers() {
-      if (pendingBuffers.length === 0) { isScheduling = false; return; }
-      isScheduling = true;
-      const decoded = pendingBuffers.shift();
-      const source = audioCtx.createBufferSource();
-      source.buffer = decoded;
-      source.connect(audioCtx.destination);
-      const when = Math.max(startTime + totalDuration, audioCtx.currentTime);
-      source.start(when);
-      totalDuration += decoded.duration;
-
-      if (!started) {
-        started = true;
-        audioEl = { pause: () => audioCtx.suspend(), paused: false, src: 'streaming',
-          playbackRate: playbackRate, currentTime: 0, duration: 0 };
-        setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
-        setScrubActive(true);
-      }
-
-      source.onended = () => drainBuffers();
-    }
+    const audioChunks = [];
 
     while (true) {
       const { done, value } = await reader.read();
@@ -516,20 +482,18 @@ async function startOpenAIAudio() {
         try {
           const msg = JSON.parse(line.slice(6).trim());
           if (msg.error) throw new Error(msg.error);
-          if (msg.audio) await scheduleBuffer(msg.audio);
+          if (msg.audio) {
+            const bytes = Uint8Array.from(atob(msg.audio), ch => ch.charCodeAt(0));
+            audioChunks.push(bytes);
+          }
           if (msg.done) {
-            const checkDone = setInterval(() => {
-              if (pendingBuffers.length === 0 && !isScheduling) {
-                clearInterval(checkDone);
-                setTimeout(() => {
-                  setPlayerState(false, 'Finished \u2014 press play to replay');
-                  setScrubActive(false);
-                  unlockVoiceButtons();
-                  audioEl = null;
-                  audioCtx.close();
-                }, totalDuration * 1000);
-              }
-            }, 200);
+            const totalLen = audioChunks.reduce((sum, ch) => sum + ch.length, 0);
+            const combined = new Uint8Array(totalLen);
+            let offset = 0;
+            for (const chunk of audioChunks) { combined.set(chunk, offset); offset += chunk.length; }
+            const blob = new Blob([combined], { type: 'audio/mpeg' });
+            const blobUrl = URL.createObjectURL(blob);
+            playSingleAudio(blobUrl, blobUrl);
           }
         } catch(e) {
           if (e.message && e.message !== 'Unexpected end of JSON input') throw e;
@@ -539,11 +503,10 @@ async function startOpenAIAudio() {
 
   } catch (err) {
     console.warn('TTS failed:', err.message);
-    setPlayerState(false, 'Audio unavailable \u2014 please try again');
+    setPlayerState(false, 'Audio unavailable — please try again');
     unlockVoiceButtons();
   }
 }
-
 function playSingleAudio(audioUrl, blobUrl) {
   audioEl = new Audio(audioUrl);
   audioEl.addEventListener('timeupdate', updateScrubUI);
