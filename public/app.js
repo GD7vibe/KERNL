@@ -186,7 +186,7 @@ async function handleGenerate() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached Ã¢ÂÂ plain JSON
+    // Cached ÃÂ¢ÃÂÃÂ plain JSON
     if (contentType.includes('application/json')) {
       const data = await res.json();
       const displayAuthor = author || data.author || 'Unknown author';
@@ -450,7 +450,7 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached Ã¢ÂÂ returns JSON with URL, play immediately
+    // Cached ÃÂ¢ÃÂÃÂ returns JSON with URL, play immediately
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
@@ -458,7 +458,7 @@ async function startOpenAIAudio() {
       return;
     }
 
-    // Streaming SSE Ã¢ÂÂ decode base64 chunks and play via Web Audio API
+    // Streaming SSE ÃÂ¢ÃÂÃÂ decode base64 chunks and play via Web Audio API
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioCtx();
     if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -636,19 +636,15 @@ function downloadEpub() {
   const opf = '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + t + ' \u2014 KERNL</dc:title><dc:creator>' + a + '</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">' + id + '</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
   const ncx = '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="' + id + '"/></head><docTitle><text>' + t + '</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
   const container = '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
-  const script = document.createElement('script');
-  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-  script.onload = () => {
-    const zip = new JSZip();
+  const zip = new JSZip();
+  (async () => {
     zip.file('mimetype', 'application/epub+zip');
     zip.folder('META-INF').file('container.xml', container);
     const oebps = zip.folder('OEBPS');
     oebps.file('content.opf', opf); oebps.file('toc.ncx', ncx); oebps.file('content.html', contentHtml);
-    zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' }).then(blob => {
-      triggerDownload(blob, safe(currentSummary.title) + '_KERNL.epub');
-    });
-  };
-  document.head.appendChild(script);
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
+    triggerDownload(blob, safe(currentSummary.title) + '_KERNL.epub');
+  })();
 }
 
 function printSummary() {
