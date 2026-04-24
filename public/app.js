@@ -144,16 +144,13 @@ function setSpeed(rate) {
 
 // ── Streaming controls: grey out skip/scrub/speed during PCM streaming ────────
 function lockStreamingControls() {
-  // Grey scrub bar
   ['scrub-row', 'scrub-track'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.opacity = '0.3'; el.style.pointerEvents = 'none'; }
   });
-  // Grey skip buttons
   document.querySelectorAll('.skip-btn').forEach(btn => {
     btn.style.opacity = '0.3'; btn.style.pointerEvents = 'none';
   });
-  // Grey 1.5x and 2x speed (1x stays usable as it is already selected)
   document.querySelectorAll('.speed-btn').forEach(btn => {
     if (parseFloat(btn.dataset.rate) !== 1) {
       btn.style.opacity = '0.3'; btn.style.pointerEvents = 'none';
@@ -465,7 +462,6 @@ function setPlayerState(playing, subText) {
   }
   if (subText) document.getElementById('player-sub').textContent = subText;
   setScrubActive(playing);
-  // Keep Media Session in sync
   if ('mediaSession' in navigator) {
     navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
   }
@@ -507,7 +503,6 @@ async function startOpenAIAudio() {
   lockVoiceButtons();
   lockStreamingControls();
 
-  // Create AudioContext immediately on user gesture -- critical for iOS/Android
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioCtx();
@@ -530,7 +525,6 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached -- play via Audio element (supports lock screen + scrub natively)
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
@@ -540,14 +534,11 @@ async function startOpenAIAudio() {
       return;
     }
 
-    // Streaming PCM via SSE
-    // Phase 1: stream audio via Web Audio API (fast start, controls greyed out)
-    // Phase 2: on msg.done, hand off to <audio> element (lock screen + scrub enabled)
     streamingAudio = true;
     nextPlayTime = audioCtx.currentTime + 0.1;
     let started = false;
     const SAMPLE_RATE = 24000;
-    const allPcmChunks = []; // collect all chunks for handoff
+    const allPcmChunks = [];
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -570,9 +561,8 @@ async function startOpenAIAudio() {
           if (msg.pcm) {
             if (!streamingAudio || !audioCtx) break;
 
-            // Decode base64 PCM -- signed 16-bit little-endian at 24kHz mono
             const bytes = Uint8Array.from(atob(msg.pcm), ch => ch.charCodeAt(0));
-            allPcmChunks.push(bytes); // save for WAV handoff
+            allPcmChunks.push(bytes);
 
             const samples = bytes.length / 2;
             const audioBuffer = audioCtx.createBuffer(1, samples, SAMPLE_RATE);
@@ -582,7 +572,6 @@ async function startOpenAIAudio() {
               channelData[i] = view.getInt16(i * 2, true) / 32768.0;
             }
 
-            // Schedule seamlessly after previous chunk
             const source = audioCtx.createBufferSource();
             source.buffer = audioBuffer;
             source.playbackRate.value = playbackRate;
@@ -600,14 +589,12 @@ async function startOpenAIAudio() {
           }
 
           if (msg.done) {
-            // All PCM received -- wait for Web Audio playback to finish, then hand off
             const remaining = Math.max(0, nextPlayTime - audioCtx.currentTime);
 
             setTimeout(() => {
               if (!streamingAudio) return;
               streamingAudio = false;
 
-              // Build WAV from collected PCM chunks
               const totalPcmLen = allPcmChunks.reduce((s, c) => s + c.length, 0);
               const wavBuf = new ArrayBuffer(44 + totalPcmLen);
               const v = new DataView(wavBuf);
@@ -617,8 +604,8 @@ async function startOpenAIAudio() {
               writeStr(8, 'WAVE');
               writeStr(12, 'fmt ');
               v.setUint32(16, 16, true);
-              v.setUint16(20, 1, true);  // PCM
-              v.setUint16(22, 1, true);  // mono
+              v.setUint16(20, 1, true);
+              v.setUint16(22, 1, true);
               v.setUint32(24, SAMPLE_RATE, true);
               v.setUint32(28, SAMPLE_RATE * 2, true);
               v.setUint16(32, 2, true);
@@ -628,13 +615,11 @@ async function startOpenAIAudio() {
               let off = 44;
               for (const chunk of allPcmChunks) { new Uint8Array(wavBuf).set(chunk, off); off += chunk.length; }
 
-              // Close Web Audio, hand off to <audio> element
               if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
 
               const blob = new Blob([wavBuf], { type: 'audio/wav' });
               const blobUrl = URL.createObjectURL(blob);
 
-              // Unlock controls now that audio element takes over
               unlockStreamingControls();
               playSingleAudio(blobUrl, blobUrl);
 
@@ -657,7 +642,6 @@ async function startOpenAIAudio() {
 }
 
 function playSingleAudio(audioUrl, blobUrl) {
-  // <audio> element handles: background playback, lock screen, scrub, skip, speed
   audioEl = new Audio(audioUrl);
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', () => {
@@ -686,7 +670,6 @@ function playSingleAudio(audioUrl, blobUrl) {
   setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
   setScrubActive(true);
   initScrubEvents();
-  // Register Media Session so lock screen shows title/author and controls work
   if (currentSummary) registerMediaSession(currentSummary.title, currentSummary.author);
 }
 
@@ -701,9 +684,12 @@ function showKindleModal() {
     + '<h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3>'
     + '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p>'
     + '<input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box">'
-    + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+    + '<div style="display:flex;gap:10px;align-items:center;justify-content:space-between">'
+    + '<button onclick="downloadEpub()" style="height:38px;padding:0 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;display:flex;align-items:center;gap:6px" title="Download EPUB file">&#128218; Download EPUB</button>'
+    + '<div style="display:flex;gap:10px">'
     + '<button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button>'
     + '<button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button>'
+    + '</div>'
     + '</div>'
     + '<div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div>'
     + '</div>';
