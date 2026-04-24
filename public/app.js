@@ -142,6 +142,53 @@ function setSpeed(rate) {
   if (audioEl) audioEl.playbackRate = rate;
 }
 
+// ── Streaming controls: grey out skip/scrub/speed during PCM streaming ────────
+function lockStreamingControls() {
+  // Grey scrub bar
+  ['scrub-row', 'scrub-track'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.opacity = '0.3'; el.style.pointerEvents = 'none'; }
+  });
+  // Grey skip buttons
+  document.querySelectorAll('.skip-btn').forEach(btn => {
+    btn.style.opacity = '0.3'; btn.style.pointerEvents = 'none';
+  });
+  // Grey 1.5x and 2x speed (1x stays usable as it is already selected)
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    if (parseFloat(btn.dataset.rate) !== 1) {
+      btn.style.opacity = '0.3'; btn.style.pointerEvents = 'none';
+    }
+  });
+}
+
+function unlockStreamingControls() {
+  ['scrub-row', 'scrub-track'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.opacity = ''; el.style.pointerEvents = ''; }
+  });
+  document.querySelectorAll('.skip-btn').forEach(btn => {
+    btn.style.opacity = ''; btn.style.pointerEvents = '';
+  });
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.style.opacity = ''; btn.style.pointerEvents = '';
+  });
+}
+
+// ── Media Session API: lock screen controls and background playback ────────────
+function registerMediaSession(title, author) {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: title || 'KERNL Summary',
+    artist: author || '',
+    album: 'KERNL \u2014 for the curious'
+  });
+  navigator.mediaSession.setActionHandler('play', () => resumeAudio());
+  navigator.mediaSession.setActionHandler('pause', () => pauseAudio());
+  navigator.mediaSession.setActionHandler('stop', () => stopAudio());
+  navigator.mediaSession.setActionHandler('seekbackward', () => skipAudio(-10));
+  navigator.mediaSession.setActionHandler('seekforward', () => skipAudio(10));
+}
+
 function setVoice(v) {
   currentVoice = v;
   document.getElementById('vbf').classList.toggle('active', v === 'female');
@@ -418,15 +465,17 @@ function setPlayerState(playing, subText) {
   }
   if (subText) document.getElementById('player-sub').textContent = subText;
   setScrubActive(playing);
+  // Keep Media Session in sync
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+  }
 }
 function stopAudio() {
   streamingAudio = false;
-  if (audioCtx) {
-    try { audioCtx.close(); } catch(e) {}
-    audioCtx = null;
-  }
+  if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
   if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch(e) {} audioEl = null; }
   nextPlayTime = 0;
+  unlockStreamingControls();
   setPlayerState(false, null);
   resetScrubUI();
 }
@@ -456,9 +505,9 @@ async function startOpenAIAudio() {
   if (!currentSummary) return;
   setPlayerState(true, 'Loading audio\u2026');
   lockVoiceButtons();
+  lockStreamingControls();
 
   // Create AudioContext immediately on user gesture -- critical for iOS/Android
-  // This must happen synchronously within the tap handler
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioCtx();
@@ -467,6 +516,7 @@ async function startOpenAIAudio() {
     console.warn('AudioContext failed:', e.message);
     setPlayerState(false, 'Audio unavailable \u2014 please try again');
     unlockVoiceButtons();
+    unlockStreamingControls();
     return;
   }
 
@@ -480,20 +530,24 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached -- play via Audio element
+    // Cached -- play via Audio element (supports lock screen + scrub natively)
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
       if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
+      unlockStreamingControls();
       playSingleAudio(data.url, null);
       return;
     }
 
-    // Streaming PCM via SSE -- schedule each chunk as it arrives
+    // Streaming PCM via SSE
+    // Phase 1: stream audio via Web Audio API (fast start, controls greyed out)
+    // Phase 2: on msg.done, hand off to <audio> element (lock screen + scrub enabled)
     streamingAudio = true;
     nextPlayTime = audioCtx.currentTime + 0.1;
     let started = false;
     const SAMPLE_RATE = 24000;
+    const allPcmChunks = []; // collect all chunks for handoff
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -518,6 +572,8 @@ async function startOpenAIAudio() {
 
             // Decode base64 PCM -- signed 16-bit little-endian at 24kHz mono
             const bytes = Uint8Array.from(atob(msg.pcm), ch => ch.charCodeAt(0));
+            allPcmChunks.push(bytes); // save for WAV handoff
+
             const samples = bytes.length / 2;
             const audioBuffer = audioCtx.createBuffer(1, samples, SAMPLE_RATE);
             const channelData = audioBuffer.getChannelData(0);
@@ -526,7 +582,7 @@ async function startOpenAIAudio() {
               channelData[i] = view.getInt16(i * 2, true) / 32768.0;
             }
 
-            // Schedule this chunk to play seamlessly after the previous one
+            // Schedule seamlessly after previous chunk
             const source = audioCtx.createBufferSource();
             source.buffer = audioBuffer;
             source.playbackRate.value = playbackRate;
@@ -539,22 +595,50 @@ async function startOpenAIAudio() {
               started = true;
               setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
               setScrubActive(true);
+              registerMediaSession(currentSummary.title, currentSummary.author);
             }
           }
 
           if (msg.done) {
-            // All chunks received -- wait for playback to finish
-            const remaining = nextPlayTime - audioCtx.currentTime;
+            // All PCM received -- wait for Web Audio playback to finish, then hand off
+            const remaining = Math.max(0, nextPlayTime - audioCtx.currentTime);
+
             setTimeout(() => {
-              if (streamingAudio) {
-                streamingAudio = false;
-                setPlayerState(false, 'Finished \u2014 press play to replay');
-                setScrubActive(false);
-                unlockVoiceButtons();
-                try { audioCtx.close(); } catch(e) {}
-                audioCtx = null;
-              }
-            }, Math.max(0, remaining * 1000) + 500);
+              if (!streamingAudio) return;
+              streamingAudio = false;
+
+              // Build WAV from collected PCM chunks
+              const totalPcmLen = allPcmChunks.reduce((s, c) => s + c.length, 0);
+              const wavBuf = new ArrayBuffer(44 + totalPcmLen);
+              const v = new DataView(wavBuf);
+              const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+              writeStr(0, 'RIFF');
+              v.setUint32(4, 36 + totalPcmLen, true);
+              writeStr(8, 'WAVE');
+              writeStr(12, 'fmt ');
+              v.setUint32(16, 16, true);
+              v.setUint16(20, 1, true);  // PCM
+              v.setUint16(22, 1, true);  // mono
+              v.setUint32(24, SAMPLE_RATE, true);
+              v.setUint32(28, SAMPLE_RATE * 2, true);
+              v.setUint16(32, 2, true);
+              v.setUint16(34, 16, true);
+              writeStr(36, 'data');
+              v.setUint32(40, totalPcmLen, true);
+              let off = 44;
+              for (const chunk of allPcmChunks) { new Uint8Array(wavBuf).set(chunk, off); off += chunk.length; }
+
+              // Close Web Audio, hand off to <audio> element
+              if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
+
+              const blob = new Blob([wavBuf], { type: 'audio/wav' });
+              const blobUrl = URL.createObjectURL(blob);
+
+              // Unlock controls now that audio element takes over
+              unlockStreamingControls();
+              playSingleAudio(blobUrl, blobUrl);
+
+            }, remaining * 1000 + 300);
           }
         } catch(e) {
           if (e.message && e.message !== 'Unexpected end of JSON input') throw e;
@@ -566,12 +650,14 @@ async function startOpenAIAudio() {
     console.warn('TTS failed:', err.message);
     streamingAudio = false;
     if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
+    unlockStreamingControls();
     setPlayerState(false, 'Audio unavailable \u2014 please try again');
     unlockVoiceButtons();
   }
 }
 
 function playSingleAudio(audioUrl, blobUrl) {
+  // <audio> element handles: background playback, lock screen, scrub, skip, speed
   audioEl = new Audio(audioUrl);
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', () => {
@@ -600,6 +686,8 @@ function playSingleAudio(audioUrl, blobUrl) {
   setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
   setScrubActive(true);
   initScrubEvents();
+  // Register Media Session so lock screen shows title/author and controls work
+  if (currentSummary) registerMediaSession(currentSummary.title, currentSummary.author);
 }
 
 function showKindleModal() {
