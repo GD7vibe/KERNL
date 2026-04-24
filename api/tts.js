@@ -3,7 +3,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 function makeAudioKey(title, author, voice) {
   const safe = (s) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
-  return `${safe(title)}__${safe(author)}__${voice}.mp3`;
+  return `${safe(title)}__${safe(author)}__${voice}.wav`;
 }
 
 function makeTimingsKey(title, author, voice) {
@@ -20,7 +20,7 @@ async function getCachedAudioUrl(filename) {
   return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
 }
 
-async function saveAudioToStorage(filename, buffer) {
+async function saveAudioToStorage(filename, buffer, contentType) {
   const res = await fetch(
     `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
     {
@@ -28,7 +28,7 @@ async function saveAudioToStorage(filename, buffer) {
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': contentType,
         'Cache-Control': '3600'
       },
       body: buffer
@@ -49,6 +49,27 @@ async function getTimingsFromDB(key) {
   try { return JSON.parse(data[0].timings); } catch(e) { return null; }
 }
 
+function pcmToWav(pcmChunks, sampleRate) {
+  const pcmLength = pcmChunks.reduce((s, c) => s + c.length, 0);
+  const wavBuffer = Buffer.alloc(44 + pcmLength);
+  wavBuffer.write('RIFF', 0);
+  wavBuffer.writeUInt32LE(36 + pcmLength, 4);
+  wavBuffer.write('WAVE', 8);
+  wavBuffer.write('fmt ', 12);
+  wavBuffer.writeUInt32LE(16, 16);
+  wavBuffer.writeUInt16LE(1, 20);
+  wavBuffer.writeUInt16LE(1, 22);
+  wavBuffer.writeUInt32LE(sampleRate, 24);
+  wavBuffer.writeUInt32LE(sampleRate * 2, 28);
+  wavBuffer.writeUInt16LE(2, 32);
+  wavBuffer.writeUInt16LE(16, 34);
+  wavBuffer.write('data', 36);
+  wavBuffer.writeUInt32LE(pcmLength, 40);
+  let offset = 44;
+  for (const chunk of pcmChunks) { chunk.copy(wavBuffer, offset); offset += chunk.length; }
+  return wavBuffer;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -58,8 +79,9 @@ module.exports = async (req, res) => {
   const grokVoice  = voice === 'male' ? 'leo' : 'eve';
   const filename   = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
   const timingsKey = makeTimingsKey(title || 'unknown', author || 'unknown', voice || 'female');
+  const SAMPLE_RATE = 24000;
 
-  // ── Step 1: Check audio cache — return URL instantly if cached ────────────
+  // Check audio cache
   try {
     const cachedUrl = await getCachedAudioUrl(filename);
     if (cachedUrl) {
@@ -69,24 +91,21 @@ module.exports = async (req, res) => {
     }
   } catch(e) { console.warn('Cache check failed:', e.message); }
 
-  // ── Step 2: Stream audio via xAI WebSocket ────────────────────────────────
+  // Stream via xAI WebSocket using PCM codec (works on all browsers including iOS/Android)
   try {
     const WebSocket = require('ws');
-    const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${grokVoice}&codec=mp3&sample_rate=24000&bit_rate=128000`;
+    const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${grokVoice}&codec=pcm&sample_rate=${SAMPLE_RATE}`;
 
-    // Set up SSE so browser receives chunks immediately
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    const allChunks = [];
+    const allPcmChunks = [];
     let browserConnected = true;
-
-    // Track if browser disconnects — but keep WebSocket running regardless
     res.on('close', () => {
       browserConnected = false;
-      console.log('Browser disconnected — continuing WebSocket to completion for caching');
+      console.log('Browser disconnected -- continuing to completion for caching');
     });
 
     await new Promise((resolve, reject) => {
@@ -95,8 +114,7 @@ module.exports = async (req, res) => {
       });
 
       ws.on('open', () => {
-        console.log('xAI WebSocket open, sending text...');
-        // Send full summary text then signal done
+        console.log('xAI WebSocket open, streaming PCM...');
         ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
         ws.send(JSON.stringify({ type: 'text.done' }));
       });
@@ -106,72 +124,54 @@ module.exports = async (req, res) => {
           const event = JSON.parse(data.toString());
 
           if (event.type === 'audio.delta' && event.delta) {
-            // Always collect chunk — we need the full audio for Supabase
-            allChunks.push(Buffer.from(event.delta, 'base64'));
-            // Only forward to browser if still connected
+            const pcmBuf = Buffer.from(event.delta, 'base64');
+            allPcmChunks.push(pcmBuf);
             if (browserConnected) {
               try {
-                res.write(`data: ${JSON.stringify({ audio: event.delta })}\n\n`);
-              } catch(e) {
-                browserConnected = false;
-              }
+                res.write(`data: ${JSON.stringify({ pcm: event.delta, sampleRate: SAMPLE_RATE })}\n\n`);
+              } catch(e) { browserConnected = false; }
             }
           }
 
           if (event.type === 'audio.done') {
-            console.log('xAI audio.done — full audio received, saving to Supabase...');
-
-            // Signal browser completion if still connected
+            console.log('xAI audio.done received');
             if (browserConnected) {
               try {
                 res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
                 res.end();
               } catch(e) {}
             }
-
             ws.close();
 
-            // Save the complete audio file to Supabase
-            if (allChunks.length > 0) {
-              const combined = Buffer.concat(allChunks);
-              saveAudioToStorage(filename, combined)
-                .then(() => console.log('Full audio saved to Supabase:', filename))
-                .catch(e => console.warn('Storage save failed:', e.message));
+            // Save complete WAV to Supabase in background
+            if (allPcmChunks.length > 0) {
+              try {
+                const wavBuf = pcmToWav(allPcmChunks, SAMPLE_RATE);
+                saveAudioToStorage(filename, wavBuf, 'audio/wav')
+                  .then(() => console.log('WAV saved:', filename))
+                  .catch(e => console.warn('Save failed:', e.message));
+              } catch(e) { console.warn('WAV conversion failed:', e.message); }
             }
-
             resolve();
           }
 
           if (event.type === 'error') {
-            console.error('xAI WebSocket error event:', event.message);
+            console.error('xAI error:', event.message);
             reject(new Error(event.message));
           }
-
-        } catch(e) {
-          console.warn('WS message parse error:', e.message);
-        }
+        } catch(e) { console.warn('WS parse error:', e.message); }
       });
 
-      ws.on('error', (err) => {
-        console.error('WebSocket error:', err.message);
-        reject(err);
-      });
-
-      ws.on('close', (code, reason) => {
-        console.log('WebSocket closed:', code, reason ? reason.toString() : '');
-        resolve();
-      });
+      ws.on('error', (err) => { reject(err); });
+      ws.on('close', () => { resolve(); });
     });
 
   } catch(err) {
-    console.error('TTS generation error:', err.message);
+    console.error('TTS error:', err.message);
     if (!res.headersSent) {
       res.status(500).json({ error: err.message || 'TTS generation failed' });
     } else {
-      try {
-        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-        res.end();
-      } catch(e) {}
+      try { res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`); res.end(); } catch(e) {}
     }
   }
 };
