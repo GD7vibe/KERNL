@@ -119,7 +119,8 @@ module.exports = async (req, res) => {
         ws.send(JSON.stringify({ type: 'text.done' }));
       });
 
-      ws.on('message', (data) => {
+      // async handler so we can await the Supabase save before signalling done
+      ws.on('message', async (data) => {
         try {
           const event = JSON.parse(data.toString());
 
@@ -134,24 +135,29 @@ module.exports = async (req, res) => {
           }
 
           if (event.type === 'audio.done') {
-            console.log('xAI audio.done received');
+            console.log('xAI audio.done received -- saving WAV to Supabase before signalling browser');
+            ws.close();
+
+            // Save WAV to Supabase FIRST -- controls unlock only after this completes
+            if (allPcmChunks.length > 0) {
+              try {
+                const wavBuf = pcmToWav(allPcmChunks, SAMPLE_RATE);
+                await saveAudioToStorage(filename, wavBuf, 'audio/wav');
+                console.log('WAV saved to Supabase:', filename);
+              } catch(e) {
+                // Non-fatal: log and continue so the browser still unlocks
+                console.warn('WAV save failed:', e.message);
+              }
+            }
+
+            // NOW tell the browser everything is done -- unlocks controls
             if (browserConnected) {
               try {
                 res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
                 res.end();
               } catch(e) {}
             }
-            ws.close();
 
-            // Save complete WAV to Supabase in background
-            if (allPcmChunks.length > 0) {
-              try {
-                const wavBuf = pcmToWav(allPcmChunks, SAMPLE_RATE);
-                saveAudioToStorage(filename, wavBuf, 'audio/wav')
-                  .then(() => console.log('WAV saved:', filename))
-                  .catch(e => console.warn('Save failed:', e.message));
-              } catch(e) { console.warn('WAV conversion failed:', e.message); }
-            }
             resolve();
           }
 
