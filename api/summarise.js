@@ -60,7 +60,7 @@ async function findCached(title,author,spoilers) {
 
 function buildPrompt(title,author,spoilers) {
   const spoilerInstruction=spoilers?'The user has requested spoilers. Include all major plot points, character arcs, twists, and the ending. Hold nothing back.':'First, determine whether this book is fiction (novel, short story collection) or non-fiction (biography, memoir, history, business, self-help, science, etc). If it is NON-FICTION: ignore the spoiler setting entirely and write a full, comprehensive summary covering all key arguments, insights, data, conclusions and takeaways. Non-fiction has no spoilers. If it is FICTION: write a spoiler-free summary. Do NOT reveal major plot twists, the ending, or key surprises. Focus on themes, writing style, the world of the book, characters and why it is worth reading.';
-  return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. '+spoilerInstruction+' IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags — return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: Every word must be completely unique — no word may appear more than once in the list. Double-check your list before finalising it. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END';
+  return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. '+spoilerInstruction+' IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags â return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: Every word must be completely unique â no word may appear more than once in the list. Double-check your list before finalising it. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END';
 }
 
 function parseWordsBlock(raw) {
@@ -94,7 +94,7 @@ function htmlToPlain(html) {
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // ── Patch words mode ──
+  // ââ Patch words mode ââ
   if (req.body && req.body.patchWords) {
     const { title, author } = req.body;
     try {
@@ -125,7 +125,7 @@ module.exports = async (req, res) => {
   const spoilers = false;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
-  // ── Cache check — return instantly as JSON (no streaming needed) ──
+  // ââ Cache check â return instantly as JSON (no streaming needed) ââ
   try {
     const cached = await findCached(title, author, spoilers);
     if (cached) {
@@ -141,7 +141,7 @@ module.exports = async (req, res) => {
     }
   } catch(e) { console.error('Cache lookup error:', e.message); }
 
-  // ── Not cached — stream from Anthropic ──
+  // ââ Not cached â stream from Anthropic ââ
   const prompt = buildPrompt(title, author, spoilers);
   const nonfictionKey = makeKey(title, author, false);
 
@@ -222,7 +222,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ── Stream complete — parse full response and save ──
+    // ââ Stream complete â parse full response and save ââ
     let raw = fullText.trim();
     const firstLine = raw.split('\n')[0].trim();
     const isNonFiction = firstLine.toUpperCase().includes('NONFICTION');
@@ -233,11 +233,13 @@ module.exports = async (req, res) => {
     const html = stripWordsBlock(raw);
     const plain = htmlToPlain(html);
 
-    // Save to Supabase in background
-    saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Save failed:', e.message));
+    // Await Supabase save before res.end() -- Vercel kills async work after response ends
+    try {
+      await saveToSupabase(title, author, saveKey, html, plain, words);
+    } catch(saveErr) { console.error('Supabase save failed:', saveErr.message); }
 
-    // Send final event with complete data (html, plain, words)
-    res.write(`data: ${JSON.stringify({ done: true, html, plain, words, source: 'generated' })}\n\n`);
+    // Send final event with complete data
+    res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
     res.end();
 
   } catch(err) {
