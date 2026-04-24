@@ -7,6 +7,9 @@ let audioEl = null;
 let playbackRate = 1;
 let autocompleteTimer = null;
 let currentTimings = [];
+let audioCtx = null;
+let nextPlayTime = 0;
+let streamingAudio = false;
 
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -146,7 +149,7 @@ function setVoice(v) {
   document.getElementById('pvf').classList.toggle('on', v === 'female');
   document.getElementById('pvm').classList.toggle('on', v === 'male');
   const wasPlaying = isPlaying;
-  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
+  stopAudio();
   isPlaying = false;
   if (currentSummary) {
     document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
@@ -417,17 +420,30 @@ function setPlayerState(playing, subText) {
   setScrubActive(playing);
 }
 function stopAudio() {
-  if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
+  streamingAudio = false;
+  if (audioCtx) {
+    try { audioCtx.close(); } catch(e) {}
+    audioCtx = null;
+  }
+  if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch(e) {} audioEl = null; }
+  nextPlayTime = 0;
   setPlayerState(false, null);
   resetScrubUI();
 }
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
+  if (audioCtx) audioCtx.suspend();
   setPlayerState(false, 'Paused \u2014 press play to continue');
   setScrubActive(false);
 }
 function resumeAudio() {
-  if (audioEl) {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+    setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Female' : 'Male') + ' voice');
+    setScrubActive(true);
+    return true;
+  }
+  if (audioEl && audioEl.paused && audioEl.src) {
     audioEl.play();
     setPlayerState(true, 'Now playing \u2014 ' + (currentVoice === 'female' ? 'Female' : 'Male') + ' voice');
     setScrubActive(true);
@@ -441,12 +457,18 @@ async function startOpenAIAudio() {
   setPlayerState(true, 'Loading audio\u2026');
   lockVoiceButtons();
 
-  // Unlock audio context immediately on the user gesture (critical for iOS Safari / Android Chrome)
-  // We must call play() synchronously within the tap handler before any await
-  const unlock = new Audio();
-  unlock.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-  unlock.volume = 0.001;
-  try { unlock.play().catch(() => {}); } catch(e) {}
+  // Create AudioContext immediately on user gesture -- critical for iOS/Android
+  // This must happen synchronously within the tap handler
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioCtx();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+  } catch(e) {
+    console.warn('AudioContext failed:', e.message);
+    setPlayerState(false, 'Audio unavailable \u2014 please try again');
+    unlockVoiceButtons();
+    return;
+  }
 
   try {
     const res = await fetch('/api/tts', {
@@ -458,44 +480,81 @@ async function startOpenAIAudio() {
 
     const contentType = res.headers.get('content-type') || '';
 
-    // Cached -- returns JSON with URL, play immediately
+    // Cached -- play via Audio element
     if (contentType.includes('application/json')) {
       const data = await res.json();
       if (data.timings && data.timings.length) currentTimings = data.timings;
+      if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
       playSingleAudio(data.url, null);
       return;
     }
 
-    // Streaming SSE -- collect all base64 audio chunks then play as a single blob
+    // Streaming PCM via SSE -- schedule each chunk as it arrives
+    streamingAudio = true;
+    nextPlayTime = audioCtx.currentTime + 0.1;
+    let started = false;
+    const SAMPLE_RATE = 24000;
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let sseBuffer = '';
-    const audioChunks = [];
 
     while (true) {
+      if (!streamingAudio) break;
       const { done, value } = await reader.read();
       if (done) break;
       sseBuffer += decoder.decode(value, { stream: true });
       const lines = sseBuffer.split('\n');
       sseBuffer = lines.pop();
+
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         try {
           const msg = JSON.parse(line.slice(6).trim());
           if (msg.error) throw new Error(msg.error);
-          if (msg.audio) {
-            const bytes = Uint8Array.from(atob(msg.audio), ch => ch.charCodeAt(0));
-            audioChunks.push(bytes);
+
+          if (msg.pcm) {
+            if (!streamingAudio || !audioCtx) break;
+
+            // Decode base64 PCM -- signed 16-bit little-endian at 24kHz mono
+            const bytes = Uint8Array.from(atob(msg.pcm), ch => ch.charCodeAt(0));
+            const samples = bytes.length / 2;
+            const audioBuffer = audioCtx.createBuffer(1, samples, SAMPLE_RATE);
+            const channelData = audioBuffer.getChannelData(0);
+            const view = new DataView(bytes.buffer);
+            for (let i = 0; i < samples; i++) {
+              channelData[i] = view.getInt16(i * 2, true) / 32768.0;
+            }
+
+            // Schedule this chunk to play seamlessly after the previous one
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.playbackRate.value = playbackRate;
+            source.connect(audioCtx.destination);
+            const when = Math.max(nextPlayTime, audioCtx.currentTime);
+            source.start(when);
+            nextPlayTime = when + audioBuffer.duration;
+
+            if (!started) {
+              started = true;
+              setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
+              setScrubActive(true);
+            }
           }
+
           if (msg.done) {
-            if (audioChunks.length === 0) throw new Error('No audio received');
-            const totalLen = audioChunks.reduce((sum, ch) => sum + ch.length, 0);
-            const combined = new Uint8Array(totalLen);
-            let offset = 0;
-            for (const chunk of audioChunks) { combined.set(chunk, offset); offset += chunk.length; }
-            const blob = new Blob([combined], { type: 'audio/mpeg' });
-            const blobUrl = URL.createObjectURL(blob);
-            playSingleAudio(blobUrl, blobUrl);
+            // All chunks received -- wait for playback to finish
+            const remaining = nextPlayTime - audioCtx.currentTime;
+            setTimeout(() => {
+              if (streamingAudio) {
+                streamingAudio = false;
+                setPlayerState(false, 'Finished \u2014 press play to replay');
+                setScrubActive(false);
+                unlockVoiceButtons();
+                try { audioCtx.close(); } catch(e) {}
+                audioCtx = null;
+              }
+            }, Math.max(0, remaining * 1000) + 500);
           }
         } catch(e) {
           if (e.message && e.message !== 'Unexpected end of JSON input') throw e;
@@ -505,6 +564,8 @@ async function startOpenAIAudio() {
 
   } catch (err) {
     console.warn('TTS failed:', err.message);
+    streamingAudio = false;
+    if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
     setPlayerState(false, 'Audio unavailable \u2014 please try again');
     unlockVoiceButtons();
   }
@@ -522,22 +583,19 @@ function playSingleAudio(audioUrl, blobUrl) {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
   });
-  audioEl.addEventListener('error', (e) => {
-    console.warn('Audio error:', e);
+  audioEl.addEventListener('error', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     setPlayerState(false, 'Audio unavailable \u2014 please try again');
     setScrubActive(false);
     unlockVoiceButtons();
   });
-  const playPromise = audioEl.play();
-  if (playPromise !== undefined) {
-    playPromise.catch(err => {
-      console.warn('play() failed:', err.message);
-      setPlayerState(false, 'Tap play to listen');
-      unlockVoiceButtons();
-    });
-  }
+  const p = audioEl.play();
+  if (p) p.catch(err => {
+    console.warn('play() failed:', err.message);
+    setPlayerState(false, 'Tap play to listen');
+    unlockVoiceButtons();
+  });
   audioEl.playbackRate = playbackRate;
   setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
   setScrubActive(true);
@@ -598,6 +656,7 @@ async function sendToKindle() {
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
+  if (audioCtx && audioCtx.state === 'suspended') { resumeAudio(); return; }
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
   startOpenAIAudio();
 }
