@@ -3,7 +3,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 function makeAudioKey(title, author, voice) {
   const safe = (s) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
-  return `${safe(title)}__${safe(author)}__${voice}.wav`;
+  return `${safe(title)}__${safe(author)}__${voice}.mp3`;
 }
 
 function makeTimingsKey(title, author, voice) {
@@ -11,13 +11,25 @@ function makeTimingsKey(title, author, voice) {
   return `${safe(title)}__${safe(author)}__${voice}`;
 }
 
-async function getCachedAudioUrl(filename) {
-  const res = await fetch(
+async function getCachedUrl(filename) {
+  // Check MP3 first (new format)
+  const mp3Res = await fetch(
     `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(filename)}`,
     { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
   );
-  if (!res.ok) return null;
-  return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
+  if (mp3Res.ok) {
+    return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
+  }
+  // Fall back to WAV (old format) for existing library books
+  const wavFilename = filename.replace(/\.mp3$/, '.wav');
+  const wavRes = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(wavFilename)}`,
+    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+  );
+  if (wavRes.ok) {
+    return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(wavFilename)}`;
+  }
+  return null;
 }
 
 async function saveAudioToStorage(filename, buffer, contentType) {
@@ -49,27 +61,6 @@ async function getTimingsFromDB(key) {
   try { return JSON.parse(data[0].timings); } catch(e) { return null; }
 }
 
-function pcmToWav(pcmChunks, sampleRate) {
-  const pcmLength = pcmChunks.reduce((s, c) => s + c.length, 0);
-  const wavBuffer = Buffer.alloc(44 + pcmLength);
-  wavBuffer.write('RIFF', 0);
-  wavBuffer.writeUInt32LE(36 + pcmLength, 4);
-  wavBuffer.write('WAVE', 8);
-  wavBuffer.write('fmt ', 12);
-  wavBuffer.writeUInt32LE(16, 16);
-  wavBuffer.writeUInt16LE(1, 20);
-  wavBuffer.writeUInt16LE(1, 22);
-  wavBuffer.writeUInt32LE(sampleRate, 24);
-  wavBuffer.writeUInt32LE(sampleRate * 2, 28);
-  wavBuffer.writeUInt16LE(2, 32);
-  wavBuffer.writeUInt16LE(16, 34);
-  wavBuffer.write('data', 36);
-  wavBuffer.writeUInt32LE(pcmLength, 40);
-  let offset = 44;
-  for (const chunk of pcmChunks) { chunk.copy(wavBuffer, offset); offset += chunk.length; }
-  return wavBuffer;
-}
-
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -79,29 +70,29 @@ module.exports = async (req, res) => {
   const grokVoice  = voice === 'male' ? 'leo' : 'eve';
   const filename   = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
   const timingsKey = makeTimingsKey(title || 'unknown', author || 'unknown', voice || 'female');
-  const SAMPLE_RATE = 24000;
 
-  // Check audio cache
+  // Check cache — MP3 first, WAV fallback for existing library books
   try {
-    const cachedUrl = await getCachedAudioUrl(filename);
+    const cachedUrl = await getCachedUrl(filename);
     if (cachedUrl) {
-      console.log('Audio cache hit:', filename);
+      console.log('Audio cache hit:', cachedUrl);
       const timings = await getTimingsFromDB(timingsKey);
       return res.status(200).json({ url: cachedUrl, source: 'cache', timings: timings || [] });
     }
   } catch(e) { console.warn('Cache check failed:', e.message); }
 
-  // Stream via xAI WebSocket using PCM codec (works on all browsers including iOS/Android)
+  // Generate via xAI WebSocket — request MP3 directly
   try {
     const WebSocket = require('ws');
-    const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${grokVoice}&codec=pcm&sample_rate=${SAMPLE_RATE}`;
+    const SAMPLE_RATE = 24000;
+    const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${grokVoice}&codec=mp3&sample_rate=${SAMPLE_RATE}`;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    const allPcmChunks = [];
+    const allChunks = [];
     let browserConnected = true;
     res.on('close', () => {
       browserConnected = false;
@@ -114,43 +105,39 @@ module.exports = async (req, res) => {
       });
 
       ws.on('open', () => {
-        console.log('xAI WebSocket open, streaming PCM...');
+        console.log('xAI WebSocket open, streaming MP3...');
         ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
         ws.send(JSON.stringify({ type: 'text.done' }));
       });
 
-      // async handler so we can await the Supabase save before signalling done
       ws.on('message', async (data) => {
         try {
           const event = JSON.parse(data.toString());
 
           if (event.type === 'audio.delta' && event.delta) {
-            const pcmBuf = Buffer.from(event.delta, 'base64');
-            allPcmChunks.push(pcmBuf);
+            const chunk = Buffer.from(event.delta, 'base64');
+            allChunks.push(chunk);
             if (browserConnected) {
               try {
-                res.write(`data: ${JSON.stringify({ pcm: event.delta, sampleRate: SAMPLE_RATE })}\n\n`);
+                res.write(`data: ${JSON.stringify({ mp3: event.delta })}\n\n`);
               } catch(e) { browserConnected = false; }
             }
           }
 
           if (event.type === 'audio.done') {
-            console.log('xAI audio.done received -- saving WAV to Supabase before signalling browser');
+            console.log('xAI audio.done -- saving MP3 to Supabase');
             ws.close();
 
-            // Save WAV to Supabase FIRST -- controls unlock only after this completes
-            if (allPcmChunks.length > 0) {
+            if (allChunks.length > 0) {
               try {
-                const wavBuf = pcmToWav(allPcmChunks, SAMPLE_RATE);
-                await saveAudioToStorage(filename, wavBuf, 'audio/wav');
-                console.log('WAV saved to Supabase:', filename);
+                const mp3Buf = Buffer.concat(allChunks);
+                await saveAudioToStorage(filename, mp3Buf, 'audio/mpeg');
+                console.log('MP3 saved to Supabase:', filename);
               } catch(e) {
-                // Non-fatal: log and continue so the browser still unlocks
-                console.warn('WAV save failed:', e.message);
+                console.warn('MP3 save failed:', e.message);
               }
             }
 
-            // NOW tell the browser everything is done -- unlocks controls
             if (browserConnected) {
               try {
                 res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
