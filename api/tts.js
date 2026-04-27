@@ -6,13 +6,7 @@ function makeAudioKey(title, author, voice) {
   return `${safe(title)}__${safe(author)}__${voice}.mp3`;
 }
 
-function makeTimingsKey(title, author, voice) {
-  const safe = (s) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
-  return `${safe(title)}__${safe(author)}__${voice}`;
-}
-
 async function getCachedUrl(filename) {
-  // Check MP3 first (new format)
   const mp3Res = await fetch(
     `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(filename)}`,
     { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
@@ -20,7 +14,7 @@ async function getCachedUrl(filename) {
   if (mp3Res.ok) {
     return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
   }
-  // Fall back to WAV (old format) for existing library books
+  // WAV fallback for old library books
   const wavFilename = filename.replace(/\.mp3$/, '.wav');
   const wavRes = await fetch(
     `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(wavFilename)}`,
@@ -32,139 +26,30 @@ async function getCachedUrl(filename) {
   return null;
 }
 
-async function saveAudioToStorage(filename, buffer, contentType) {
-  const res = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
-    {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': contentType,
-        'Cache-Control': '3600'
-      },
-      body: buffer
-    }
-  );
-  if (!res.ok) { console.error('Storage upload failed:', await res.text()); return false; }
-  return true;
-}
-
-async function getTimingsFromDB(key) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/audio_timings?audio_key=eq.${encodeURIComponent(key)}&select=timings&limit=1`,
-    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data || !data.length || !data[0].timings) return null;
-  try { return JSON.parse(data[0].timings); } catch(e) { return null; }
-}
-
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, voice, title, author } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text is required' });
+  const { text, voice, title, author, cacheOnly } = req.body;
+  if (!text && !cacheOnly) return res.status(400).json({ error: 'Text is required' });
 
-  const grokVoice  = voice === 'male' ? 'leo' : 'eve';
-  const filename   = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
-  const timingsKey = makeTimingsKey(title || 'unknown', author || 'unknown', voice || 'female');
+  const filename = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
 
-  // Check cache — MP3 first, WAV fallback for existing library books
+  // Cache check — used by frontend on page load to see if audio is ready
   try {
     const cachedUrl = await getCachedUrl(filename);
     if (cachedUrl) {
-      console.log('Audio cache hit:', cachedUrl);
-      const timings = await getTimingsFromDB(timingsKey);
-      return res.status(200).json({ url: cachedUrl, source: 'cache', timings: timings || [] });
+      console.log('Cache hit:', filename);
+      return res.status(200).json({ url: cachedUrl, source: 'cache' });
     }
-  } catch(e) { console.warn('Cache check failed:', e.message); }
-
-  // Generate via xAI WebSocket — request MP3 directly
-  try {
-    const WebSocket = require('ws');
-    const SAMPLE_RATE = 24000;
-    const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${grokVoice}&codec=mp3&sample_rate=${SAMPLE_RATE}`;
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-
-    const allChunks = [];
-    let browserConnected = true;
-    res.on('close', () => {
-      browserConnected = false;
-      console.log('Browser disconnected -- continuing to completion for caching');
-    });
-
-    await new Promise((resolve, reject) => {
-      const ws = new WebSocket(wsUrl, {
-        headers: { 'Authorization': `Bearer ${process.env.XAI_API_KEY}` }
-      });
-
-      ws.on('open', () => {
-        console.log('xAI WebSocket open, streaming MP3...');
-        ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
-        ws.send(JSON.stringify({ type: 'text.done' }));
-      });
-
-      ws.on('message', async (data) => {
-        try {
-          const event = JSON.parse(data.toString());
-
-          if (event.type === 'audio.delta' && event.delta) {
-            const chunk = Buffer.from(event.delta, 'base64');
-            allChunks.push(chunk);
-            if (browserConnected) {
-              try {
-                res.write(`data: ${JSON.stringify({ mp3: event.delta })}\n\n`);
-              } catch(e) { browserConnected = false; }
-            }
-          }
-
-          if (event.type === 'audio.done') {
-            console.log('xAI audio.done -- saving MP3 to Supabase');
-            ws.close();
-
-            if (allChunks.length > 0) {
-              try {
-                const mp3Buf = Buffer.concat(allChunks);
-                await saveAudioToStorage(filename, mp3Buf, 'audio/mpeg');
-                console.log('MP3 saved to Supabase:', filename);
-              } catch(e) {
-                console.warn('MP3 save failed:', e.message);
-              }
-            }
-
-            if (browserConnected) {
-              try {
-                res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-                res.end();
-              } catch(e) {}
-            }
-
-            resolve();
-          }
-
-          if (event.type === 'error') {
-            console.error('xAI error:', event.message);
-            reject(new Error(event.message));
-          }
-        } catch(e) { console.warn('WS parse error:', e.message); }
-      });
-
-      ws.on('error', (err) => { reject(err); });
-      ws.on('close', () => { resolve(); });
-    });
-
-  } catch(err) {
-    console.error('TTS error:', err.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'TTS generation failed' });
-    } else {
-      try { res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`); res.end(); } catch(e) {}
-    }
+  } catch (e) {
+    console.warn('Cache check failed:', e.message);
   }
+
+  // If cacheOnly flag set, just report not cached — don't generate
+  if (cacheOnly) {
+    return res.status(200).json({ cached: false });
+  }
+
+  // Should not reach here — generation is handled by tts-stream.js
+  return res.status(200).json({ cached: false });
 };
