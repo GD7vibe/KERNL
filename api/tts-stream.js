@@ -1,10 +1,3 @@
-// api/tts-stream.js
-// GET endpoint — browser points <audio src> directly at this URL.
-// Streams MP3 from xAI WebSocket straight to browser response.
-// Browser starts playing after first chunk arrives (~1 second).
-// No fetch, no blob, no MediaSource needed.
-// After streaming, saves complete MP3 to Supabase for future cache hits.
-
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
@@ -36,21 +29,20 @@ async function saveAudioToStorage(filename, buffer) {
 }
 
 module.exports = async (req, res) => {
-  // Accept GET (from <audio src>) or POST (from fetch)
-  const params = req.method === 'GET' ? req.query : req.body;
-  const { text, voice, title, author } = params;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  const { text, voice, title, author } = req.body;
   if (!text) return res.status(400).json({ error: 'Text is required' });
 
   const xaiVoice = voice === 'male' ? 'leo' : 'eve';
   const filename = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
 
-  // Stream headers — tell browser this is audio it can start playing immediately
+  // Stream MP3 from xAI WebSocket to browser response.
+  // Browser reads full response into arrayBuffer, creates blob, plays it.
+  // Simultaneously saves complete MP3 to Supabase — next play is instant cache hit.
   res.setHeader('Content-Type', 'audio/mpeg');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Transfer-Encoding', 'chunked');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Access-Control-Allow-Origin', '*');
 
   const WebSocket = require('ws');
   const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${xaiVoice}&codec=mp3&sample_rate=24000`;
@@ -73,7 +65,6 @@ module.exports = async (req, res) => {
           if (event.type === 'audio.delta' && event.delta) {
             const chunk = Buffer.from(event.delta, 'base64');
             allChunks.push(chunk);
-            // Write chunk to browser — browser starts playing immediately
             try { res.write(chunk); } catch (e) { /* client disconnected */ }
           }
           if (event.type === 'audio.done') { ws.close(); resolve(); }
@@ -91,7 +82,7 @@ module.exports = async (req, res) => {
 
   res.end();
 
-  // Save to Supabase in background — next play will be instant cache hit
+  // Save to Supabase in background -- next play will be instant cache hit
   if (allChunks.length > 0) {
     saveAudioToStorage(filename, Buffer.concat(allChunks));
   }
