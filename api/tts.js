@@ -7,25 +7,30 @@ function makeAudioKey(title, author, voice) {
 }
 
 async function getCachedUrl(filename) {
+  // NOTE: info check uses /info/audio/ (no /public/) — /public/ is only for serving
   const mp3Res = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(filename)}`,
+    `${SUPABASE_URL}/storage/v1/object/info/audio/${encodeURIComponent(filename)}`,
     { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
   );
   if (mp3Res.ok) return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
+
   // WAV fallback for old library books
-  const wavFilename = filename.replace(/\.mp3$/, '.wav');
+  const wav = filename.replace(/\.mp3$/, '.wav');
   const wavRes = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/info/public/audio/${encodeURIComponent(wavFilename)}`,
+    `${SUPABASE_URL}/storage/v1/object/info/audio/${encodeURIComponent(wav)}`,
     { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
   );
-  if (wavRes.ok) return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(wavFilename)}`;
+  if (wavRes.ok) return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(wav)}`;
+
   return null;
 }
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
   const { voice, title, author } = req.body;
   const filename = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
+
   try {
     const cachedUrl = await getCachedUrl(filename);
     if (cachedUrl) {
@@ -35,6 +40,6 @@ module.exports = async (req, res) => {
   } catch (e) {
     console.warn('Cache check failed:', e.message);
   }
-  // Not cached
+
   return res.status(200).json({ cached: false });
 };
