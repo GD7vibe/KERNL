@@ -369,7 +369,7 @@ function startOpenAIAudio() {
   if (!currentSummary) return;
 
   if (audioReady && cachedAudioUrl) {
-    // Cache hit -- synchronous, instant
+    // ── Cache hit: synchronous, instant ──
     audioEl = new Audio(cachedAudioUrl);
     audioEl.playbackRate = playbackRate;
     _attachAudioHandlers(null);
@@ -381,7 +381,9 @@ function startOpenAIAudio() {
     return;
   }
 
-  // Cache miss -- unlock iOS audio synchronously then fetch via POST
+  // ── Cache miss: POST to get a token, then point audio.src at GET stream ──
+  // Step 1 (in gesture): create audio element and call play() on a silent src
+  // to unlock iOS audio context synchronously
   audioEl = new Audio();
   audioEl.playbackRate = playbackRate;
   var unlock = audioEl.play();
@@ -389,6 +391,7 @@ function startOpenAIAudio() {
   isPlaying = true;
   setPlayBtnState('playing');
 
+  // Step 2: POST text to get a short-lived token
   fetch('/api/tts-stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -399,15 +402,18 @@ function startOpenAIAudio() {
       author: currentSummary.author
     })
   }).then(function(res) {
-    if (!res.ok) throw new Error('Stream failed: ' + res.status);
-    return res.arrayBuffer();
-  }).then(function(buf) {
-    if (!isPlaying) return;
-    var blob = new Blob([buf], { type: 'audio/mpeg' });
-    var blobUrl = URL.createObjectURL(blob);
-    audioEl.src = blobUrl;
+    if (!res.ok) throw new Error('Token request failed: ' + res.status);
+    return res.json();
+  }).then(function(data) {
+    if (!data.token) throw new Error('No token returned');
+    if (!isPlaying) return; // user stopped while we were fetching token
+
+    // Step 3: point audio.src at the GET streaming endpoint
+    // Browser plays it as chunks arrive -- no waiting for full download
+    var streamUrl = '/api/tts-stream?token=' + encodeURIComponent(data.token);
+    audioEl.src = streamUrl;
     audioEl.playbackRate = playbackRate;
-    _attachAudioHandlers(blobUrl);
+    _attachAudioHandlers(null);
     var p = audioEl.play();
     if (p && p.catch) p.catch(function(err) { console.warn('Play failed:', err); setPlayBtnState('error'); });
     initScrubEvents();
