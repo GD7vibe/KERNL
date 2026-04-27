@@ -97,6 +97,8 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .summary-footer{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end;transition:background var(--transition),border-color var(--transition)}
 .btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
+/* Print back button — shown on screen after print on iOS PWA */
+#print-back-btn{display:none;position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);z-index:9999;background:var(--accent);color:#fff;border:none;border-radius:20px;padding:12px 28px;font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(139,69,19,0.4)}
 @media(max-width:560px){
   body{overflow-x:hidden}
   #app{padding:0 0 5rem}
@@ -134,9 +136,12 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     </div>
   </div>
 </div>
-<script>
-const AMAZON_TAG = 'kernl-21';
 
+<!-- iOS PWA print recovery button — hidden until needed -->
+<button id="print-back-btn" onclick="dismissPrintBack()">&#8592; Back to Summary</button>
+
+<script>
+const AMAZON_TAG = 'gd7vibe-21';
 let currentSummary = null;
 let audioEl = null;
 let isPlaying = false;
@@ -152,6 +157,7 @@ function toggleDark() {
   document.getElementById('dark-icon').textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
+
 function initDark() {
   const saved = localStorage.getItem('kernl_dark');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -162,6 +168,7 @@ function initDark() {
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
+
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function safe(s) { return String(s).replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').slice(0,60); }
 function countWords(plain) { return plain.split(/\s+/).filter(w=>w.length>0).length; }
@@ -261,11 +268,13 @@ function stopAudio() {
   setPlayerState(false, null);
   resetScrubUI();
 }
+
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
   setPlayerState(false, 'Paused \u2014 press play to continue');
   setScrubActive(false);
 }
+
 function resumeAudio() {
   if (audioEl && audioEl.paused) {
     var p = audioEl.play();
@@ -289,36 +298,76 @@ async function prefetchAudio() {
     var ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) {
       var data = await res.json();
-      prefetchedAudioUrl = data.url; prefetchedBlobUrl = null;
+      prefetchedAudioUrl = data.url;
+      prefetchedBlobUrl = null;
       if (data.timings && data.timings.length) currentTimings = data.timings;
     } else {
       var blob = await res.blob();
       prefetchedBlobUrl = URL.createObjectURL(blob);
       prefetchedAudioUrl = prefetchedBlobUrl;
     }
-  } catch(e) { prefetchedAudioUrl = null; }
+  } catch(e) {
+    prefetchedAudioUrl = null;
+  }
 }
 
+// iOS Safari fix: create Audio and call play() synchronously on the tap gesture,
+// then load the actual src once the TTS fetch completes.
+// This keeps the user gesture chain alive so iOS doesn't block playback.
 async function startOpenAIAudio() {
   if (!currentSummary) return;
   setPlayerState(true, 'Loading audio\u2026');
+
+  // --- iOS Safari: create Audio element and call play() immediately (within gesture) ---
+  audioEl = new Audio();
+  audioEl.playbackRate = playbackRate;
+
+  // For iOS we use a tiny silent data URI to "unlock" the audio element synchronously
+  // then swap src once real audio is ready
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    // Unlock audio context on iOS with a silent play
+    audioEl.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIADfn7wAAANIAACB6AAAB8AAAADwf/9P1P/U/gj+B/U/4H+p/U/+B/gf6n+p/g/0P8D/A/wP8D/A/wP8D/A/wPf/A/wP8D/A/wP8D/A/wP8D/A/wP8D/A/wP8D/A/wP8D/A/wP8D/A/wPAAAAA';
+    try { await audioEl.play(); } catch(e) {}
+    audioEl.pause();
+    audioEl.src = '';
+  }
+
+  // Now fetch the real audio URL
   var audioUrl = prefetchedAudioUrl;
   var blobUrl = prefetchedBlobUrl;
+
   if (!audioUrl) {
     try {
       var res = await fetch('/api/tts', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({text:currentSummary.plain, voice:currentVoice, title:currentSummary.title, author:currentSummary.author})
       });
       if (!res.ok) throw new Error('TTS failed');
       var ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) { var data = await res.json(); audioUrl = data.url; if (data.timings && data.timings.length) currentTimings = data.timings; }
-      else { var blob = await res.blob(); blobUrl = URL.createObjectURL(blob); audioUrl = blobUrl; }
-    } catch(err) { setPlayerState(false, 'Audio unavailable \u2014 please try again'); return; }
+      if (ct.includes('application/json')) {
+        var data = await res.json();
+        audioUrl = data.url;
+        if (data.timings && data.timings.length) currentTimings = data.timings;
+      } else {
+        var blob = await res.blob();
+        blobUrl = URL.createObjectURL(blob);
+        audioUrl = blobUrl;
+      }
+    } catch(err) {
+      audioEl = null;
+      setPlayerState(false, 'Audio unavailable \u2014 please try again');
+      return;
+    }
   }
-  prefetchedAudioUrl = null; prefetchedBlobUrl = null;
-  audioEl = new Audio(audioUrl);
+
+  prefetchedAudioUrl = null;
+  prefetchedBlobUrl = null;
+
+  audioEl.src = audioUrl;
   audioEl.playbackRate = playbackRate;
+
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', function() {
     var fill = document.getElementById('scrub-fill');
@@ -335,10 +384,15 @@ async function startOpenAIAudio() {
     setPlayerState(false, 'Audio unavailable \u2014 please try again');
     setScrubActive(false);
   });
+
   var playPromise = audioEl.play();
   if (playPromise && playPromise.catch) {
-    playPromise.catch(function(err) { console.warn('Play blocked:', err); setPlayerState(false, 'Tap play to listen'); });
+    playPromise.catch(function(err) {
+      console.warn('Play blocked:', err);
+      setPlayerState(false, 'Tap play to listen');
+    });
   }
+
   setPlayerState(true, (currentVoice === 'male' ? 'Male' : 'Female') + ' voice \u2014 now playing');
   setScrubActive(true);
   initScrubEvents();
@@ -387,7 +441,8 @@ function downloadEpub() {
   var script=document.createElement('script');
   script.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
   script.onload=function(){
-    var zip=new JSZip(); zip.file('mimetype','application/epub+zip');
+    var zip=new JSZip();
+    zip.file('mimetype','application/epub+zip');
     zip.folder('META-INF').file('container.xml',container);
     var oebps=zip.folder('OEBPS');
     oebps.file('content.opf',opf);oebps.file('toc.ncx',ncx);oebps.file('content.html',contentHtml);
@@ -396,51 +451,90 @@ function downloadEpub() {
   document.head.appendChild(script);
 }
 
+// FIX: Print on iOS PWA — restore page after print dialog closes
+function dismissPrintBack() {
+  var area = document.getElementById('kernl-print-area');
+  if (area) area.remove();
+  var style = document.getElementById('kernl-print-style');
+  if (style) style.remove();
+  var btn = document.getElementById('print-back-btn');
+  if (btn) btn.style.display = 'none';
+  document.getElementById('app').style.display = '';
+}
+
 function printSummary() {
   if (!currentSummary) return;
-  var meganGrid=document.getElementById('megan-words-grid');
-  var meganOpen=meganGrid&&meganGrid.classList.contains('open');
-  var words=currentSummary.words||[];
-  var meganHtml='';
-  if (meganOpen&&words.length) {
-    var wordRows=words.map(function(w){return '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">'+esc(w.word)+'</td><td style="padding:5pt 0;color:#444;line-height:1.5">'+esc(w.definition)+'</td></tr>';}).join('');
-    meganHtml='<div class="kernl-print-megan"><h2>Mega Words</h2><table>'+wordRows+'</table></div>';
+  var meganGrid = document.getElementById('megan-words-grid');
+  var meganOpen = meganGrid && meganGrid.classList.contains('open');
+  var words = currentSummary.words || [];
+  var meganHtml = '';
+  if (meganOpen && words.length) {
+    var wordRows = words.map(function(w){
+      return '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">'+esc(w.word)+'</td><td style="padding:5pt 0;color:#444;line-height:1.5">'+esc(w.definition)+'</td></tr>';
+    }).join('');
+    meganHtml = '<div class="kernl-print-megan"><h2>Mega Words</h2><table>'+wordRows+'</table></div>';
   }
 
   function doPrint(qrDataUrl) {
-    var old=document.getElementById('kernl-print-area');if(old)old.remove();
-    var old2=document.getElementById('kernl-print-style');if(old2)old2.remove();
-    var style=document.createElement('style');
-    style.id='kernl-print-style';
-    style.textContent='@media print{body>*{display:none!important;}#kernl-print-area{display:block!important;font-family:Georgia,serif;font-size:11pt;line-height:1.7;color:#000;margin:0;}#kernl-print-area .print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em;}#kernl-print-area .print-header-left{flex:1;}#kernl-print-area .qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em;}#kernl-print-area .qr-block img{display:block;margin-bottom:4pt;width:100px;height:100px;}#kernl-print-area h1{font-size:18pt;margin-bottom:4pt;}#kernl-print-area .byline{font-style:italic;color:#555;margin-bottom:1.5em;}#kernl-print-area h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513;}#kernl-print-area p{margin:0 0 8pt;}#kernl-print-area .footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt;}#kernl-print-area .kernl-print-megan{margin-top:2em;border-top:1pt solid #ddd;padding-top:1em;}#kernl-print-area table{width:100%;border-collapse:collapse;font-size:10pt;}}';
+    var old = document.getElementById('kernl-print-area'); if (old) old.remove();
+    var old2 = document.getElementById('kernl-print-style'); if (old2) old2.remove();
+
+    var style = document.createElement('style');
+    style.id = 'kernl-print-style';
+    // Print CSS — hides app, shows print area only when printing
+    // Screen CSS kept clean so the back button and app remain accessible after print
+    style.textContent =
+      '@media print{' +
+        '#app{display:none!important;}' +
+        '#print-back-btn{display:none!important;}' +
+        '#kernl-print-area{display:block!important;font-family:Georgia,serif;font-size:11pt;line-height:1.7;color:#000;margin:0;}' +
+        '#kernl-print-area .print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em;}' +
+        '#kernl-print-area .print-header-left{flex:1;}' +
+        '#kernl-print-area .qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em;}' +
+        '#kernl-print-area .qr-block img{display:block;margin-bottom:4pt;width:100px;height:100px;}' +
+        '#kernl-print-area h1{font-size:18pt;margin-bottom:4pt;}' +
+        '#kernl-print-area .byline{font-style:italic;color:#555;margin-bottom:1.5em;}' +
+        '#kernl-print-area h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513;}' +
+        '#kernl-print-area p{margin:0 0 8pt;}' +
+        '#kernl-print-area .footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt;}' +
+        '#kernl-print-area .kernl-print-megan{margin-top:2em;border-top:1pt solid #ddd;padding-top:1em;}' +
+        '#kernl-print-area table{width:100%;border-collapse:collapse;font-size:10pt;}' +
+      '}';
     document.head.appendChild(style);
-    var qrHtml = qrDataUrl
-      ? '<div class="qr-block"><img src="'+qrDataUrl+'" alt="QR code"/>Scan to buy this book</div>'
-      : '';
-    var area=document.createElement('div');
-    area.id='kernl-print-area';
-    area.style.display='none';
-    area.innerHTML=
-      '<div class="print-header">'+
-        '<div class="print-header-left">'+
-          '<h1>'+esc(currentSummary.title)+'</h1>'+
-          '<div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Deep Summary</div>'+
-        '</div>'+
-        qrHtml+
-      '</div>'+
-      currentSummary.html+meganHtml+
+
+    var qrHtml = qrDataUrl ? '<div class="qr-block"><img src="'+qrDataUrl+'" alt="QR code"/>Scan to buy this book</div>' : '';
+
+    var area = document.createElement('div');
+    area.id = 'kernl-print-area';
+    // Hidden on screen (only shown via @media print above)
+    area.style.display = 'none';
+    area.innerHTML =
+      '<div class="print-header">' +
+        '<div class="print-header-left">' +
+          '<h1>'+esc(currentSummary.title)+'</h1>' +
+          '<div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Deep Summary</div>' +
+        '</div>' +
+        qrHtml +
+      '</div>' +
+      currentSummary.html + meganHtml +
       '<div class="footer">Generated by KERNL \u2014 for the curious</div>';
     document.body.appendChild(area);
-    setTimeout(function(){
+
+    setTimeout(function() {
       window.print();
-      setTimeout(function(){
-        var a=document.getElementById('kernl-print-area');if(a)a.remove();
-        var s=document.getElementById('kernl-print-style');if(s)s.remove();
-      },2000);
-    },100);
+      // Show the recovery button immediately after print() is called
+      // (iOS PWA dismisses back to the page but may leave #app hidden if
+      //  the old approach used body>*{display:none}. With our new CSS this
+      //  isn't needed, but we show the button anyway as a safety net.)
+      var backBtn = document.getElementById('print-back-btn');
+      if (backBtn) backBtn.style.display = 'block';
+      // Also clean up after a short delay for non-iOS browsers
+      setTimeout(function() {
+        dismissPrintBack();
+      }, 3000);
+    }, 100);
   }
 
-  // Generate QR as canvas data URL using qrcodejs (same as main site)
   function loadQRAndPrint() {
     var existing = document.getElementById('kernl-qr-tmp');
     if (existing) existing.remove();
@@ -466,7 +560,6 @@ function printSummary() {
     }
   }
 
-  // Load qrcodejs if not already present
   if (typeof QRCode !== 'undefined') {
     loadQRAndPrint();
   } else {
@@ -478,25 +571,38 @@ function printSummary() {
   }
 }
 
-function triggerDownload(blob,filename){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(a.href);},1000);}
+function triggerDownload(blob,filename) {
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(a.href);},1000);
+}
 
 function renderMeganWords(words) {
-  var section=document.getElementById('megan-words-section');
-  if(!words||!words.length){section.style.display='none';return;}
-  var seen=new Set();
-  var unique=words.filter(function(w){var k=w.word.toLowerCase().trim();if(seen.has(k))return false;seen.add(k);return true;});
-  section.style.display='block';
-  document.getElementById('megan-words-grid').innerHTML=unique.map(function(w){return '<div class="megan-word-item"><div class="megan-word">'+esc(w.word)+'</div><div class="megan-definition">'+esc(w.definition)+'</div></div>';}).join('');
+  var section = document.getElementById('megan-words-section');
+  if (!words || !words.length) { section.style.display='none'; return; }
+  var seen = new Set();
+  var unique = words.filter(function(w){
+    var k = w.word.toLowerCase().trim();
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+  section.style.display = 'block';
+  document.getElementById('megan-words-grid').innerHTML = unique.map(function(w){
+    return '<div class="megan-word-item"><div class="megan-word">'+esc(w.word)+'</div><div class="megan-definition">'+esc(w.definition)+'</div></div>';
+  }).join('');
 }
 
 function renderSummary(data) {
-  currentSummary = {title:data.title,author:data.author,html:data.html,plain:data.plain,words:data.words||[]};
+  currentSummary = {title:data.title, author:data.author, html:data.html, plain:data.plain, words:data.words||[]};
   var wc = countWords(data.plain);
   var amazonUrl = makeAmazonUrl(data.title, data.author);
   document.getElementById('content').innerHTML =
     '<div class="summary-card">' +
       '<div class="summary-header">' +
-                '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;">' +
+        '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;">' +
           '<div class="summary-book-title">' + esc(data.title) + '</div>' +
           '<div class="chip" style="flex-shrink:0;">' + wc.toLocaleString() + ' words</div>' +
         '</div>' +
@@ -552,7 +658,7 @@ function renderSummary(data) {
         '<a class="btn-action" href="/library.html">&#8592; Back to Library</a>' +
       '</div>' +
     '</div>';
-  renderMeganWords(data.words||[]);
+  renderMeganWords(data.words || []);
   prefetchAudio();
 }
 
@@ -562,7 +668,10 @@ async function loadSummary() {
   var author = params.get('author');
   var voiceParam = params.get('voice');
   if (voiceParam === 'male') currentVoice = 'male';
-  if (!title) { document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">&#8592; Back to Library</a></div>'; return; }
+  if (!title) {
+    document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">&#8592; Back to Library</a></div>';
+    return;
+  }
   document.title = 'KERNL \u2014 ' + title;
   try {
     var url = '/api/get-summary?title=' + encodeURIComponent(title);
@@ -574,7 +683,7 @@ async function loadSummary() {
     try { words = data.words ? (typeof data.words === 'string' ? JSON.parse(data.words) : data.words) : []; } catch(e) {}
     renderSummary({title:title, author:author||data.author||'', html:data.html, plain:data.plain, words:words});
   } catch(err) {
-    document.getElementById('content').innerHTML='<div class="loading-card">Could not load summary. <a href="/library.html">&#8592; Back to Library</a></div>';
+    document.getElementById('content').innerHTML = '<div class="loading-card">Could not load summary. <a href="/library.html">&#8592; Back to Library</a></div>';
   }
 }
 
@@ -585,19 +694,20 @@ function showKindleModal() {
   const modal = document.createElement('div');
   modal.id = 'kindle-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem';
-  modal.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)">'
-    + '<h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3>'
-    + '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p>'
-    + '<input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box">'
-    + '<div style="display:flex;gap:10px;justify-content:space-between;align-items:center">'
-    + '<button onclick="downloadEpub()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;display:flex;align-items:center;gap:6px">&#128218; Download EPUB</button>'
-    + '<div style="display:flex;gap:10px">'
-    + '<button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button>'
-    + '<button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button>'
-    + '</div>'
-    + '</div>'
-    + '<div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div>'
-    + '</div>';
+  modal.innerHTML =
+    '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)">' +
+      '<h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3>' +
+      '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p>' +
+      '<input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box">' +
+      '<div style="display:flex;gap:10px;justify-content:space-between;align-items:center">' +
+        '<button onclick="downloadEpub()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;display:flex;align-items:center;gap:6px">&#128218; Download EPUB</button>' +
+        '<div style="display:flex;gap:10px">' +
+          '<button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button>' +
+          '<button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div>' +
+    '</div>';
   document.body.appendChild(modal);
   setTimeout(() => document.getElementById('kindle-email-input').focus(), 100);
 }
@@ -607,11 +717,15 @@ async function sendToKindle() {
   const status = document.getElementById('kindle-status');
   const btn = document.getElementById('kindle-send-btn');
   if (!email || !email.includes('@')) {
-    status.style.display = 'block'; status.style.color = 'var(--error-fg)';
-    status.textContent = 'Please enter a valid Kindle email address.'; return;
+    status.style.display = 'block';
+    status.style.color = 'var(--error-fg)';
+    status.textContent = 'Please enter a valid Kindle email address.';
+    return;
   }
-  btn.disabled = true; btn.textContent = 'Sending\u2026';
-  status.style.display = 'block'; status.style.color = 'var(--muted)';
+  btn.disabled = true;
+  btn.textContent = 'Sending\u2026';
+  status.style.display = 'block';
+  status.style.color = 'var(--muted)';
   status.textContent = 'Generating EPUB and sending\u2026';
   try {
     const res = await fetch('/api/send-to-kindle', {
@@ -628,13 +742,13 @@ async function sendToKindle() {
   } catch(err) {
     status.style.color = 'var(--error-fg)';
     status.textContent = 'Error: ' + err.message;
-    btn.disabled = false; btn.textContent = 'Send \u2192';
+    btn.disabled = false;
+    btn.textContent = 'Send \u2192';
   }
 }
 
 initDark();
 loadSummary();
 </script>
-
 </body>
 </html>
