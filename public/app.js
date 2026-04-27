@@ -380,6 +380,7 @@ async function startTTS() {
     unlockVoiceButtons();
     setPlayerState(false, 'Audio unavailable — tap to retry');
   }
+}
 
 function _attachAudioHandlers(blobUrl) {
   if (!audioEl) return;
