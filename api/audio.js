@@ -1,27 +1,26 @@
 // api/audio.js
 // Proxies audio files from Supabase Storage to the browser.
-// Solves CORS — browser fetches same-domain /api/audio, 
+// Solves CORS — browser fetches same-domain /api/audio,
 // server fetches from Supabase, streams back.
+// Handles GET and HEAD (audio elements send HEAD first).
 
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
 module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).end();
+  if (req.method !== 'GET' && req.method !== 'HEAD') return res.status(405).end();
 
   const { file } = req.query;
   if (!file) return res.status(400).end();
 
-  // Only allow our own audio bucket files
   const filename = decodeURIComponent(file);
-  if (filename.includes('..') || filename.includes('/')) {
-    return res.status(400).end();
-  }
+  if (filename.includes('..') || filename.includes('/')) return res.status(400).end();
 
   const supabaseUrl = `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
 
   try {
     const upstream = await fetch(supabaseUrl, {
+      method: req.method,
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
     });
 
@@ -31,11 +30,13 @@ module.exports = async (req, res) => {
     const contentLength = upstream.headers.get('content-length');
 
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     if (contentLength) res.setHeader('Content-Length', contentLength);
 
-    // Stream from Supabase to browser
+    if (req.method === 'HEAD') return res.end();
+
     const reader = upstream.body.getReader();
     while (true) {
       const { done, value } = await reader.read();
