@@ -284,12 +284,10 @@ function resumeAudio() {
   return false;
 }
 
-// Audio strategy — two paths, both fully synchronous on tap:
-// 1. Cache hit:  audioEl.src = Supabase URL → plays instantly
-// 2. Cache miss: audioEl.src = /api/tts-stream?... → browser plays as xAI streams (~1s)
-//
-// On page load, checkAudioCache() does a fast Supabase lookup.
-// Play button shows spinner during check (~200ms), then enables.
+// Audio — two paths, both synchronous on tap:
+// Cache hit:  audioEl.src = Supabase URL -> instant
+// Cache miss: POST to /api/tts-stream -> blob -> play (~5-10s generation, then cached forever)
+// iOS: audio element unlocked with silent play() in gesture, src swapped when blob ready
 
 var audioReady = false;
 var cachedAudioUrl = null;
@@ -299,7 +297,6 @@ async function checkAudioCache() {
   audioReady = false;
   cachedAudioUrl = null;
   setPlayBtnState('checking');
-
   try {
     var res = await fetch('/api/tts', {
       method: 'POST',
@@ -324,8 +321,7 @@ async function checkAudioCache() {
   } catch (e) {
     console.warn('Cache check error:', e.message);
   }
-
-  setPlayBtnState('stream-ready');
+  setPlayBtnState('ready'); // not cached but button still enabled
 }
 
 function setPlayBtnState(state) {
@@ -351,11 +347,6 @@ function setPlayBtnState(state) {
       if (sub) { sub.textContent = voiceLabel + ' — press play'; sub.classList.remove('playing'); }
       setScrubActive(false);
       break;
-    case 'stream-ready':
-      icon.innerHTML = '<polygon points="6,3 20,12 6,21"/>';
-      if (sub) { sub.textContent = voiceLabel + ' — press play'; sub.classList.remove('playing'); }
-      setScrubActive(false);
-      break;
     case 'playing':
       icon.innerHTML = '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>';
       if (sub) { sub.textContent = voiceLabel + ' — now playing'; sub.classList.add('playing'); }
@@ -374,41 +365,30 @@ function setPlayBtnState(state) {
   }
 }
 
-// Called from togglePlay() on tap.
-// Cache hit:  new Audio(supabaseUrl).play() — fully synchronous, instant
-// Cache miss: unlock audio on iOS with silent play, then fetch stream and play blob
 function startOpenAIAudio() {
   if (!currentSummary) return;
 
   if (audioReady && cachedAudioUrl) {
-    // ── Cache hit — instant, synchronous ──
+    // Cache hit -- synchronous, instant
     audioEl = new Audio(cachedAudioUrl);
     audioEl.playbackRate = playbackRate;
     _attachAudioHandlers(null);
     var p = audioEl.play();
-    if (p && p.catch) p.catch(function(err) {
-      console.warn('Play failed:', err);
-      setPlayBtnState('error');
-    });
+    if (p && p.catch) p.catch(function(err) { console.warn('Play failed:', err); setPlayBtnState('error'); });
     isPlaying = true;
     setPlayBtnState('playing');
     initScrubEvents();
     return;
   }
 
-  // ── Cache miss — streaming via POST ──
-  // Step 1: create audio element and unlock it synchronously (iOS gesture)
+  // Cache miss -- unlock iOS audio synchronously then fetch via POST
   audioEl = new Audio();
   audioEl.playbackRate = playbackRate;
-
-  // Unlock iOS audio with a silent play — keeps gesture context alive
-  var unlockPromise = audioEl.play();
-  if (unlockPromise) unlockPromise.catch(function(){});
-
+  var unlock = audioEl.play();
+  if (unlock) unlock.catch(function(){});
   isPlaying = true;
   setPlayBtnState('playing');
 
-  // Step 2: fetch stream as POST (no URL length limit), read into blob, play
   fetch('/api/tts-stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -422,17 +402,14 @@ function startOpenAIAudio() {
     if (!res.ok) throw new Error('Stream failed: ' + res.status);
     return res.arrayBuffer();
   }).then(function(buf) {
-    if (!isPlaying) return; // user stopped while loading
+    if (!isPlaying) return;
     var blob = new Blob([buf], { type: 'audio/mpeg' });
     var blobUrl = URL.createObjectURL(blob);
     audioEl.src = blobUrl;
     audioEl.playbackRate = playbackRate;
     _attachAudioHandlers(blobUrl);
     var p = audioEl.play();
-    if (p && p.catch) p.catch(function(err) {
-      console.warn('Play failed:', err);
-      setPlayBtnState('error');
-    });
+    if (p && p.catch) p.catch(function(err) { console.warn('Play failed:', err); setPlayBtnState('error'); });
     initScrubEvents();
   }).catch(function(e) {
     console.warn('Stream error:', e.message);
@@ -523,20 +500,8 @@ function downloadEpub() {
   document.head.appendChild(script);
 }
 
-// FIX: Print on iOS PWA — restore page after print dialog closes
-function dismissPrintBack() {
-  var area = document.getElementById('kernl-print-area');
-  if (area) area.remove();
-  var style = document.getElementById('kernl-print-style');
-  if (style) style.remove();
-  var btn = document.getElementById('print-back-btn');
-  if (btn) btn.style.display = 'none';
-  document.getElementById('app').style.display = '';
-}
-
 function printSummary() {
   if (!currentSummary) return;
-
   var meganGrid = document.getElementById('megan-words-grid');
   var meganOpen = meganGrid && meganGrid.classList.contains('open');
   var words = currentSummary.words || [];
@@ -547,10 +512,8 @@ function printSummary() {
     }).join('');
     meganHtml = '<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2>Mega Words</h2><table style="width:100%;border-collapse:collapse;font-size:10pt">'+wordRows+'</table></div>';
   }
-
   var old = document.getElementById('_kp'); if (old) old.remove();
   var oldS = document.getElementById('_ks'); if (oldS) oldS.remove();
-
   var s = document.createElement('style');
   s.id = '_ks';
   s.textContent =
@@ -565,7 +528,6 @@ function printSummary() {
       '#_kp table{width:100%;border-collapse:collapse;font-size:10pt}' +
     '}';
   document.head.appendChild(s);
-
   var d = document.createElement('div');
   d.id = '_kp';
   d.style.display = 'none';
@@ -575,7 +537,6 @@ function printSummary() {
     currentSummary.html + meganHtml +
     '<div class="ft">Generated by KERNL — for the curious</div>';
   document.body.appendChild(d);
-
   var pb = document.getElementById('_pb');
   if (!pb) {
     pb = document.createElement('button');
@@ -590,9 +551,7 @@ function printSummary() {
     document.body.appendChild(pb);
   }
   pb.style.display = 'block';
-
   window.print();
-
   setTimeout(function() {
     var kp = document.getElementById('_kp'); if (kp) kp.remove();
     var ks = document.getElementById('_ks'); if (ks) ks.remove();
