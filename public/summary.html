@@ -374,32 +374,79 @@ function setPlayBtnState(state) {
   }
 }
 
-// Fully synchronous — called from togglePlay() in the tap gesture.
-// Cache hit:  new Audio(supabaseUrl).play() — instant
-// Cache miss: new Audio('/api/tts-stream?...').play() — browser streams from xAI, ~1s to start
+// Called from togglePlay() on tap.
+// Cache hit:  new Audio(supabaseUrl).play() — fully synchronous, instant
+// Cache miss: unlock audio on iOS with silent play, then fetch stream and play blob
 function startOpenAIAudio() {
   if (!currentSummary) return;
 
-  var audioUrl;
   if (audioReady && cachedAudioUrl) {
-    audioUrl = cachedAudioUrl;
-  } else {
-    var params = new URLSearchParams({
+    // ── Cache hit — instant, synchronous ──
+    audioEl = new Audio(cachedAudioUrl);
+    audioEl.playbackRate = playbackRate;
+    _attachAudioHandlers(null);
+    var p = audioEl.play();
+    if (p && p.catch) p.catch(function(err) {
+      console.warn('Play failed:', err);
+      setPlayBtnState('error');
+    });
+    isPlaying = true;
+    setPlayBtnState('playing');
+    initScrubEvents();
+    return;
+  }
+
+  // ── Cache miss — streaming via POST ──
+  // Step 1: create audio element and unlock it synchronously (iOS gesture)
+  audioEl = new Audio();
+  audioEl.playbackRate = playbackRate;
+
+  // Unlock iOS audio with a silent play — keeps gesture context alive
+  var unlockPromise = audioEl.play();
+  if (unlockPromise) unlockPromise.catch(function(){});
+
+  isPlaying = true;
+  setPlayBtnState('playing');
+
+  // Step 2: fetch stream as POST (no URL length limit), read into blob, play
+  fetch('/api/tts-stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       text: currentSummary.plain,
       voice: currentVoice,
       title: currentSummary.title,
       author: currentSummary.author
+    })
+  }).then(function(res) {
+    if (!res.ok) throw new Error('Stream failed: ' + res.status);
+    return res.arrayBuffer();
+  }).then(function(buf) {
+    if (!isPlaying) return; // user stopped while loading
+    var blob = new Blob([buf], { type: 'audio/mpeg' });
+    var blobUrl = URL.createObjectURL(blob);
+    audioEl.src = blobUrl;
+    audioEl.playbackRate = playbackRate;
+    _attachAudioHandlers(blobUrl);
+    var p = audioEl.play();
+    if (p && p.catch) p.catch(function(err) {
+      console.warn('Play failed:', err);
+      setPlayBtnState('error');
     });
-    audioUrl = '/api/tts-stream?' + params.toString();
-  }
+    initScrubEvents();
+  }).catch(function(e) {
+    console.warn('Stream error:', e.message);
+    isPlaying = false;
+    setPlayBtnState('error');
+  });
+}
 
-  audioEl = new Audio(audioUrl);
-  audioEl.playbackRate = playbackRate;
-
+function _attachAudioHandlers(blobUrl) {
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', function() {
     var fill = document.getElementById('scrub-fill');
     if (fill) fill.style.width = '100%';
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     isPlaying = false;
     audioReady = false;
@@ -408,23 +455,12 @@ function startOpenAIAudio() {
     checkAudioCache();
   });
   audioEl.addEventListener('error', function() {
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     isPlaying = false;
     setPlayBtnState('error');
     setScrubActive(false);
   });
-
-  var p = audioEl.play();
-  if (p && p.catch) {
-    p.catch(function(err) {
-      console.warn('Play failed:', err);
-      setPlayBtnState('error');
-    });
-  }
-
-  isPlaying = true;
-  setPlayBtnState('playing');
-  initScrubEvents();
 }
 
 function togglePlay() {
