@@ -97,8 +97,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .summary-footer{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm);display:flex;justify-content:flex-end;transition:background var(--transition),border-color var(--transition)}
 .btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
-/* Print back button — shown on screen after print on iOS PWA */
-#print-back-btn{display:none;position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);z-index:9999;background:var(--accent);color:#fff;border:none;border-radius:20px;padding:12px 28px;font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(139,69,19,0.4)}
+
 @media(max-width:560px){
   body{overflow-x:hidden}
   #app{padding:0 0 5rem}
@@ -137,8 +136,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   </div>
 </div>
 
-<!-- iOS PWA print recovery button — hidden until needed -->
-<button id="print-back-btn" onclick="dismissPrintBack()">&#8592; Back to Summary</button>
+
 
 <script>
 const AMAZON_TAG = 'gd7vibe-21';
@@ -451,17 +449,8 @@ function downloadEpub() {
   document.head.appendChild(script);
 }
 
-// FIX: Print on iOS PWA — restore page after print dialog closes
-function dismissPrintBack() {
-  var area = document.getElementById('kernl-print-area');
-  if (area) area.remove();
-  var style = document.getElementById('kernl-print-style');
-  if (style) style.remove();
-  var btn = document.getElementById('print-back-btn');
-  if (btn) btn.style.display = 'none';
-  document.getElementById('app').style.display = '';
-}
-
+// Print via window.open — the main page is NEVER touched so there is no stuck state.
+// Works on iOS PWA, desktop, and Android.
 function printSummary() {
   if (!currentSummary) return;
   var meganGrid = document.getElementById('megan-words-grid');
@@ -472,74 +461,50 @@ function printSummary() {
     var wordRows = words.map(function(w){
       return '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">'+esc(w.word)+'</td><td style="padding:5pt 0;color:#444;line-height:1.5">'+esc(w.definition)+'</td></tr>';
     }).join('');
-    meganHtml = '<div class="kernl-print-megan"><h2>Mega Words</h2><table>'+wordRows+'</table></div>';
+    meganHtml = '<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2>Mega Words</h2><table style="width:100%;border-collapse:collapse;font-size:10pt">'+wordRows+'</table></div>';
   }
 
   function doPrint(qrDataUrl) {
-    var old = document.getElementById('kernl-print-area'); if (old) old.remove();
-    var old2 = document.getElementById('kernl-print-style'); if (old2) old2.remove();
+    var qrHtml = qrDataUrl
+      ? '<div style="text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em"><img src="'+qrDataUrl+'" style="display:block;margin-bottom:4pt;width:100px;height:100px" alt="QR"/>Scan to buy</div>'
+      : '';
 
-    var style = document.createElement('style');
-    style.id = 'kernl-print-style';
-    // Print CSS — hides app, shows print area only when printing
-    // Screen CSS kept clean so the back button and app remain accessible after print
-    style.textContent =
-      '@media print{' +
-        '#app{display:none!important;}' +
-        '#print-back-btn{display:none!important;}' +
-        '#kernl-print-area{display:block!important;font-family:Georgia,serif;font-size:11pt;line-height:1.7;color:#000;margin:0;}' +
-        '#kernl-print-area .print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em;}' +
-        '#kernl-print-area .print-header-left{flex:1;}' +
-        '#kernl-print-area .qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em;}' +
-        '#kernl-print-area .qr-block img{display:block;margin-bottom:4pt;width:100px;height:100px;}' +
-        '#kernl-print-area h1{font-size:18pt;margin-bottom:4pt;}' +
-        '#kernl-print-area .byline{font-style:italic;color:#555;margin-bottom:1.5em;}' +
-        '#kernl-print-area h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513;}' +
-        '#kernl-print-area p{margin:0 0 8pt;}' +
-        '#kernl-print-area .footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt;}' +
-        '#kernl-print-area .kernl-print-megan{margin-top:2em;border-top:1pt solid #ddd;padding-top:1em;}' +
-        '#kernl-print-area table{width:100%;border-collapse:collapse;font-size:10pt;}' +
-      '}';
-    document.head.appendChild(style);
-
-    var qrHtml = qrDataUrl ? '<div class="qr-block"><img src="'+qrDataUrl+'" alt="QR code"/>Scan to buy this book</div>' : '';
-
-    var area = document.createElement('div');
-    area.id = 'kernl-print-area';
-    // Hidden on screen (only shown via @media print above)
-    area.style.display = 'none';
-    area.innerHTML =
-      '<div class="print-header">' +
-        '<div class="print-header-left">' +
+    var html =
+      '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+      '<title>'+esc(currentSummary.title)+' \u2014 KERNL</title>' +
+      '<style>' +
+        'body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;color:#000;margin:2em}' +
+        '.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em}' +
+        'h1{font-size:18pt;margin-bottom:4pt}' +
+        '.byline{font-style:italic;color:#555;margin-bottom:1.5em}' +
+        'h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}' +
+        'p{margin:0 0 8pt}' +
+        '.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}' +
+      '</style></head><body>' +
+      '<div class="hdr">' +
+        '<div>' +
           '<h1>'+esc(currentSummary.title)+'</h1>' +
           '<div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Deep Summary</div>' +
         '</div>' +
         qrHtml +
       '</div>' +
-      currentSummary.html + meganHtml +
-      '<div class="footer">Generated by KERNL \u2014 for the curious</div>';
-    document.body.appendChild(area);
+      currentSummary.html +
+      meganHtml +
+      '<div class="footer">Generated by KERNL \u2014 for the curious</div>' +
+      '<scr'+'ipt>window.onload=function(){window.print();setTimeout(function(){window.close();},500);}<\/scr'+'ipt>' +
+      '</body></html>';
 
-    setTimeout(function() {
-      window.print();
-      // Show the recovery button immediately after print() is called
-      // (iOS PWA dismisses back to the page but may leave #app hidden if
-      //  the old approach used body>*{display:none}. With our new CSS this
-      //  isn't needed, but we show the button anyway as a safety net.)
-      var backBtn = document.getElementById('print-back-btn');
-      if (backBtn) backBtn.style.display = 'block';
-      // Also clean up after a short delay for non-iOS browsers
-      setTimeout(function() {
-        dismissPrintBack();
-      }, 3000);
-    }, 100);
+    var printWin = window.open('', '_blank', 'width=800,height=600');
+    if (!printWin) {
+      alert('Please allow popups for this site to use the print button, or use your browser Share menu to print.');
+      return;
+    }
+    printWin.document.write(html);
+    printWin.document.close();
   }
 
   function loadQRAndPrint() {
-    var existing = document.getElementById('kernl-qr-tmp');
-    if (existing) existing.remove();
     var tmp = document.createElement('div');
-    tmp.id = 'kernl-qr-tmp';
     tmp.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
     document.body.appendChild(tmp);
     try {
