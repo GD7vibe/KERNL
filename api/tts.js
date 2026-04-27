@@ -6,37 +6,33 @@ function makeAudioKey(title, author, voice) {
   return `${safe(title)}__${safe(author)}__${voice}.mp3`;
 }
 
-async function getCachedFilename(title, author, voice) {
-  // NOTE: info check uses /info/audio/ (no /public/)
-  const mp3 = makeAudioKey(title, author, voice);
-  const r = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/info/audio/${encodeURIComponent(mp3)}`,
+// Grok fix: use /info/audio/ not /info/public/audio/
+async function getCachedUrl(filename) {
+  const mp3Res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/info/audio/${encodeURIComponent(filename)}`,
     { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
   );
-  if (r.ok) return mp3;
+  if (mp3Res.ok) return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
+
   // WAV fallback for old library books
-  const wav = mp3.replace(/\.mp3$/, '.wav');
-  const r2 = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/info/audio/${encodeURIComponent(wav)}`,
+  const wavFilename = filename.replace(/\.mp3$/, '.wav');
+  const wavRes = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/info/audio/${encodeURIComponent(wavFilename)}`,
     { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
   );
-  if (r2.ok) return wav;
+  if (wavRes.ok) return `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(wavFilename)}`;
   return null;
 }
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   const { voice, title, author } = req.body;
+  const filename = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
   try {
-    const filename = await getCachedFilename(title || 'unknown', author || 'unknown', voice || 'female');
-    if (filename) {
+    const cachedUrl = await getCachedUrl(filename);
+    if (cachedUrl) {
       console.log('Cache hit:', filename);
-      // Return proxied URL — same domain, no CORS issues
-      return res.status(200).json({
-        url: `/api/audio?file=${encodeURIComponent(filename)}`,
-        source: 'cache'
-      });
+      return res.status(200).json({ url: cachedUrl, source: 'cache' });
     }
   } catch (e) {
     console.warn('Cache check failed:', e.message);
