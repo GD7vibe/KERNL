@@ -336,7 +336,7 @@ async function checkAudioCache() {
 // Main TTS player:
 // 1. Check Supabase cache via /api/tts
 // 2. Cache hit  -> playSingleAudio(url) instantly
-// 3. Cache miss -> POST /api/tts-stream for token -> audio.src = GET stream -> plays as xAI generates
+// 3. Cache miss -> POST /api/tts-stream -> blob -> playSingleAudio
 async function startTTS() {
   if (!currentSummary) return;
 
@@ -352,11 +352,12 @@ async function startTTS() {
     return;
   }
 
-  // Cache miss - get streaming token from xAI
-  setPlayerState(true, 'Generating audio\u2026');
+  // Cache miss - POST to tts-stream, collect full MP3 as blob, play
+  // Simple and reliable - no tokens, no stateless issues
+  setPlayerState(true, 'Generating audio…');
 
   try {
-    const tokenRes = await fetch('/api/tts-stream', {
+    const streamRes = await fetch('/api/tts-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -367,31 +368,18 @@ async function startTTS() {
       })
     });
 
-    if (!tokenRes.ok) throw new Error('Stream request failed: ' + tokenRes.status);
+    if (!streamRes.ok) throw new Error('Streaming failed: ' + streamRes.status);
 
-    const { token } = await tokenRes.json();
-    if (!token) throw new Error('No token returned');
-
-    const streamUrl = '/api/tts-stream?token=' + encodeURIComponent(token);
-    audioEl = new Audio(streamUrl);
-    audioEl.playbackRate = playbackRate;
-    _attachAudioHandlers(null);
-
-    const playPromise = audioEl.play();
-    if (playPromise) playPromise.catch(e => console.warn('play() failed:', e));
-
+    const audioUrl = URL.createObjectURL(await streamRes.blob());
     unlockStreamingControls();
-    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 streaming');
-    registerMediaSession(currentSummary.title, currentSummary.author);
-    initScrubEvents();
+    playSingleAudio(audioUrl, audioUrl);
 
   } catch (e) {
     console.warn('TTS failed:', e.message);
     unlockStreamingControls();
     unlockVoiceButtons();
-    setPlayerState(false, 'Audio unavailable \u2014 tap to retry');
+    setPlayerState(false, 'Audio unavailable — tap to retry');
   }
-}
 
 function _attachAudioHandlers(blobUrl) {
   if (!audioEl) return;
