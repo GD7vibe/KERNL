@@ -1,14 +1,14 @@
 // api/tts-stream.js
-// POST with {text, voice, title, author}
-// Streams MP3 from xAI WebSocket directly to browser response.
-// Frontend reads full response into blob then plays it.
+// POST {text, voice, title, author}
+// Streams MP3 from xAI WebSocket directly to browser.
+// Frontend reads response as blob, plays it.
 // Saves complete MP3 to Supabase in background for future cache hits.
 
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
 function makeAudioKey(title, author, voice) {
-  const safe = (s) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
+  const safe = s => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
   return `${safe(title)}__${safe(author)}__${voice}.mp3`;
 }
 
@@ -28,7 +28,7 @@ async function saveAudioToStorage(filename, buffer) {
       }
     );
     if (!r.ok) console.error('Supabase save failed:', await r.text());
-    else console.log('Saved to Supabase:', filename);
+    else console.log('Saved:', filename);
   } catch (e) {
     console.error('Supabase save error:', e.message);
   }
