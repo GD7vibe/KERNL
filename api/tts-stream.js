@@ -1,6 +1,9 @@
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
+// In-memory token store: token -> {text, voice, title, author, expires}
+const tokenStore = new Map();
+
 function makeAudioKey(title, author, voice) {
   const safe = (s) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
   return `${safe(title)}__${safe(author)}__${voice}.mp3`;
@@ -29,27 +32,57 @@ async function saveAudioToStorage(filename, buffer) {
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, voice, title, author } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text is required' });
+  // ── POST: register text, get back a short-lived token ──────────────────────
+  // Frontend calls this first, gets a token, then sets audio.src = GET?token=...
+  if (req.method === 'POST') {
+    const { text, voice, title, author } = req.body;
+    if (!text) return res.status(400).json({ error: 'Text required' });
 
-  const xaiVoice = voice === 'male' ? 'leo' : 'eve';
-  const filename = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
+    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    tokenStore.set(token, {
+      text, voice: voice || 'female', title: title || '', author: author || '',
+      expires: Date.now() + 5 * 60 * 1000 // 5 minutes
+    });
 
-  // Stream MP3 from xAI WebSocket to browser response.
-  // Browser reads full response into arrayBuffer, creates blob, plays it.
-  // Simultaneously saves complete MP3 to Supabase — next play is instant cache hit.
-  res.setHeader('Content-Type', 'audio/mpeg');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Transfer-Encoding', 'chunked');
+    // Clean up expired tokens
+    for (const [k, v] of tokenStore.entries()) {
+      if (v.expires < Date.now()) tokenStore.delete(k);
+    }
 
-  const WebSocket = require('ws');
-  const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${xaiVoice}&codec=mp3&sample_rate=24000`;
-  const allChunks = [];
+    return res.status(200).json({ token });
+  }
 
-  try {
-    await new Promise((resolve, reject) => {
+  // ── GET: stream audio using token ──────────────────────────────────────────
+  // <audio src="/api/tts-stream?token=xyz"> — browser plays as chunks arrive
+  if (req.method === 'GET') {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+
+    const data = tokenStore.get(token);
+    if (!data || data.expires < Date.now()) {
+      tokenStore.delete(token);
+      return res.status(410).json({ error: 'Token expired or invalid' });
+    }
+    tokenStore.delete(token); // one-use
+
+    const { text, voice, title, author } = data;
+    const xaiVoice = voice === 'male' ? 'leo' : 'eve';
+    const filename = makeAudioKey(title, author, voice);
+
+    // Stream headers — force browser to start playing immediately
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    const WebSocket = require('ws');
+    const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${xaiVoice}&codec=mp3&sample_rate=24000`;
+    const allChunks = [];
+
+    // Return the Promise directly (Gemini's suggestion) so Vercel keeps the
+    // function alive and flushes chunks to the client as they arrive
+    return new Promise((resolve) => {
       const ws = new WebSocket(wsUrl, {
         headers: { 'Authorization': `Bearer ${process.env.XAI_API_KEY}` }
       });
@@ -67,23 +100,32 @@ module.exports = async (req, res) => {
             allChunks.push(chunk);
             try { res.write(chunk); } catch (e) { /* client disconnected */ }
           }
-          if (event.type === 'audio.done') { ws.close(); resolve(); }
-          if (event.type === 'error') reject(new Error(event.message));
+          if (event.type === 'audio.done') {
+            res.end();
+            ws.close();
+            // Save to Supabase after browser has already started playing
+            if (allChunks.length > 0) {
+              saveAudioToStorage(filename, Buffer.concat(allChunks));
+            }
+            resolve();
+          }
+          if (event.type === 'error') {
+            console.error('xAI error:', event.message);
+            if (!res.headersSent) res.status(500).end();
+            resolve();
+          }
         } catch (e) { console.warn('WS parse error:', e.message); }
       });
 
-      ws.on('error', reject);
+      ws.on('error', (err) => {
+        console.error('WS error:', err.message);
+        if (!res.headersSent) res.status(502).end();
+        resolve();
+      });
+
       ws.on('close', resolve);
     });
-  } catch (err) {
-    console.error('TTS stream error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ error: 'Stream failed' });
   }
 
-  res.end();
-
-  // Save to Supabase in background -- next play will be instant cache hit
-  if (allChunks.length > 0) {
-    saveAudioToStorage(filename, Buffer.concat(allChunks));
-  }
+  return res.status(405).json({ error: 'Method not allowed' });
 };
