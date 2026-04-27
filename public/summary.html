@@ -284,10 +284,9 @@ function resumeAudio() {
   return false;
 }
 
-// Audio — two paths, both synchronous on tap:
-// Cache hit:  audioEl.src = Supabase URL -> instant
-// Cache miss: POST to /api/tts-stream -> blob -> play (~5-10s generation, then cached forever)
-// iOS: audio element unlocked with silent play() in gesture, src swapped when blob ready
+// Audio:
+// Cache hit  -> GET cached Supabase URL -> new Audio(url).play() instantly
+// Cache miss -> POST to /api/tts-stream for token -> audio.src = GET stream -> plays as chunks arrive
 
 var audioReady = false;
 var cachedAudioUrl = null;
@@ -302,11 +301,9 @@ async function checkAudioCache() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text: currentSummary.plain,
         voice: currentVoice,
         title: currentSummary.title,
-        author: currentSummary.author,
-        cacheOnly: true
+        author: currentSummary.author
       })
     });
     if (res.ok) {
@@ -321,7 +318,8 @@ async function checkAudioCache() {
   } catch (e) {
     console.warn('Cache check error:', e.message);
   }
-  setPlayBtnState('ready'); // not cached but button still enabled
+  // Not cached -- button still enabled, will stream on tap
+  setPlayBtnState('ready');
 }
 
 function setPlayBtnState(state) {
@@ -369,7 +367,7 @@ function startOpenAIAudio() {
   if (!currentSummary) return;
 
   if (audioReady && cachedAudioUrl) {
-    // ── Cache hit: synchronous, instant ──
+    // Cache hit -- direct play, instant
     audioEl = new Audio(cachedAudioUrl);
     audioEl.playbackRate = playbackRate;
     _attachAudioHandlers(null);
@@ -381,17 +379,11 @@ function startOpenAIAudio() {
     return;
   }
 
-  // ── Cache miss: POST to get a token, then point audio.src at GET stream ──
-  // Step 1 (in gesture): create audio element and call play() on a silent src
-  // to unlock iOS audio context synchronously
-  audioEl = new Audio();
-  audioEl.playbackRate = playbackRate;
-  var unlock = audioEl.play();
-  if (unlock) unlock.catch(function(){});
+  // Cache miss -- get token then stream via native <audio src>
+  // Step 1: show immediate feedback
   isPlaying = true;
   setPlayBtnState('playing');
 
-  // Step 2: POST text to get a short-lived token
   fetch('/api/tts-stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -405,13 +397,13 @@ function startOpenAIAudio() {
     if (!res.ok) throw new Error('Token request failed: ' + res.status);
     return res.json();
   }).then(function(data) {
-    if (!data.token) throw new Error('No token returned');
-    if (!isPlaying) return; // user stopped while we were fetching token
+    if (!data.token) throw new Error('No token in response');
+    if (!isPlaying) return; // user cancelled
 
-    // Step 3: point audio.src at the GET streaming endpoint
-    // Browser plays it as chunks arrive -- no waiting for full download
+    // Step 2: point <audio> at the GET streaming endpoint
+    // Browser plays as xAI chunks arrive (~1 second to first audio)
     var streamUrl = '/api/tts-stream?token=' + encodeURIComponent(data.token);
-    audioEl.src = streamUrl;
+    audioEl = new Audio(streamUrl);
     audioEl.playbackRate = playbackRate;
     _attachAudioHandlers(null);
     var p = audioEl.play();
@@ -437,7 +429,8 @@ function _attachAudioHandlers(blobUrl) {
     resetScrubUI();
     checkAudioCache();
   });
-  audioEl.addEventListener('error', function() {
+  audioEl.addEventListener('error', function(e) {
+    console.warn('Audio error:', e.target.error);
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
     isPlaying = false;
