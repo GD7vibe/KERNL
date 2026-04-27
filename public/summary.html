@@ -367,7 +367,7 @@ function startOpenAIAudio() {
   if (!currentSummary) return;
 
   if (audioReady && cachedAudioUrl) {
-    // Cache hit -- direct play, instant
+    // Cache hit — proxied same-domain URL, no CORS, instant
     audioEl = new Audio(cachedAudioUrl);
     audioEl.playbackRate = playbackRate;
     _attachAudioHandlers(null);
@@ -379,8 +379,11 @@ function startOpenAIAudio() {
     return;
   }
 
-  // Cache miss -- get token then stream via native <audio src>
-  // Step 1: show immediate feedback
+  // Cache miss — POST to tts-stream, read full MP3 into blob, play
+  // Unlock iOS audio context synchronously in the tap gesture
+  audioEl = new Audio();
+  var unlock = audioEl.play();
+  if (unlock) unlock.catch(function(){});
   isPlaying = true;
   setPlayBtnState('playing');
 
@@ -394,23 +397,20 @@ function startOpenAIAudio() {
       author: currentSummary.author
     })
   }).then(function(res) {
-    if (!res.ok) throw new Error('Token request failed: ' + res.status);
-    return res.json();
-  }).then(function(data) {
-    if (!data.token) throw new Error('No token in response');
-    if (!isPlaying) return; // user cancelled
-
-    // Step 2: point <audio> at the GET streaming endpoint
-    // Browser plays as xAI chunks arrive (~1 second to first audio)
-    var streamUrl = '/api/tts-stream?token=' + encodeURIComponent(data.token);
-    audioEl = new Audio(streamUrl);
+    if (!res.ok) throw new Error('TTS failed: ' + res.status);
+    return res.arrayBuffer();
+  }).then(function(buf) {
+    if (!isPlaying) return;
+    var blob = new Blob([buf], { type: 'audio/mpeg' });
+    var blobUrl = URL.createObjectURL(blob);
+    audioEl.src = blobUrl;
     audioEl.playbackRate = playbackRate;
-    _attachAudioHandlers(null);
+    _attachAudioHandlers(blobUrl);
     var p = audioEl.play();
     if (p && p.catch) p.catch(function(err) { console.warn('Play failed:', err); setPlayBtnState('error'); });
     initScrubEvents();
   }).catch(function(e) {
-    console.warn('Stream error:', e.message);
+    console.warn('TTS error:', e.message);
     isPlaying = false;
     setPlayBtnState('error');
   });
