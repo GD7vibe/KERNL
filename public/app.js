@@ -8,6 +8,7 @@ let audioEl = null;
 let playbackRate = 1;
 let streamingAudioContext = null;
 let streamingSources = [];
+let isGenerating = false;
 let autocompleteTimer = null;
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
@@ -660,6 +661,8 @@ async function handleGenerate() {
   }
 
   document.getElementById('gen-btn').disabled = true;
+  isGenerating = true;
+  lockAllControls();
   setStatus('Generating summary \u2014 appearing shortly\u2026', true);
 
   try {
@@ -725,6 +728,7 @@ async function handleGenerate() {
     setError('Could not generate summary: ' + err.message);
   } finally {
     document.getElementById('gen-btn').disabled = false;
+    isGenerating = false;
     unlockAllControls();
   }
 }
@@ -749,6 +753,8 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
   document.getElementById('megan-words-section').style.display = 'none';
   document.getElementById('summary-card').classList.add('show');
   document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Re-apply locks now that the card is visible
+  if (isGenerating) lockAllControls();
 }
 
 function updateStreamingBody(htmlSoFar) {
