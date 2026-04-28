@@ -409,9 +409,9 @@ async function checkAudioCache() {
 // 2. Cache hit  -> playSingleAudio(url) instantly
 // 3. Cache miss -> POST /api/tts-stream -> blob -> playSingleAudio
 // Main TTS player
-// Cache hit  -> play proxied Supabase URL instantly via <audio>
-// Cache miss -> POST to get Supabase token -> <audio src="/api/tts-stream?token=x">
-//               Native <audio> streams xAI MP3 progressively — starts in ~1s on all devices
+// iOS Safari requires .play() to be called synchronously in the tap gesture.
+// Strategy: create audio element and call .play() immediately (gesture context),
+// then set src once we have the token/URL (async work happens after play() call).
 async function startTTS() {
   if (!currentSummary) return;
 
@@ -419,16 +419,32 @@ async function startTTS() {
   lockVoiceButtons();
   lockStreamingControls();
 
+  // Create audio element and call .play() NOW — synchronously in the gesture
+  // iOS Safari will permit this because we're still in the tap handler
+  audioEl = new Audio();
+  audioEl.playbackRate = playbackRate;
+  _attachAudioHandlers(null);
+  const playPromise = audioEl.play();
+  if (playPromise) playPromise.catch(() => {}); // expected to fail until src is set
+
+  // Now do async work — iOS gesture already unlocked above
   const cachedUrl = await checkAudioCache();
+
   if (cachedUrl) {
+    // Cache hit — swap src to cached URL, iOS will play it
+    audioEl.src = cachedUrl;
+    audioEl.load();
+    const p = audioEl.play();
+    if (p) p.catch(e => console.warn('play() failed:', e));
     unlockStreamingControls();
-    playSingleAudio(cachedUrl, null);
+    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
+    registerMediaSession(currentSummary.title, currentSummary.author);
+    initScrubEvents();
     return;
   }
 
-  // Cache miss — get short-lived Supabase token for the stream
+  // Cache miss — get token, set src to streaming URL
   setPlayerState(true, 'Generating audio…');
-  stopAudio();
 
   try {
     const tokenRes = await fetch('/api/tts-stream', {
@@ -446,13 +462,10 @@ async function startTTS() {
     const { token } = await tokenRes.json();
     if (!token) throw new Error('No token returned');
 
-    // Native <audio> streams progressively from xAI via GET
-    // Works on iOS Safari, Chrome, Firefox — everywhere
+    // Set src — iOS audio context already unlocked by the earlier .play() call
     const streamUrl = '/api/tts-stream?token=' + encodeURIComponent(token);
-    audioEl = new Audio(streamUrl);
-    audioEl.playbackRate = playbackRate;
-    _attachAudioHandlers(null);
-
+    audioEl.src = streamUrl;
+    audioEl.load();
     const p = audioEl.play();
     if (p) p.catch(e => console.warn('play() failed:', e));
 
@@ -463,6 +476,7 @@ async function startTTS() {
 
   } catch (e) {
     console.warn('startTTS error:', e.message);
+    if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch(ex) {} audioEl = null; }
     unlockStreamingControls();
     unlockVoiceButtons();
     setPlayerState(false, 'Audio unavailable — tap to retry');
