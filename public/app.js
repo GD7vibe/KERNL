@@ -535,6 +535,10 @@ async function startTTS() {
       await scheduleChunk(value);
     }
 
+    // Stream fully received — unlock scrub/speed/skip controls now
+    // (audio is complete, seeking and speed changes will work)
+    unlockStreamingControls();
+
     // Try to decode any remaining buffered data
     if (mp3Buffer.length > 0) {
       try {
