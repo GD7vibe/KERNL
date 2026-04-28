@@ -1,3 +1,26 @@
+// ── On-screen error logger for iOS debugging ─────────────────────────────────
+(function() {
+  function showDebug(msg, color) {
+    var el = document.getElementById('_debug_log');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '_debug_log';
+      el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:200px;overflow-y:auto;background:rgba(0,0,0,0.85);color:#fff;font-family:monospace;font-size:11px;padding:8px;z-index:99999';
+      document.body.appendChild(el);
+    }
+    var line = document.createElement('div');
+    line.style.color = color || '#fff';
+    line.style.borderBottom = '1px solid #333';
+    line.style.padding = '2px 0';
+    line.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+  window._dbg = showDebug;
+  window.addEventListener('error', function(e) { showDebug('ERROR: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')', '#ff6b6b'); });
+  window.addEventListener('unhandledrejection', function(e) { showDebug('PROMISE: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)), '#ffa500'); });
+})();
+
 const STORAGE_KEY = 'kernl_v2';
 const AMAZON_TAG = 'gd7vibe-21';
 
@@ -413,24 +436,28 @@ async function startTTS() {
   lockStreamingControls();
 
   // === iOS GESTURE FIX: Claim the user gesture IMMEDIATELY ===
-  let audio = new Audio();           // dummy audio
-  audio.volume = 0;                  // silent
-  const initialPlay = audio.play();  // synchronous .play() inside tap handler
+  window._dbg('startTTS: creating dummy audio', '#aaffaa');
+  let audio = new Audio();
+  audio.volume = 0;
+  const initialPlay = audio.play();
+  if (initialPlay) initialPlay.catch(e => window._dbg('dummy play failed: ' + e.message, '#ff6b6b'));
+  window._dbg('dummy play() called', '#aaffaa');
 
   const cachedUrl = await checkAudioCache();
+  window._dbg('cache check done, url=' + (cachedUrl ? 'HIT' : 'MISS'), '#aaffaa');
 
   if (cachedUrl) {
-    audio.pause(); // clean up dummy
+    audio.pause();
     unlockStreamingControls();
     playSingleAudio(cachedUrl, null);
     return;
   }
 
-  // No cache — get token
   setPlayerState(true, 'Generating audio…');
   stopAudio();
 
   try {
+    window._dbg('fetching token...', '#aaffaa');
     const tokenRes = await fetch('/api/tts-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -442,22 +469,32 @@ async function startTTS() {
       })
     });
 
-    if (!tokenRes.ok) throw new Error('Token failed');
+    window._dbg('token response: ' + tokenRes.status, '#aaffaa');
+    if (!tokenRes.ok) throw new Error('Token failed: ' + tokenRes.status);
 
     const { token } = await tokenRes.json();
+    window._dbg('token: ' + token, '#aaffaa');
     const streamUrl = '/api/tts-stream?token=' + encodeURIComponent(token);
 
-    // Reuse the audio element we already called .play() on
     audioEl = audio;
     audioEl.src = streamUrl;
     audioEl.volume = 1;
     audioEl.playbackRate = playbackRate;
 
+    audioEl.addEventListener('canplay', () => window._dbg('canplay fired!', '#00ff00'));
+    audioEl.addEventListener('playing', () => window._dbg('playing fired!', '#00ff00'));
+    audioEl.addEventListener('error', e => window._dbg('audio error: ' + (e.target.error ? e.target.error.code + ' ' + e.target.error.message : 'unknown'), '#ff6b6b'));
+    audioEl.addEventListener('stalled', () => window._dbg('stalled!', '#ffa500'));
+    audioEl.addEventListener('waiting', () => window._dbg('waiting...', '#ffa500'));
+
     _attachAudioHandlers(null);
 
-    // Second .play() — iOS already granted permission from the first one
+    window._dbg('calling audioEl.play()...', '#aaffaa');
     const playPromise = audioEl.play();
-    if (playPromise) playPromise.catch(console.warn);
+    if (playPromise) {
+      playPromise.then(() => window._dbg('play() resolved OK', '#00ff00'))
+                 .catch(e => window._dbg('play() rejected: ' + e.name + ': ' + e.message, '#ff6b6b'));
+    }
 
     unlockStreamingControls();
     setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — streaming');
@@ -465,7 +502,7 @@ async function startTTS() {
     initScrubEvents();
 
   } catch (e) {
-    console.error('TTS error:', e);
+    window._dbg('CATCH: ' + e.message, '#ff6b6b');
     if (audio) audio.pause();
     unlockStreamingControls();
     unlockVoiceButtons();
