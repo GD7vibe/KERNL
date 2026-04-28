@@ -6,8 +6,7 @@ let currentSummary = null;
 let isPlaying = false;
 let audioEl = null;
 let playbackRate = 1;
-let streamingAudioContext = null;
-let streamingSources = [];
+
 let isGenerating = false;
 let autocompleteTimer = null;
 
@@ -365,19 +364,9 @@ function registerMediaSession(title, author) {
 // ── Audio playback ────────────────────────────────────────────────────────────
 
 function stopAudio() {
-  // Stop regular audio element
   if (audioEl) {
     try { audioEl.pause(); audioEl.src = ''; } catch(e) {}
     audioEl = null;
-  }
-  // Stop Web Audio API streaming
-  if (streamingSources.length > 0) {
-    streamingSources.forEach(s => { try { s.stop(); } catch(e) {} });
-    streamingSources = [];
-  }
-  if (streamingAudioContext && streamingAudioContext.state !== 'closed') {
-    try { streamingAudioContext.close(); } catch(e) {}
-    streamingAudioContext = null;
   }
   unlockStreamingControls();
   setPlayerState(false, null);
@@ -386,22 +375,13 @@ function stopAudio() {
 
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
-  if (streamingAudioContext && streamingAudioContext.state === 'running') {
-    streamingAudioContext.suspend();
-  }
-  setPlayerState(false, 'Paused \u2014 press play to continue');
+  setPlayerState(false, 'Paused — press play to continue');
   setScrubActive(false);
 }
 function resumeAudio() {
-  if (streamingAudioContext && streamingAudioContext.state === 'suspended') {
-    streamingAudioContext.resume();
-    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
-    setScrubActive(true);
-    return true;
-  }
   if (audioEl && audioEl.paused && audioEl.src) {
     audioEl.play();
-    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
+    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
     setScrubActive(true);
     return true;
   }
@@ -428,55 +408,30 @@ async function checkAudioCache() {
 // 1. Check Supabase cache via /api/tts
 // 2. Cache hit  -> playSingleAudio(url) instantly
 // 3. Cache miss -> POST /api/tts-stream -> blob -> playSingleAudio
+// Main TTS player
+// Cache hit  -> play proxied Supabase URL instantly via <audio>
+// Cache miss -> POST to get Supabase token -> <audio src="/api/tts-stream?token=x">
+//               Native <audio> streams xAI MP3 progressively — starts in ~1s on all devices
 async function startTTS() {
   if (!currentSummary) return;
 
-  setPlayerState(true, 'Loading audio\u2026');
+  setPlayerState(true, 'Loading audio…');
   lockVoiceButtons();
   lockStreamingControls();
 
   const cachedUrl = await checkAudioCache();
-
   if (cachedUrl) {
     unlockStreamingControls();
     playSingleAudio(cachedUrl, null);
     return;
   }
 
-  // Cache miss - stream from xAI and play chunks via Web Audio API as they arrive
-  // AudioContext created synchronously here in the gesture — iOS Safari safe
-  // First chunk from xAI arrives in ~1s and starts playing immediately
+  // Cache miss — get short-lived Supabase token for the stream
   setPlayerState(true, 'Generating audio…');
-
-  // Stop any existing streaming before starting new one
   stopAudio();
 
-  let audioContext;
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    audioContext = new AudioCtx();
-    if (audioContext.state === 'suspended') await audioContext.resume();
-  } catch (e) {
-    console.warn('AudioContext failed:', e);
-    setPlayerState(false, 'Audio unavailable — tap to retry');
-    unlockStreamingControls();
-    unlockVoiceButtons();
-    return;
-  }
-
-  // Store on module-level so togglePlay/pauseAudio/stopAudio can access them
-  streamingAudioContext = audioContext;
-  streamingSources = [];
-
-  // Track scheduled audio for scrub/pause/stop
-  let scheduledSources = streamingSources;
-  let nextStartTime = audioContext.currentTime + 0.1;
-  let totalDuration = 0;
-  let streamDone = false;
-  let started = false;
-
-  try {
-    const streamRes = await fetch('/api/tts-stream', {
+    const tokenRes = await fetch('/api/tts-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -487,101 +442,27 @@ async function startTTS() {
       })
     });
 
-    if (!streamRes.ok) throw new Error('Streaming failed: ' + streamRes.status);
+    if (!tokenRes.ok) throw new Error('Token request failed: ' + tokenRes.status);
+    const { token } = await tokenRes.json();
+    if (!token) throw new Error('No token returned');
 
-    const reader = streamRes.body.getReader();
-    let mp3Buffer = new Uint8Array(0);
+    // Native <audio> streams progressively from xAI via GET
+    // Works on iOS Safari, Chrome, Firefox — everywhere
+    const streamUrl = '/api/tts-stream?token=' + encodeURIComponent(token);
+    audioEl = new Audio(streamUrl);
+    audioEl.playbackRate = playbackRate;
+    _attachAudioHandlers(null);
 
-    const scheduleChunk = async (chunk) => {
-      // Append new chunk to buffer
-      const combined = new Uint8Array(mp3Buffer.length + chunk.length);
-      combined.set(mp3Buffer);
-      combined.set(chunk, mp3Buffer.length);
-      mp3Buffer = combined;
+    const p = audioEl.play();
+    if (p) p.catch(e => console.warn('play() failed:', e));
 
-      // iOS Safari suspends AudioContext between chunks — resume it
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-
-      // Try to decode what we have so far
-      try {
-        // Copy buffer explicitly — iOS Safari detaches the original after decodeAudioData
-        const bufferCopy = mp3Buffer.slice(0).buffer;
-        const decoded = await audioContext.decodeAudioData(bufferCopy);
-
-        const source = audioContext.createBufferSource();
-        source.buffer = decoded;
-        source.playbackRate.value = playbackRate;
-        source.connect(audioContext.destination);
-
-        const when = Math.max(nextStartTime, audioContext.currentTime);
-        source.start(when);
-        scheduledSources.push(source);
-        nextStartTime = when + decoded.duration;
-        totalDuration += decoded.duration;
-
-        // Reset buffer after successful decode
-        mp3Buffer = new Uint8Array(0);
-
-        if (!started) {
-          started = true;
-          setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
-          registerMediaSession(currentSummary.title, currentSummary.author);
-          initScrubEvents();
-        }
-      } catch (e) {
-        // Not enough data yet to decode — keep buffering
-        // Do NOT reset mp3Buffer here — keep accumulating
-      }
-    };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      await scheduleChunk(value);
-    }
-
-    // Stream fully received — unlock scrub/speed/skip controls now
-    // (audio is complete, seeking and speed changes will work)
     unlockStreamingControls();
-
-    // Try to decode any remaining buffered data
-    if (mp3Buffer.length > 0) {
-      try {
-        const decoded = await audioContext.decodeAudioData(mp3Buffer.buffer.slice(0));
-        const source = audioContext.createBufferSource();
-        source.buffer = decoded;
-        source.playbackRate.value = playbackRate;
-        source.connect(audioContext.destination);
-        const when = Math.max(nextStartTime, audioContext.currentTime);
-        source.start(when);
-        scheduledSources.push(source);
-        nextStartTime = when + decoded.duration;
-      } catch (e) { /* ignore */ }
-    }
-
-    streamDone = true;
-
-    // When last source ends, reset player
-    if (scheduledSources.length > 0) {
-      const last = scheduledSources[scheduledSources.length - 1];
-      last.onended = () => {
-        if (audioContext) { try { audioContext.close(); } catch(e) {} }
-        streamingAudioContext = null;
-        streamingSources = [];
-        isPlaying = false;
-        setPlayerState(false, 'Finished — press play to replay');
-        unlockVoiceButtons();
-        resetScrubUI();
-      };
-    }
+    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — streaming');
+    registerMediaSession(currentSummary.title, currentSummary.author);
+    initScrubEvents();
 
   } catch (e) {
-    console.warn('TTS stream error:', e.message);
-    if (audioContext) { try { audioContext.close(); } catch(ex) {} }
-    streamingAudioContext = null;
-    streamingSources = [];
+    console.warn('startTTS error:', e.message);
     unlockStreamingControls();
     unlockVoiceButtons();
     setPlayerState(false, 'Audio unavailable — tap to retry');
@@ -625,9 +506,6 @@ function playSingleAudio(audioUrl, blobUrl) {
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
-  // Resume Web Audio streaming if suspended
-  if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; }
-  // Resume regular audio element if paused
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
   startTTS();
 }
