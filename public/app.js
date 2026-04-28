@@ -499,6 +499,11 @@ async function startTTS() {
       combined.set(chunk, mp3Buffer.length);
       mp3Buffer = combined;
 
+      // iOS Safari suspends AudioContext between chunks — resume it
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+
       // Try to decode what we have so far
       try {
         const decoded = await audioContext.decodeAudioData(mp3Buffer.buffer.slice(0));
@@ -519,7 +524,6 @@ async function startTTS() {
 
         if (!started) {
           started = true;
-          unlockStreamingControls();
           setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
           registerMediaSession(currentSummary.title, currentSummary.author);
           initScrubEvents();
