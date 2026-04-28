@@ -427,7 +427,7 @@ async function checkAudioCache() {
   return null;
 }
 
-// ── MAIN PLAYER with iOS Safari gesture fix ─────────────────────────────────
+// ── MAIN PLAYER ──────────────────────────────────────────────────────────────
 async function startTTS() {
   if (!currentSummary) return;
 
@@ -435,26 +435,26 @@ async function startTTS() {
   lockVoiceButtons();
   lockStreamingControls();
 
-  // === iOS GESTURE FIX: Claim the user gesture IMMEDIATELY ===
-  window._dbg('startTTS: creating dummy audio', '#aaffaa');
-  let audio = new Audio();
-  audio.volume = 0;
-  const initialPlay = audio.play();
-  if (initialPlay) initialPlay.catch(e => window._dbg('dummy play failed: ' + e.message, '#ff6b6b'));
-  window._dbg('dummy play() called', '#aaffaa');
-
   const cachedUrl = await checkAudioCache();
-  window._dbg('cache check done, url=' + (cachedUrl ? 'HIT' : 'MISS'), '#aaffaa');
+  window._dbg('cache: ' + (cachedUrl ? 'HIT' : 'MISS'), '#aaffaa');
 
   if (cachedUrl) {
-    audio.pause();
     unlockStreamingControls();
     playSingleAudio(cachedUrl, null);
     return;
   }
 
+  // === iOS SAFARI GESTURE FIX ===
+  // Create the real audio element synchronously inside the tap handler
+  // volume=0.01 (not 0) — iOS aborts play() on completely silent elements
+  audioEl = new Audio();
+  audioEl.volume = 0.01;
+  audioEl.preload = 'none';
+  const initialPlay = audioEl.play().catch(err => {
+    window._dbg('initial play caught: ' + err.message, '#ffa500');
+  });
+
   setPlayerState(true, 'Generating audio…');
-  stopAudio();
 
   try {
     window._dbg('fetching token...', '#aaffaa');
@@ -469,32 +469,28 @@ async function startTTS() {
       })
     });
 
-    window._dbg('token response: ' + tokenRes.status, '#aaffaa');
     if (!tokenRes.ok) throw new Error('Token failed: ' + tokenRes.status);
-
     const { token } = await tokenRes.json();
     window._dbg('token: ' + token, '#aaffaa');
+
     const streamUrl = '/api/tts-stream?token=' + encodeURIComponent(token);
 
-    audioEl = audio;
+    // Set src on the SAME element we already called .play() on
     audioEl.src = streamUrl;
-    audioEl.volume = 1;
+    audioEl.volume = 1.0;
     audioEl.playbackRate = playbackRate;
 
-    audioEl.addEventListener('canplay', () => window._dbg('canplay fired!', '#00ff00'));
-    audioEl.addEventListener('playing', () => window._dbg('playing fired!', '#00ff00'));
-    audioEl.addEventListener('error', e => window._dbg('audio error: ' + (e.target.error ? e.target.error.code + ' ' + e.target.error.message : 'unknown'), '#ff6b6b'));
-    audioEl.addEventListener('stalled', () => window._dbg('stalled!', '#ffa500'));
-    audioEl.addEventListener('waiting', () => window._dbg('waiting...', '#ffa500'));
+    audioEl.addEventListener('canplay', () => window._dbg('canplay!', '#00ff00'));
+    audioEl.addEventListener('playing', () => window._dbg('PLAYING!', '#00ff00'));
+    audioEl.addEventListener('stalled', () => window._dbg('STALLED', '#ff6b6b'));
+    audioEl.addEventListener('error', e => window._dbg('ERROR: ' + (e.target.error ? e.target.error.code + ':' + e.target.error.message : '?'), '#ff6b6b'));
 
     _attachAudioHandlers(null);
 
-    window._dbg('calling audioEl.play()...', '#aaffaa');
-    const playPromise = audioEl.play();
-    if (playPromise) {
-      playPromise.then(() => window._dbg('play() resolved OK', '#00ff00'))
-                 .catch(e => window._dbg('play() rejected: ' + e.name + ': ' + e.message, '#ff6b6b'));
-    }
+    window._dbg('calling final play()...', '#aaffaa');
+    const realPlay = audioEl.play();
+    if (realPlay) realPlay.then(() => window._dbg('play() OK!', '#00ff00'))
+                          .catch(e => window._dbg('play() FAIL: ' + e.name + ': ' + e.message, '#ff6b6b'));
 
     unlockStreamingControls();
     setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — streaming');
@@ -503,7 +499,7 @@ async function startTTS() {
 
   } catch (e) {
     window._dbg('CATCH: ' + e.message, '#ff6b6b');
-    if (audio) audio.pause();
+    if (audioEl) { try { audioEl.pause(); } catch(ex) {} }
     unlockStreamingControls();
     unlockVoiceButtons();
     setPlayerState(false, 'Audio unavailable — tap to retry');
