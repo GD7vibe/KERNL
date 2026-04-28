@@ -506,8 +506,10 @@ async function startTTS() {
 
       // Try to decode what we have so far
       try {
-        const decoded = await audioContext.decodeAudioData(mp3Buffer.buffer.slice(0));
-        // We decoded successfully — schedule playback
+        // Copy buffer explicitly — iOS Safari detaches the original after decodeAudioData
+        const bufferCopy = mp3Buffer.slice(0).buffer;
+        const decoded = await audioContext.decodeAudioData(bufferCopy);
+
         const source = audioContext.createBufferSource();
         source.buffer = decoded;
         source.playbackRate.value = playbackRate;
@@ -519,7 +521,7 @@ async function startTTS() {
         nextStartTime = when + decoded.duration;
         totalDuration += decoded.duration;
 
-        // Reset buffer — we've consumed it
+        // Reset buffer after successful decode
         mp3Buffer = new Uint8Array(0);
 
         if (!started) {
@@ -530,6 +532,7 @@ async function startTTS() {
         }
       } catch (e) {
         // Not enough data yet to decode — keep buffering
+        // Do NOT reset mp3Buffer here — keep accumulating
       }
     };
 
