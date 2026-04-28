@@ -6,6 +6,8 @@ let currentSummary = null;
 let isPlaying = false;
 let audioEl = null;
 let playbackRate = 1;
+let streamingAudioContext = null;
+let streamingSources = [];
 let autocompleteTimer = null;
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
@@ -291,9 +293,19 @@ function registerMediaSession(title, author) {
 // ── Audio playback ────────────────────────────────────────────────────────────
 
 function stopAudio() {
+  // Stop regular audio element
   if (audioEl) {
     try { audioEl.pause(); audioEl.src = ''; } catch(e) {}
     audioEl = null;
+  }
+  // Stop Web Audio API streaming
+  if (streamingSources.length > 0) {
+    streamingSources.forEach(s => { try { s.stop(); } catch(e) {} });
+    streamingSources = [];
+  }
+  if (streamingAudioContext && streamingAudioContext.state !== 'closed') {
+    try { streamingAudioContext.close(); } catch(e) {}
+    streamingAudioContext = null;
   }
   unlockStreamingControls();
   setPlayerState(false, null);
@@ -302,11 +314,19 @@ function stopAudio() {
 
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
+  if (streamingAudioContext && streamingAudioContext.state === 'running') {
+    streamingAudioContext.suspend();
+  }
   setPlayerState(false, 'Paused \u2014 press play to continue');
   setScrubActive(false);
 }
-
 function resumeAudio() {
+  if (streamingAudioContext && streamingAudioContext.state === 'suspended') {
+    streamingAudioContext.resume();
+    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
+    setScrubActive(true);
+    return true;
+  }
   if (audioEl && audioEl.paused && audioEl.src) {
     audioEl.play();
     setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
@@ -315,7 +335,6 @@ function resumeAudio() {
   }
   return false;
 }
-
 // Cache check — POST to /api/tts with title/author/voice, returns {url} on hit
 async function checkAudioCache() {
   if (!currentSummary) return null;
@@ -357,6 +376,9 @@ async function startTTS() {
   // First chunk from xAI arrives in ~1s and starts playing immediately
   setPlayerState(true, 'Generating audio…');
 
+  // Stop any existing streaming before starting new one
+  stopAudio();
+
   let audioContext;
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -370,24 +392,16 @@ async function startTTS() {
     return;
   }
 
+  // Store on module-level so togglePlay/pauseAudio/stopAudio can access them
+  streamingAudioContext = audioContext;
+  streamingSources = [];
+
   // Track scheduled audio for scrub/pause/stop
-  let scheduledSources = [];
+  let scheduledSources = streamingSources;
   let nextStartTime = audioContext.currentTime + 0.1;
   let totalDuration = 0;
   let streamDone = false;
   let started = false;
-
-  // Override stopAudio to also kill AudioContext
-  const origStopAudio = window._streamStopAudio;
-  window._streamStopAudio = () => {
-    scheduledSources.forEach(s => { try { s.stop(); } catch(e){} });
-    scheduledSources = [];
-    if (audioContext && audioContext.state !== 'closed') {
-      audioContext.close();
-      audioContext = null;
-    }
-    window._streamStopAudio = origStopAudio;
-  };
 
   try {
     const streamRes = await fetch('/api/tts-stream', {
@@ -470,7 +484,9 @@ async function startTTS() {
     if (scheduledSources.length > 0) {
       const last = scheduledSources[scheduledSources.length - 1];
       last.onended = () => {
-        if (audioContext) { audioContext.close(); audioContext = null; }
+        if (audioContext) { try { audioContext.close(); } catch(e) {} }
+        streamingAudioContext = null;
+        streamingSources = [];
         isPlaying = false;
         setPlayerState(false, 'Finished — press play to replay');
         unlockVoiceButtons();
@@ -480,7 +496,9 @@ async function startTTS() {
 
   } catch (e) {
     console.warn('TTS stream error:', e.message);
-    if (audioContext) { audioContext.close(); audioContext = null; }
+    if (audioContext) { try { audioContext.close(); } catch(ex) {} }
+    streamingAudioContext = null;
+    streamingSources = [];
     unlockStreamingControls();
     unlockVoiceButtons();
     setPlayerState(false, 'Audio unavailable — tap to retry');
@@ -524,6 +542,9 @@ function playSingleAudio(audioUrl, blobUrl) {
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
+  // Resume Web Audio streaming if suspended
+  if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; }
+  // Resume regular audio element if paused
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
   startTTS();
 }
