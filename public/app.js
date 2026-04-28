@@ -191,6 +191,77 @@ function unlockStreamingControls() {
   document.querySelectorAll('.speed-btn').forEach(btn => { btn.style.opacity = ''; btn.style.pointerEvents = ''; });
 }
 
+// Lock ALL player/action controls during summary generation
+function lockAllControls() {
+  var ids = ['play-btn', 'pvf', 'pvm', 'vbf', 'vbm', 'send-kindle-btn'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.disabled = true;
+      el.style.opacity = '0.35';
+      el.style.cursor = 'not-allowed';
+      el.style.pointerEvents = 'none';
+    }
+  });
+  // Speed buttons
+  document.querySelectorAll('.speed-btn').forEach(function(btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.35';
+    btn.style.cursor = 'not-allowed';
+    btn.style.pointerEvents = 'none';
+  });
+  // Skip buttons
+  document.querySelectorAll('.skip-btn').forEach(function(btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.35';
+    btn.style.cursor = 'not-allowed';
+    btn.style.pointerEvents = 'none';
+  });
+  // Print button (no id, find by onclick)
+  document.querySelectorAll('.btn-action').forEach(function(btn) {
+    if (btn.getAttribute('onclick') === 'printSummary()') {
+      btn.disabled = true;
+      btn.style.opacity = '0.35';
+      btn.style.cursor = 'not-allowed';
+      btn.style.pointerEvents = 'none';
+    }
+  });
+}
+
+// Restore all controls after generation
+function unlockAllControls() {
+  var ids = ['play-btn', 'pvf', 'pvm', 'vbf', 'vbm', 'send-kindle-btn'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.disabled = false;
+      el.style.opacity = '';
+      el.style.cursor = '';
+      el.style.pointerEvents = '';
+    }
+  });
+  document.querySelectorAll('.speed-btn').forEach(function(btn) {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+    btn.style.pointerEvents = '';
+  });
+  document.querySelectorAll('.skip-btn').forEach(function(btn) {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+    btn.style.pointerEvents = '';
+  });
+  document.querySelectorAll('.btn-action').forEach(function(btn) {
+    if (btn.getAttribute('onclick') === 'printSummary()') {
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      btn.style.pointerEvents = '';
+    }
+  });
+}
+
 function lockVoiceButtons() {
   ['pvf','pvm','vbf','vbm'].forEach(id => {
     const el = document.getElementById(id);
@@ -654,6 +725,7 @@ async function handleGenerate() {
     setError('Could not generate summary: ' + err.message);
   } finally {
     document.getElementById('gen-btn').disabled = false;
+    unlockAllControls();
   }
 }
 
