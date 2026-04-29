@@ -1,3 +1,26 @@
+// ── On-screen debug logger ───────────────────────────────────────────────────
+(function() {
+  function showDebug(msg, color) {
+    var el = document.getElementById('_debug_log');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '_debug_log';
+      el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:220px;overflow-y:auto;background:rgba(0,0,0,0.88);color:#fff;font-family:monospace;font-size:11px;padding:8px;z-index:99999';
+      document.body.appendChild(el);
+    }
+    var line = document.createElement('div');
+    line.style.color = color || '#fff';
+    line.style.borderBottom = '1px solid #333';
+    line.style.padding = '2px 0';
+    line.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+  window._dbg = showDebug;
+  window.addEventListener('error', function(e) { showDebug('JS ERROR: ' + e.message, '#ff6b6b'); });
+  window.addEventListener('unhandledrejection', function(e) { showDebug('PROMISE: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)), '#ffa500'); });
+})();
+
 const STORAGE_KEY = 'kernl_v2';
 const AMAZON_TAG = 'gd7vibe-21';
 
