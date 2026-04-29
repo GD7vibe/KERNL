@@ -613,37 +613,53 @@ async function handleGenerate() {
     let buffer = '';
     let streamingStarted = false;
     let finalData = null;
+    let lastHtml = '';
+    let lastPlain = '';
+    let lastWords = [];
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const msg = JSON.parse(line.slice(6).trim());
-          if (msg.error) throw new Error(msg.error);
-          if (msg.done) { finalData = msg; continue; }
-          if (msg.chunk) {
-            if (!streamingStarted) {
-              streamingStarted = true;
-              setStatus('', false);
-              displaySummaryStreaming(title, author || 'Unknown author', msg.chunk);
-            } else {
-              updateStreamingBody(msg.chunk);
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const msg = JSON.parse(line.slice(6).trim());
+            if (msg.error) throw new Error(msg.error);
+            if (msg.done) { finalData = msg; continue; }
+            if (msg.chunk) {
+              lastHtml = msg.chunk;
+              if (!streamingStarted) {
+                streamingStarted = true;
+                setStatus('', false);
+                displaySummaryStreaming(title, author || 'Unknown author', msg.chunk);
+              } else {
+                updateStreamingBody(msg.chunk);
+              }
             }
-          }
-        } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; }
+          } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; }
+        }
       }
+    } catch (streamErr) {
+      // Stream dropped — if we got content, use it rather than showing error
+      if (!streamingStarted) throw streamErr;
+      console.warn('Stream dropped early:', streamErr.message);
     }
 
+    const displayAuthor = author || 'Unknown author';
     if (finalData) {
-      const displayAuthor = author || 'Unknown author';
       saveEntry({ title, author: displayAuthor, html: finalData.html, plain: finalData.plain, words: finalData.words || [], spoilers, savedAt: Date.now() });
       renderArchive();
       displaySummary(title, displayAuthor, finalData.html, finalData.plain, finalData.words || [], false);
+    } else if (streamingStarted && lastHtml) {
+      // Stream cut before done message — display what we got, save best effort
+      const plainText = lastHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      saveEntry({ title, author: displayAuthor, html: lastHtml, plain: plainText, words: [], spoilers, savedAt: Date.now() });
+      renderArchive();
+      displaySummary(title, displayAuthor, lastHtml, plainText, [], false);
     }
 
   } catch (err) {
