@@ -435,7 +435,6 @@ async function checkAudioCache() {
 }
 
 // ── MAIN PLAYER ──────────────────────────────────────────────────────────────
-// ── MAIN PLAYER ──────────────────────────────────────────────────────────────
 async function startTTS() {
   if (!currentSummary) return;
 
@@ -444,22 +443,13 @@ async function startTTS() {
   lockStreamingControls();
 
   const cachedUrl = await checkAudioCache();
+  window._dbg('cache: ' + (cachedUrl ? 'HIT' : 'MISS'), '#aaffaa');
 
   if (cachedUrl) {
     unlockStreamingControls();
     playSingleAudio(cachedUrl, null);
     return;
   }
-
-  // === iOS SAFARI GESTURE FIX ===
-  // Create the real audio element synchronously inside the tap handler
-  // volume=0.01 (not 0) — iOS aborts play() on completely silent elements
-  audioEl = new Audio();
-  audioEl.volume = 0.01;
-  audioEl.preload = 'none';
-  const initialPlay = audioEl.play().catch(err => {
-    window._dbg('initial play caught: ' + err.message, '#ffa500');
-  });
 
   setPlayerState(true, 'Generating audio…');
 
@@ -478,26 +468,26 @@ async function startTTS() {
 
     if (!tokenRes.ok) throw new Error('Token failed: ' + tokenRes.status);
     const { token } = await tokenRes.json();
-    window._dbg('token: ' + token, '#aaffaa');
+    window._dbg('token ok, creating audio...', '#aaffaa');
 
+    // Create Audio with src set at creation — iOS needs src before play()
     const streamUrl = 'https://peebgzfufyklxzdfnesc.supabase.co/functions/v1/tts-stream?token=' + encodeURIComponent(token);
-    window._dbg('setting audio src...', '#aaffaa');
-    audioEl.src = streamUrl;
+    audioEl = new Audio(streamUrl);
     audioEl.volume = 1.0;
     audioEl.playbackRate = playbackRate;
 
-    audioEl.addEventListener('canplay', () => window._dbg('canplay fired!', '#00ff00'));
+    audioEl.addEventListener('canplay', () => window._dbg('canplay!', '#00ff00'));
     audioEl.addEventListener('playing', () => window._dbg('PLAYING!', '#00ff00'));
     audioEl.addEventListener('stalled', () => window._dbg('STALLED', '#ff6b6b'));
     audioEl.addEventListener('waiting', () => window._dbg('waiting...', '#ffa500'));
-    audioEl.addEventListener('error', e => window._dbg('AUDIO ERROR: ' + (e.target.error ? e.target.error.code + ':' + e.target.error.message : '?'), '#ff6b6b'));
+    audioEl.addEventListener('error', e => window._dbg('ERR: ' + (e.target.error ? e.target.error.code + ':' + e.target.error.message : '?'), '#ff6b6b'));
 
     _attachAudioHandlers(null);
 
     window._dbg('calling play()...', '#aaffaa');
-    const realPlay = audioEl.play();
-    if (realPlay) realPlay.then(() => window._dbg('play() resolved OK', '#00ff00'))
-                          .catch(e => window._dbg('play() REJECTED: ' + e.name + ': ' + e.message, '#ff6b6b'));
+    const p = audioEl.play();
+    if (p) p.then(() => window._dbg('play() OK!', '#00ff00'))
+             .catch(e => window._dbg('play() FAIL: ' + e.name + ':' + e.message, '#ff6b6b'));
 
     unlockStreamingControls();
     setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — streaming');
