@@ -1,15 +1,22 @@
 // ── On-screen debug logger ───────────────────────────────────────────────────
 (function() {
+  var _msgs = [];
   function showDebug(msg, color) {
+    _msgs.push({msg: msg, color: color || '#fff'});
     var el = document.getElementById('_debug_log');
-    if (!el) {
+    if (!el && document.body) {
       el = document.createElement('div');
       el.id = '_debug_log';
       el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:220px;overflow-y:auto;background:rgba(0,0,0,0.88);color:#fff;font-family:monospace;font-size:11px;padding:8px;z-index:99999';
       document.body.appendChild(el);
+      _msgs.forEach(function(m) { addLine(el, m.msg, m.color); });
+    } else if (el) {
+      addLine(el, msg, color || '#fff');
     }
+  }
+  function addLine(el, msg, color) {
     var line = document.createElement('div');
-    line.style.color = color || '#fff';
+    line.style.color = color;
     line.style.borderBottom = '1px solid #333';
     line.style.padding = '2px 0';
     line.textContent = new Date().toLocaleTimeString() + ' ' + msg;
@@ -17,8 +24,8 @@
     el.scrollTop = el.scrollHeight;
   }
   window._dbg = showDebug;
-  window.addEventListener('error', function(e) { showDebug('JS ERROR: ' + e.message, '#ff6b6b'); });
-  window.addEventListener('unhandledrejection', function(e) { showDebug('PROMISE: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)), '#ffa500'); });
+  window.addEventListener('error', function(e) { showDebug('JS ERROR: ' + e.message + ' ' + e.filename + ':' + e.lineno, '#ff6b6b'); });
+  window.addEventListener('unhandledrejection', function(e) { showDebug('PROMISE ERR: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)), '#ffa500'); });
 })();
 
 const STORAGE_KEY = 'kernl_v2';
@@ -428,6 +435,7 @@ async function checkAudioCache() {
 }
 
 // ── MAIN PLAYER ──────────────────────────────────────────────────────────────
+// ── MAIN PLAYER ──────────────────────────────────────────────────────────────
 async function startTTS() {
   if (!currentSummary) return;
 
@@ -436,7 +444,6 @@ async function startTTS() {
   lockStreamingControls();
 
   const cachedUrl = await checkAudioCache();
-
 
   if (cachedUrl) {
     unlockStreamingControls();
@@ -451,11 +458,13 @@ async function startTTS() {
   audioEl.volume = 0.01;
   audioEl.preload = 'none';
   const initialPlay = audioEl.play().catch(err => {
+    window._dbg('initial play caught: ' + err.message, '#ffa500');
   });
 
   setPlayerState(true, 'Generating audio…');
 
   try {
+    window._dbg('fetching token...', '#aaffaa');
     const tokenRes = await fetch('/api/tts-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -469,18 +478,26 @@ async function startTTS() {
 
     if (!tokenRes.ok) throw new Error('Token failed: ' + tokenRes.status);
     const { token } = await tokenRes.json();
+    window._dbg('token: ' + token, '#aaffaa');
 
     const streamUrl = 'https://peebgzfufyklxzdfnesc.supabase.co/functions/v1/tts-stream?token=' + encodeURIComponent(token);
-
-    // Set src on the SAME element we already called .play() on
+    window._dbg('setting audio src...', '#aaffaa');
     audioEl.src = streamUrl;
     audioEl.volume = 1.0;
     audioEl.playbackRate = playbackRate;
 
+    audioEl.addEventListener('canplay', () => window._dbg('canplay fired!', '#00ff00'));
+    audioEl.addEventListener('playing', () => window._dbg('PLAYING!', '#00ff00'));
+    audioEl.addEventListener('stalled', () => window._dbg('STALLED', '#ff6b6b'));
+    audioEl.addEventListener('waiting', () => window._dbg('waiting...', '#ffa500'));
+    audioEl.addEventListener('error', e => window._dbg('AUDIO ERROR: ' + (e.target.error ? e.target.error.code + ':' + e.target.error.message : '?'), '#ff6b6b'));
+
     _attachAudioHandlers(null);
 
+    window._dbg('calling play()...', '#aaffaa');
     const realPlay = audioEl.play();
-    if (realPlay) realPlay.catch(e => console.warn('play() failed:', e.message));
+    if (realPlay) realPlay.then(() => window._dbg('play() resolved OK', '#00ff00'))
+                          .catch(e => window._dbg('play() REJECTED: ' + e.name + ': ' + e.message, '#ff6b6b'));
 
     unlockStreamingControls();
     setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — streaming');
@@ -488,6 +505,7 @@ async function startTTS() {
     initScrubEvents();
 
   } catch (e) {
+    window._dbg('CATCH: ' + e.message, '#ff6b6b');
     if (audioEl) { try { audioEl.pause(); } catch(ex) {} }
     unlockStreamingControls();
     unlockVoiceButtons();
