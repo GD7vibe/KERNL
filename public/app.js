@@ -715,6 +715,9 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   stopAudio();
   unlockVoiceButtons();
   currentSummary = { title, author, html, plain, words, spoilers };
+  // Ensure play button is enabled now that we have full summary data
+  const playBtn = document.getElementById('play-btn');
+  if (playBtn) { playBtn.disabled = false; playBtn.style.opacity = ''; playBtn.style.cursor = ''; playBtn.style.pointerEvents = ''; }
   document.getElementById('s-title').textContent = title;
   document.getElementById('s-author').textContent = 'by ' + author;
   document.getElementById('s-words').textContent = countWords(plain).toLocaleString() + ' words';
