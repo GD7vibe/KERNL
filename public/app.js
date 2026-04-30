@@ -1,33 +1,3 @@
-// ── On-screen debug logger ───────────────────────────────────────────────────
-(function() {
-  var _msgs = [];
-  function showDebug(msg, color) {
-    _msgs.push({msg: msg, color: color || '#fff'});
-    var el = document.getElementById('_debug_log');
-    if (!el && document.body) {
-      el = document.createElement('div');
-      el.id = '_debug_log';
-      el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:220px;overflow-y:auto;background:rgba(0,0,0,0.88);color:#fff;font-family:monospace;font-size:11px;padding:8px;z-index:99999';
-      document.body.appendChild(el);
-      _msgs.forEach(function(m) { addLine(el, m.msg, m.color); });
-    } else if (el) {
-      addLine(el, msg, color || '#fff');
-    }
-  }
-  function addLine(el, msg, color) {
-    var line = document.createElement('div');
-    line.style.color = color;
-    line.style.borderBottom = '1px solid #333';
-    line.style.padding = '2px 0';
-    line.textContent = new Date().toLocaleTimeString() + ' ' + msg;
-    el.appendChild(line);
-    el.scrollTop = el.scrollHeight;
-  }
-  window._dbg = showDebug;
-  window.addEventListener('error', function(e) { showDebug('JS ERROR: ' + e.message + ' ' + e.filename + ':' + e.lineno, '#ff6b6b'); });
-  window.addEventListener('unhandledrejection', function(e) { showDebug('PROMISE ERR: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)), '#ffa500'); });
-})();
-
 const STORAGE_KEY = 'kernl_v2';
 const AMAZON_TAG = 'gd7vibe-21';
 
@@ -435,6 +405,9 @@ async function checkAudioCache() {
 }
 
 // ── MAIN PLAYER ──────────────────────────────────────────────────────────────
+// Audio is pre-generated server-side after summary creation.
+// By the time user taps play it should always be a cache hit.
+// Falls back to streaming via tts-stream if not yet cached.
 async function startTTS() {
   if (!currentSummary) return;
 
@@ -443,64 +416,33 @@ async function startTTS() {
   lockStreamingControls();
 
   const cachedUrl = await checkAudioCache();
-  window._dbg('cache: ' + (cachedUrl ? 'HIT' : 'MISS'), '#aaffaa');
 
   if (cachedUrl) {
+    // Cache hit — play instantly via proxy
     unlockStreamingControls();
     playSingleAudio(cachedUrl, null);
     return;
   }
 
-  setPlayerState(true, 'Generating audio…');
+  // Audio not cached yet (still being generated server-side)
+  // Poll for up to 60 seconds then give up
+  setPlayerState(true, 'Audio being prepared…');
+  const start = Date.now();
 
-  try {
-    window._dbg('fetching token...', '#aaffaa');
-    const tokenRes = await fetch('/api/tts-stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: currentSummary.plain,
-        voice: currentVoice,
-        title: currentSummary.title,
-        author: currentSummary.author
-      })
-    });
-
-    if (!tokenRes.ok) throw new Error('Token failed: ' + tokenRes.status);
-    const { token } = await tokenRes.json();
-    window._dbg('token ok, creating audio...', '#aaffaa');
-
-    // Create Audio with src set at creation — iOS needs src before play()
-    const streamUrl = 'https://peebgzfufyklxzdfnesc.supabase.co/functions/v1/tts-stream?token=' + encodeURIComponent(token);
-    audioEl = new Audio(streamUrl);
-    audioEl.volume = 1.0;
-    audioEl.playbackRate = playbackRate;
-
-    audioEl.addEventListener('canplay', () => window._dbg('canplay!', '#00ff00'));
-    audioEl.addEventListener('playing', () => window._dbg('PLAYING!', '#00ff00'));
-    audioEl.addEventListener('stalled', () => window._dbg('STALLED', '#ff6b6b'));
-    audioEl.addEventListener('waiting', () => window._dbg('waiting...', '#ffa500'));
-    audioEl.addEventListener('error', e => window._dbg('ERR: ' + (e.target.error ? e.target.error.code + ':' + e.target.error.message : '?'), '#ff6b6b'));
-
-    _attachAudioHandlers(null);
-
-    window._dbg('calling play()...', '#aaffaa');
-    const p = audioEl.play();
-    if (p) p.then(() => window._dbg('play() OK!', '#00ff00'))
-             .catch(e => window._dbg('play() FAIL: ' + e.name + ':' + e.message, '#ff6b6b'));
-
-    unlockStreamingControls();
-    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — streaming');
-    registerMediaSession(currentSummary.title, currentSummary.author);
-    initScrubEvents();
-
-  } catch (e) {
-    window._dbg('CATCH: ' + e.message, '#ff6b6b');
-    if (audioEl) { try { audioEl.pause(); } catch(ex) {} }
-    unlockStreamingControls();
-    unlockVoiceButtons();
-    setPlayerState(false, 'Audio unavailable — tap to retry');
+  while (Date.now() - start < 60000) {
+    await new Promise(r => setTimeout(r, 3000));
+    const url = await checkAudioCache();
+    if (url) {
+      unlockStreamingControls();
+      playSingleAudio(url, null);
+      return;
+    }
   }
+
+  // Timed out
+  unlockStreamingControls();
+  unlockVoiceButtons();
+  setPlayerState(false, 'Audio unavailable — tap to retry');
 }
 
 function _attachAudioHandlers(blobUrl) {
