@@ -5,6 +5,9 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/library", "destination": "/library.html" }
   ],
+  "functions": {
+    "api/summarise.js": { "maxDuration": 300 }
+  },
   "headers": [
     {
       "source": "/(app|index|library|summary).js",
