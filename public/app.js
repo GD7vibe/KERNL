@@ -548,17 +548,7 @@ async function handleGenerate() {
           try {
             const msg = JSON.parse(line.slice(6).trim());
             if (msg.error) throw new Error(msg.error);
-            if (msg.audioReady) {
-              // Audio cached — unlock play button silently
-              const playBtn = document.getElementById('play-btn');
-              if (playBtn) {
-                playBtn.disabled = false;
-                playBtn.style.opacity = '';
-                playBtn.style.cursor = '';
-                playBtn.style.pointerEvents = '';
-              }
-              continue;
-            }
+
             if (msg.done) { finalData = msg; continue; }
             if (msg.chunk) {
               lastHtml = msg.chunk;
@@ -584,6 +574,32 @@ async function handleGenerate() {
       saveEntry({ title, author: displayAuthor, html: finalData.html, plain: finalData.plain, words: finalData.words || [], spoilers, savedAt: Date.now() });
       renderArchive();
       displaySummary(title, displayAuthor, finalData.html, finalData.plain, finalData.words || [], false);
+
+      // Generate audio in background — play button unlocks when ready
+      fetch('/api/generate-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          author: displayAuthor,
+          plain: finalData.plain,
+          voice: currentVoice
+        })
+      }).then(r => r.json()).then(data => {
+        if (data.ok) {
+          // Audio is in Supabase — unlock play button silently
+          const playBtn = document.getElementById('play-btn');
+          if (playBtn) {
+            playBtn.disabled = false;
+            playBtn.style.opacity = '';
+            playBtn.style.cursor = '';
+            playBtn.style.pointerEvents = '';
+          }
+          document.getElementById('player-sub').textContent =
+            (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — press play';
+        }
+      }).catch(e => console.warn('Audio generation failed:', e.message));
+
     } else if (streamingStarted && lastHtml) {
       // Stream cut before done message — display what we got, save best effort
       const plainText = lastHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
