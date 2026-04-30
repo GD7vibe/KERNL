@@ -646,9 +646,22 @@ async function handleGenerate() {
   );
   if (cached) {
     setStatus('Found in your library \u2014 loading instantly!', true);
-    setTimeout(() => {
+    setTimeout(async () => {
       setStatus('', false);
-      displaySummary(cached.title, cached.author, cached.html, cached.plain, cached.words || [], cached.spoilers || false, true);
+      let words = cached.words || [];
+      // If no words in local cache, try fetching from Supabase
+      if (!words.length) {
+        try {
+          const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || ''));
+          if (r.ok) {
+            const d = await r.json();
+            if (d.words) {
+              try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {}
+            }
+          }
+        } catch(e) { /* ignore */ }
+      }
+      displaySummary(cached.title, cached.author, cached.html, cached.plain, words, cached.spoilers || false, true);
     }, 600);
     return;
   }
