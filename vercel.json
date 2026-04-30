@@ -6,7 +6,8 @@
     { "source": "/library", "destination": "/library.html" }
   ],
   "functions": {
-    "api/summarise.js": { "maxDuration": 300 }
+    "api/summarise.js": { "maxDuration": 120 },
+    "api/generate-audio.js": { "maxDuration": 300 }
   },
   "headers": [
     {
