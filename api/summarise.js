@@ -243,12 +243,15 @@ module.exports = async (req, res) => {
     // Also send done event immediately so user sees the complete summary
     res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
 
+    // Run Supabase save and audio generation concurrently
     console.log('Starting concurrent: Supabase save + xAI TTS generation');
-    await Promise.all([
-      saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message)),
-      generateAndCacheAudio(title, author, plain, audioVoice).catch(e => console.error('Audio generation failed:', e.message))
+    const [, audioOk] = await Promise.all([
+      saveToSupabase(title, author, saveKey, html, plain, words).catch(e => { console.error('Supabase save failed:', e.message); return false; }),
+      generateAndCacheAudio(title, author, plain, audioVoice).catch(e => { console.error('Audio generation failed:', e.message); return false; })
     ]);
 
+    // Notify frontend that audio is ready — unlocks play button
+    res.write('data: ' + JSON.stringify({ audioReady: true, ok: !!audioOk }) + '\n\n');
     res.end();
 
   } catch(err) {
