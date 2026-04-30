@@ -193,7 +193,7 @@ function unlockStreamingControls() {
 
 // Lock ALL player/action controls during summary generation
 function lockAllControls() {
-  var ids = ['play-btn', 'pvf', 'pvm', 'vbf', 'vbm', 'send-kindle-btn'];
+  var ids = ['play-btn', 'vbf', 'vbm', 'send-kindle-btn'];
   ids.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) {
@@ -230,7 +230,7 @@ function lockAllControls() {
 
 // Restore all controls after generation
 function unlockAllControls() {
-  var ids = ['play-btn', 'pvf', 'pvm', 'vbf', 'vbm', 'send-kindle-btn'];
+  var ids = ['play-btn', 'vbf', 'vbm', 'send-kindle-btn'];
   ids.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) {
@@ -263,14 +263,14 @@ function unlockAllControls() {
 }
 
 function lockVoiceButtons() {
-  ['pvf','pvm','vbf','vbm'].forEach(id => {
+  ['vbf','vbm'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.disabled = true; el.style.opacity = '0.4'; el.style.cursor = 'not-allowed'; }
   });
 }
 
 function unlockVoiceButtons() {
-  ['pvf','pvm','vbf','vbm'].forEach(id => {
+  ['vbf','vbm'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.disabled = false; el.style.opacity = ''; el.style.cursor = ''; }
   });
@@ -490,8 +490,6 @@ function setVoice(v) {
   currentVoice = v;
   document.getElementById('vbf').classList.toggle('active', v === 'female');
   document.getElementById('vbm').classList.toggle('active', v === 'male');
-  document.getElementById('pvf').classList.toggle('on', v === 'female');
-  document.getElementById('pvm').classList.toggle('on', v === 'male');
   const wasPlaying = isPlaying;
   stopAudio();
   isPlaying = false;
