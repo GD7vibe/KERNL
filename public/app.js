@@ -193,7 +193,7 @@ function unlockStreamingControls() {
 
 // Lock ALL player/action controls during summary generation
 function lockAllControls() {
-  var ids = ['play-btn', 'vbf', 'vbm', 'send-kindle-btn'];
+  var ids = ['vbf', 'vbm', 'send-kindle-btn'];
   ids.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) {
@@ -230,7 +230,7 @@ function lockAllControls() {
 
 // Restore all controls after generation
 function unlockAllControls() {
-  var ids = ['play-btn', 'vbf', 'vbm', 'send-kindle-btn'];
+  var ids = ['vbf', 'vbm', 'send-kindle-btn'];
   ids.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) {
@@ -405,44 +405,23 @@ async function checkAudioCache() {
 }
 
 // ── MAIN PLAYER ──────────────────────────────────────────────────────────────
-// Audio is pre-generated server-side after summary creation.
-// By the time user taps play it should always be a cache hit.
-// Falls back to streaming via tts-stream if not yet cached.
 async function startTTS() {
   if (!currentSummary) return;
 
-  setPlayerState(true, 'Loading audio…');
   lockVoiceButtons();
   lockStreamingControls();
 
   const cachedUrl = await checkAudioCache();
-
   if (cachedUrl) {
-    // Cache hit — play instantly via proxy
     unlockStreamingControls();
     playSingleAudio(cachedUrl, null);
     return;
   }
 
-  // Audio not cached yet (still being generated server-side)
-  // Poll for up to 60 seconds then give up
-  setPlayerState(true, 'Audio being prepared…');
-  const start = Date.now();
-
-  while (Date.now() - start < 60000) {
-    await new Promise(r => setTimeout(r, 3000));
-    const url = await checkAudioCache();
-    if (url) {
-      unlockStreamingControls();
-      playSingleAudio(url, null);
-      return;
-    }
-  }
-
-  // Timed out
+  // Should not reach here — play button only unlocks when audio is ready
   unlockStreamingControls();
   unlockVoiceButtons();
-  setPlayerState(false, 'Audio unavailable — tap to retry');
+  setPlayerState(false, null);
 }
 
 function _attachAudioHandlers(blobUrl) {
@@ -569,6 +548,17 @@ async function handleGenerate() {
           try {
             const msg = JSON.parse(line.slice(6).trim());
             if (msg.error) throw new Error(msg.error);
+            if (msg.audioReady) {
+              // Audio cached — unlock play button silently
+              const playBtn = document.getElementById('play-btn');
+              if (playBtn) {
+                playBtn.disabled = false;
+                playBtn.style.opacity = '';
+                playBtn.style.cursor = '';
+                playBtn.style.pointerEvents = '';
+              }
+              continue;
+            }
             if (msg.done) { finalData = msg; continue; }
             if (msg.chunk) {
               lastHtml = msg.chunk;
@@ -627,7 +617,7 @@ function displaySummaryStreaming(title, author, htmlSoFar) {
   document.getElementById('s-words').textContent = 'generating\u2026';
   document.getElementById('summary-body').innerHTML = htmlSoFar;
   document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
+  document.getElementById('player-sub').textContent = (currentVoice === 'female' ? 'Female' : 'Male') + ' voice';
   resetScrubUI();
   document.getElementById('megan-words-section').style.display = 'none';
   document.getElementById('summary-card').classList.add('show');
