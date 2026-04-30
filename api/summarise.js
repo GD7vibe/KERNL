@@ -239,17 +239,15 @@ module.exports = async (req, res) => {
     const html = stripWordsBlock(raw);
     const plain = htmlToPlain(html);
 
-    // Save summary to Supabase
-    try { await saveToSupabase(title, author, saveKey, html, plain, words); } catch(e) { console.error('Supabase save failed:', e.message); }
-
-    // Send done event to frontend — user sees complete summary
+    // Run Supabase save and audio generation concurrently
+    // Also send done event immediately so user sees the complete summary
     res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
 
-    // ── Now generate audio — must happen before res.end() ────────────────────
-    // We have the complete plain text now, call xAI REST API
-    // This runs while the SSE connection is still open (Vercel won't kill it)
-    console.log('Starting xAI TTS generation for:', audioFilename);
-    await generateAndCacheAudio(title, author, plain, audioVoice);
+    console.log('Starting concurrent: Supabase save + xAI TTS generation');
+    await Promise.all([
+      saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message)),
+      generateAndCacheAudio(title, author, plain, audioVoice).catch(e => console.error('Audio generation failed:', e.message))
+    ]);
 
     res.end();
 
