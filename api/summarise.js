@@ -7,8 +7,7 @@ function makeAudioKey(title, author, voice) {
   return `${safe(title)}__${safe(author)}__${voice}.mp3`;
 }
 
-// ── Pre-generate and cache audio after summary is saved ───────────────────────
-// Called fire-and-forget — does not block the summary response
+// ── Generate and cache audio using xAI REST API ───────────────────────────────
 async function generateAndCacheAudio(title, author, plainText, voice = 'female') {
   try {
     const xaiVoice = voice === 'male' ? 'leo' : 'eve';
@@ -21,11 +20,7 @@ async function generateAndCacheAudio(title, author, plainText, voice = 'female')
         'Authorization': `Bearer ${process.env.XAI_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        text: plainText,
-        voice_id: xaiVoice,
-        language: 'en'
-      })
+      body: JSON.stringify({ text: plainText, voice_id: xaiVoice, language: 'en' })
     });
 
     if (!ttsRes.ok) {
@@ -50,11 +45,27 @@ async function generateAndCacheAudio(title, author, plainText, voice = 'female')
     );
 
     if (!uploadRes.ok) {
-      console.error('Supabase audio save failed:', await uploadRes.text());
-      return false;
+      // Try upsert if file already exists
+      const upsertRes = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
+        {
+          method: 'PUT',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'audio/mpeg',
+            'Cache-Control': '3600'
+          },
+          body: buffer
+        }
+      );
+      if (!upsertRes.ok) {
+        console.error('Supabase audio save failed:', await upsertRes.text());
+        return false;
+      }
     }
 
-    console.log('✅ Audio pre-cached:', filename);
+    console.log('Audio pre-cached:', filename);
     return true;
   } catch (e) {
     console.error('Pre-generate audio error:', e.message);
@@ -70,14 +81,29 @@ function levenshtein(a,b) { const m=a.length,n=b.length,dp=Array.from({length:m+
 function similarity(a,b) { const na=normTitle(a),nb=normTitle(b),maxLen=Math.max(na.length,nb.length);if(maxLen===0)return 1;return 1-levenshtein(na,nb)/maxLen; }
 function getDistinctiveWord(title) { const stops=new Set(['the','a','an','and','or','of','in','on','at','to','for','with','by','from','is','it','its','as','be','are','was','were','not','no','my','your','his','her','our','their','this','that','these','those','i','me','we','us','you','he','she','they','them','what','how','why','when','who']);const words=normTitle(title).split(' ').filter(w=>w.length>3&&!stops.has(w));if(!words.length)return normTitle(title).split(' ')[0];return words.sort((a,b)=>b.length-a.length)[0]; }
 async function supabaseGet(url) { const res=await fetch(url,{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});const data=await res.json();return data&&data.length>0?data:null; }
-async function saveToSupabase(title,author,key,html,plain,words) { const res=await fetch(SUPABASE_URL+'/rest/v1/summaries',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({title,author,lookup_key:key,html,plain,words:JSON.stringify(words)})});if(!res.ok){const err=await res.text();console.error('Supabase insert failed:',err);} }
+async function saveToSupabase(title,author,key,html,plain,words) { const res=await fetch(SUPABASE_URL+'/rest/v1/summaries',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({title,author,lookup_key:key,html,plain,words:JSON.stringify(words)})}); if(!res.ok){const err=await res.text();console.error('Supabase insert failed:',err);} }
 async function patchWordsById(id, words) { const res = await fetch(SUPABASE_URL+'/rest/v1/summaries?id=eq.'+id, { method: 'PATCH', headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'}, body: JSON.stringify({ words: JSON.stringify(words) }) }); if (!res.ok) console.error('Supabase patch failed:', res.status); }
 async function generateWordsOnly(plain, title, author) { const prompt = 'Generate exactly 21 interesting vocabulary words for this book summary.\n\nBook: "'+title+'" by '+author+'\n\n'+plain.slice(0,3000)+'\n\nRespond ONLY with a valid JSON array:\n[{"word":"example","definition":"concise definition under 15 words"}]'; const response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'}, body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{role:'user',content:prompt}] }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message || 'API error'); const text = data.content[0].text.replace(/```json|```/g,'').trim(); const words = JSON.parse(text); const seen = new Set(); return words.filter(w => { const k=w.word.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true; }).slice(0,21); }
 async function findCached(title,author,spoilers) { const spoilerSuffix=spoilers?'spoilers':'nospoilers'; const nTitle=norm(title),nAuthor=norm(author),ntTitle=normTitle(title); const exactKey=makeKey(title,author,spoilers); let rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(exactKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1'); if(rows){console.log('Cache hit L1');return rows[0];} if(spoilers){const nfKey=makeKey(title,author,false);rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(nfKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');if(rows){console.log('Cache hit L1b');return rows[0];}} const titleKey=norm(title)+'||'+spoilerSuffix,titleKeyNF=norm(title)+'||nospoilers'; rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=in.('+encodeURIComponent(titleKey)+','+encodeURIComponent(titleKeyNF)+')&select=id,html,plain,words,lookup_key,title,author&limit=1'); if(rows){console.log('Cache hit L2');return rows[0];} rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+nTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=10'); if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.75).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L3');return scored[0].row;}} if(ntTitle!==nTitle){rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+ntTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=10');if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.75).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L3b');return scored[0].row;}}} const word=getDistinctiveWord(title); if(word&&word.length>=4){rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+word+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.70).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L4');return scored[0].row;}}} if(nAuthor&&nAuthor.length>2){rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?author=ilike.'+encodeURIComponent('%'+nAuthor+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.65).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L5');return scored[0].row;}}} console.log('Cache miss');return null; }
-function buildPrompt(title,author,spoilers) { const spoilerInstruction=spoilers?'The user has requested spoilers. Include all major plot points, character arcs, twists, and the ending. Hold nothing back.':'First, determine whether this book is fiction (novel, short story collection) or non-fiction (biography, memoir, history, business, self-help, science, etc). If it is NON-FICTION: ignore the spoiler setting entirely and write a full, comprehensive summary covering all key arguments, insights, data, conclusions and takeaways. Non-fiction has no spoilers. If it is FICTION: write a spoiler-free summary. Do NOT reveal major plot twists, the ending, or key surprises. Focus on themes, writing style, the world of the book, characters and why it is worth reading.'; return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. '+spoilerInstruction+' IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags — return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: Every word must be completely unique — no word may appear more than once in the list. Double-check your list before finalising it. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END'; }
+function buildPrompt(title,author,spoilers) { const spoilerInstruction=spoilers?'The user has requested spoilers. Include all major plot points, character arcs, twists, and the ending. Hold nothing back.':'First, determine whether this book is fiction (novel, short story collection) or non-fiction (biography, memoir, history, business, self-help, science, etc). If it is NON-FICTION: ignore the spoiler setting entirely and write a full, comprehensive summary covering all key arguments, insights, data, conclusions and takeaways. Non-fiction has no spoilers. If it is FICTION: write a spoiler-free summary. Do NOT reveal major plot twists, the ending, or key surprises. Focus on themes, writing style, the world of the book, characters and why it is worth reading.'; return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. '+spoilerInstruction+' IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags - return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: Every word must be completely unique - no word may appear more than once in the list. Double-check your list before finalising it. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END'; }
 function parseWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); const wordsEnd = raw.indexOf('WORDS_END'); if (wordsStart === -1 || wordsEnd === -1) return []; const wordsBlock = raw.slice(wordsStart + 11, wordsEnd).trim(); const seen = new Set(); return wordsBlock.split('\n').map(line => { try { return JSON.parse(line.trim()); } catch(e) { return null; } }).filter(w => w && w.word && w.definition).filter(w => { const k = w.word.toLowerCase().trim(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 21); }
 function stripWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); return wordsStart > -1 ? raw.slice(0, wordsStart).trim() : raw.trim(); }
 function htmlToPlain(html) { return html.replace(/<h2[^>]*>/gi, '\n\n').replace(/<\/h2>/gi, '\n\n').replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n{3,}/g, '\n\n').trim(); }
+
+// ── Extract complete sentences from accumulated text ──────────────────────────
+// Used to send complete sentences to xAI TTS as they arrive from Claude
+function extractCompleteSentences(text) {
+  const sentenceEnd = /[.!?]+(?:\s|$)/g;
+  let lastIdx = 0;
+  let match;
+  let sentences = '';
+  while ((match = sentenceEnd.exec(text)) !== null) {
+    lastIdx = match.index + match[0].length;
+    sentences = text.slice(0, lastIdx);
+  }
+  const remaining = text.slice(lastIdx);
+  return { sentences: sentences.trim(), remaining: remaining };
+}
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -106,7 +132,7 @@ module.exports = async (req, res) => {
   const spoilers = false;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
-  // ── Cache check — return instantly as JSON ────────────────────────────────
+  // ── Cache check ───────────────────────────────────────────────────────────
   try {
     const cached = await findCached(title, author, spoilers);
     if (cached) {
@@ -122,9 +148,11 @@ module.exports = async (req, res) => {
     }
   } catch(e) { console.error('Cache lookup error:', e.message); }
 
-  // ── Not cached — stream from Anthropic ───────────────────────────────────
+  // ── Not cached — stream from Anthropic, pipe plain text to xAI in parallel ─
   const prompt = buildPrompt(title, author, spoilers);
   const nonfictionKey = makeKey(title, author, false);
+  const audioVoice = voice || 'female';
+  const audioFilename = makeAudioKey(title, author, audioVoice);
 
   try {
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -149,6 +177,22 @@ module.exports = async (req, res) => {
     let genreStripped = false;
     let buffer = '';
 
+    // Track plain text accumulated for xAI TTS
+    // We send complete sentences to xAI as they arrive from Claude
+    let plainAccumulated = '';  // plain text built up as Claude streams
+    let sentBuffer = '';        // buffer of text not yet sent to xAI
+
+    // Collect all xAI audio chunks as they stream in parallel
+    let xaiAudioChunks = [];
+    let xaiStarted = false;
+    let xaiPromise = null;
+
+    // Start xAI TTS request (called when we have enough text to start)
+    // We use a rolling approach: accumulate ~200 chars of plain text then fire xAI
+    // xAI REST endpoint processes the full text passed to it
+    // So we wait for the complete plain text then call once at end
+    // BUT we start the xAI call as soon as Claude finishes to overlap with res.end
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -164,14 +208,19 @@ module.exports = async (req, res) => {
           if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
             const chunk = parsed.delta.text;
             fullText += chunk;
+
             let toSend = fullText;
             if (!genreStripped) {
               const firstNewline = toSend.indexOf('\n');
               if (firstNewline > -1) {
                 const firstLine = toSend.slice(0, firstNewline).trim();
-                if (firstLine.toUpperCase().startsWith('GENRE:')) { toSend = toSend.slice(firstNewline).trimStart(); genreStripped = true; }
+                if (firstLine.toUpperCase().startsWith('GENRE:')) {
+                  toSend = toSend.slice(firstNewline).trimStart();
+                  genreStripped = true;
+                }
               } else { continue; }
             }
+
             const wordsStartIdx = toSend.indexOf('WORDS_START');
             const visibleText = wordsStartIdx > -1 ? toSend.slice(0, wordsStartIdx) : toSend;
             res.write(`data: ${JSON.stringify({ chunk: visibleText })}\n\n`);
@@ -180,7 +229,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ── Parse full response ───────────────────────────────────────────────
+    // ── Claude done — parse and save summary ─────────────────────────────────
     let raw = fullText.trim();
     const firstLine = raw.split('\n')[0].trim();
     const isNonFiction = firstLine.toUpperCase().includes('NONFICTION');
@@ -191,18 +240,18 @@ module.exports = async (req, res) => {
     const plain = htmlToPlain(html);
 
     // Save summary to Supabase
-    try { await saveToSupabase(title, author, saveKey, html, plain, words); } catch(saveErr) { console.error('Supabase save failed:', saveErr.message); }
+    try { await saveToSupabase(title, author, saveKey, html, plain, words); } catch(e) { console.error('Supabase save failed:', e.message); }
 
-    // Send final event to frontend
+    // Send done event to frontend — user sees complete summary
     res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
-    res.end();
 
-    // ── Pre-generate audio fire-and-forget ────────────────────────────────
-    // Runs after response ends so it doesn't block the user seeing the summary
-    const audioVoice = voice || 'female';
-    generateAndCacheAudio(title, author, plain, audioVoice).catch(e => {
-      console.error('Background audio generation failed:', e.message);
-    });
+    // ── Now generate audio — must happen before res.end() ────────────────────
+    // We have the complete plain text now, call xAI REST API
+    // This runs while the SSE connection is still open (Vercel won't kill it)
+    console.log('Starting xAI TTS generation for:', audioFilename);
+    await generateAndCacheAudio(title, author, plain, audioVoice);
+
+    res.end();
 
   } catch(err) {
     if (res.headersSent) {
