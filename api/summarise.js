@@ -229,7 +229,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ── Claude done — parse and save summary ─────────────────────────────────
+    // ── Claude done — parse and save ─────────────────────────────────────────
     let raw = fullText.trim();
     const firstLine = raw.split('\n')[0].trim();
     const isNonFiction = firstLine.toUpperCase().includes('NONFICTION');
@@ -239,19 +239,12 @@ module.exports = async (req, res) => {
     const html = stripWordsBlock(raw);
     const plain = htmlToPlain(html);
 
-    // Run Supabase save and audio generation concurrently
-    // Also send done event immediately so user sees the complete summary
+    // Save summary to Supabase
+    await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message));
+
+    // Send done event and close immediately
+    // Audio is generated separately via /api/generate-audio called by the frontend
     res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
-
-    // Run Supabase save and audio generation concurrently
-    console.log('Starting concurrent: Supabase save + xAI TTS generation');
-    const [, audioOk] = await Promise.all([
-      saveToSupabase(title, author, saveKey, html, plain, words).catch(e => { console.error('Supabase save failed:', e.message); return false; }),
-      generateAndCacheAudio(title, author, plain, audioVoice).catch(e => { console.error('Audio generation failed:', e.message); return false; })
-    ]);
-
-    // Notify frontend that audio is ready — unlocks play button
-    res.write('data: ' + JSON.stringify({ audioReady: true, ok: !!audioOk }) + '\n\n');
     res.end();
 
   } catch(err) {
