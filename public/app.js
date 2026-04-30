@@ -8,6 +8,8 @@ let audioEl = null;
 let playbackRate = 1;
 
 let isGenerating = false;
+let streamingAudioContext = null;
+let streamingSources = [];
 let autocompleteTimer = null;
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
@@ -368,6 +370,14 @@ function stopAudio() {
     try { audioEl.pause(); audioEl.src = ''; } catch(e) {}
     audioEl = null;
   }
+  if (streamingSources && streamingSources.length > 0) {
+    streamingSources.forEach(s => { try { s.stop(); } catch(e) {} });
+    streamingSources = [];
+  }
+  if (streamingAudioContext && streamingAudioContext.state !== 'closed') {
+    try { streamingAudioContext.close(); } catch(e) {}
+    streamingAudioContext = null;
+  }
   unlockStreamingControls();
   setPlayerState(false, null);
   resetScrubUI();
@@ -375,10 +385,19 @@ function stopAudio() {
 
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
+  if (streamingAudioContext && streamingAudioContext.state === 'running') {
+    streamingAudioContext.suspend();
+  }
   setPlayerState(false, 'Paused — press play to continue');
   setScrubActive(false);
 }
 function resumeAudio() {
+  if (streamingAudioContext && streamingAudioContext.state === 'suspended') {
+    streamingAudioContext.resume();
+    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
+    setScrubActive(true);
+    return true;
+  }
   if (audioEl && audioEl.paused && audioEl.src) {
     audioEl.play();
     setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
@@ -405,12 +424,21 @@ async function checkAudioCache() {
 }
 
 // ── MAIN PLAYER ──────────────────────────────────────────────────────────────
+// Two paths based on browser:
+// Chrome (desktop + Android): Web Audio API streaming via xAI WebSocket — ~1s to first audio
+// Safari / iOS: Pre-generated MP3 via generate-audio — play button unlocks when ready
+
+function isSafari() {
+  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+}
+
 async function startTTS() {
   if (!currentSummary) return;
 
   lockVoiceButtons();
   lockStreamingControls();
 
+  // Always check cache first — instant play for all browsers on repeat
   const cachedUrl = await checkAudioCache();
   if (cachedUrl) {
     unlockStreamingControls();
@@ -418,10 +446,133 @@ async function startTTS() {
     return;
   }
 
-  // Should not reach here — play button only unlocks when audio is ready
-  unlockStreamingControls();
-  unlockVoiceButtons();
-  setPlayerState(false, null);
+  if (isSafari()) {
+    // ── Safari / iOS path ────────────────────────────────────────────────────
+    // Play button stays greyed — generate-audio.js called from handleGenerate
+    // after summary done. If user taps play before it's ready, explain.
+    unlockStreamingControls();
+    unlockVoiceButtons();
+    setPlayerState(false, null);
+    document.getElementById('player-sub').textContent = 'Audio preparing… tap play again shortly';
+    return;
+  }
+
+  // ── Chrome path: Web Audio API streaming ─────────────────────────────────
+  // Streams MP3 chunks from xAI WebSocket via SSE
+  // First audio arrives ~1 second after starting
+  setPlayerState(true, 'Connecting…');
+
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let audioContext;
+  try {
+    audioContext = new AudioCtx();
+    if (audioContext.state === 'suspended') await audioContext.resume();
+  } catch (e) {
+    console.warn('AudioContext failed:', e);
+    unlockStreamingControls();
+    unlockVoiceButtons();
+    setPlayerState(false, 'Audio unavailable — tap to retry');
+    return;
+  }
+
+  streamingAudioContext = audioContext;
+  streamingSources = [];
+
+  let nextStartTime = audioContext.currentTime + 0.1;
+  let started = false;
+  let mp3Buffer = new Uint8Array(0);
+
+  const scheduleChunk = async (base64chunk) => {
+    const binary = atob(base64chunk);
+    const newBytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) newBytes[i] = binary.charCodeAt(i);
+
+    const combined = new Uint8Array(mp3Buffer.length + newBytes.length);
+    combined.set(mp3Buffer);
+    combined.set(newBytes, mp3Buffer.length);
+    mp3Buffer = combined;
+
+    try {
+      const decoded = await audioContext.decodeAudioData(mp3Buffer.slice(0).buffer);
+      const source = audioContext.createBufferSource();
+      source.buffer = decoded;
+      source.playbackRate.value = playbackRate;
+      source.connect(audioContext.destination);
+      const when = Math.max(nextStartTime, audioContext.currentTime);
+      source.start(when);
+      streamingSources.push(source);
+      nextStartTime = when + decoded.duration;
+      mp3Buffer = new Uint8Array(0);
+
+      if (!started) {
+        started = true;
+        setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice — now playing');
+        registerMediaSession(currentSummary.title, currentSummary.author);
+        initScrubEvents();
+        unlockStreamingControls();
+      }
+    } catch (e) { /* not enough data yet — keep buffering */ }
+  };
+
+  try {
+    const res = await fetch('/api/tts-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: currentSummary.plain,
+        voice: currentVoice,
+        title: currentSummary.title,
+        author: currentSummary.author
+      })
+    });
+
+    if (!res.ok) throw new Error('Stream failed: ' + res.status);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sseBuffer += decoder.decode(value, { stream: true });
+      const lines = sseBuffer.split('
+');
+      sseBuffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const msg = JSON.parse(line.slice(6));
+          if (msg.mp3) await scheduleChunk(msg.mp3);
+          if (msg.done) {
+            unlockStreamingControls();
+            // Audio is now also saved to Supabase by tts-stream.js
+            if (streamingSources.length > 0) {
+              const last = streamingSources[streamingSources.length - 1];
+              last.onended = () => {
+                if (audioContext) { try { audioContext.close(); } catch(e) {} }
+                streamingAudioContext = null;
+                streamingSources = [];
+                isPlaying = false;
+                setPlayerState(false, 'Finished — press play to replay');
+                unlockVoiceButtons();
+                resetScrubUI();
+              };
+            }
+          }
+        } catch (e) { /* ignore parse errors */ }
+      }
+    }
+
+  } catch (e) {
+    console.warn('Chrome TTS stream error:', e.message);
+    if (audioContext) { try { audioContext.close(); } catch(ex) {} }
+    streamingAudioContext = null;
+    streamingSources = [];
+    unlockStreamingControls();
+    unlockVoiceButtons();
+    setPlayerState(false, 'Audio unavailable — tap to retry');
+  }
 }
 
 function _attachAudioHandlers(blobUrl) {
@@ -461,6 +612,7 @@ function playSingleAudio(audioUrl, blobUrl) {
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
+  if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; }
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }
   startTTS();
 }
