@@ -536,8 +536,7 @@ async function startTTS() {
       const { done, value } = await reader.read();
       if (done) break;
       sseBuffer += decoder.decode(value, { stream: true });
-      const lines = sseBuffer.split('
-');
+      const lines = sseBuffer.split('\n');
       sseBuffer = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
