@@ -7,11 +7,17 @@
 <meta name="description" content="for the curious &mdash; AI-powered book summaries you can read or listen to in 10 minutes.">
 <meta property="og:title" content="KERNL &mdash; for the curious">
 <meta property="og:description" content="AI-powered book summaries you can read or listen to in 10 minutes.">
-<meta property="og:url" content="https://kernl-three.vercel.app/">
+<meta property="og:url" content="https://kernlbooks.com/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="KERNL &mdash; for the curious">
 <meta name="twitter:description" content="AI-powered book summaries you can read or listen to in 10 minutes.">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KERNL">
+<meta name="theme-color" content="#1a1714">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
@@ -100,7 +106,7 @@ html.dark .player-scrub-row.active{background:rgba(196,122,58,0.1);border-color:
 .scrub-track{flex:1;height:6px;background:var(--warm);border-radius:3px;cursor:pointer;position:relative;overflow:visible;transition:background var(--transition)}
 .player-scrub-row.active .scrub-track{height:7px;background:rgba(139,69,19,0.15)}
 html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)}
-.scrub-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;pointer-devices:none;transition:width 0.25s linear}
+.scrub-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;pointer-events:none;transition:width 0.25s linear}
 .scrub-thumb{position:absolute;top:50%;left:0%;transform:translateY(-50%) translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(139,69,19,0.4);pointer-events:none;opacity:0;transition:opacity 0.15s}
 .scrub-track:hover .scrub-thumb,.scrub-track.dragging .scrub-thumb{opacity:1}
 .player-scrub-row.active .scrub-thumb{opacity:1}
@@ -270,8 +276,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     <div class="megan-words-section" id="megan-words-section" style="display:none">
       <div class="megan-words-header" onclick="toggleMeganWords()">
         <div class="megan-words-title">
-          <span class="megan-words-title-icon">&#128218;</span>
-          Mega Words
+          <span class="megan-words-title-icon">&#128218;</span> Mega Words
           <span class="megan-words-subtitle">&mdash; interesting words from this book</span>
         </div>
         <span class="megan-arrow" id="megan-arrow">&#9660;</span>
