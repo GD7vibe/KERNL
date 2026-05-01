@@ -115,107 +115,21 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   .player-scrub-row{padding:8px 6px}
 }
 
-/* ==============================================
-   PRINT HANDLING
-   All screen-side show/hide is via body.kernl-printing class.
-   NO display rules for #_pb inside @media print —
-   that was causing iOS to override the screen rule.
-   ============================================== */
-
-/* Screen defaults — print elements hidden */
-#_kp { display:none; }
-#_pb { display:none; }
-
-/* Screen: printing mode active */
-body.kernl-printing #app { display:none !important; }
-body.kernl-printing #_kp {
-  display:block !important;
-  font-family:'DM Sans',sans-serif;
-  font-size:1rem;
-  line-height:1.75;
-  color:var(--ink);
-  background:var(--paper);
-  min-height:100vh;
-  padding:2rem 1.5rem 8rem;
-  max-width:700px;
-  margin:0 auto;
-}
-body.kernl-printing #_kp h1 {
-  font-family:'Playfair Display',serif;
-  font-size:1.8rem;
-  font-weight:600;
-  color:var(--ink);
-  margin-bottom:0.25rem;
-}
-body.kernl-printing #_kp .byl {
-  font-style:italic;
-  color:var(--muted);
-  margin-bottom:1.75em;
-  font-size:0.9rem;
-}
-body.kernl-printing #_kp h2 {
-  font-family:'Playfair Display',serif;
-  font-size:1.05rem;
-  font-weight:600;
-  color:var(--accent);
-  margin-top:1.75rem;
-  padding-bottom:0.35rem;
-  border-bottom:1px solid var(--border);
-  margin-bottom:0.75rem;
-}
-body.kernl-printing #_kp p { margin-bottom:1rem; }
-body.kernl-printing #_kp .ft {
-  margin-top:2rem;
-  font-size:0.78rem;
-  color:var(--muted);
-  font-style:italic;
-  border-top:1px solid var(--border);
-  padding-top:0.75rem;
-}
-
-/* Back button — fixed at bottom, always tappable */
-body.kernl-printing #_pb {
-  display:block !important;
-  position:fixed;
-  bottom:2.5rem;
-  left:50%;
-  transform:translateX(-50%);
-  z-index:99999;
-  background:#8B4513;
-  color:#fff;
-  border:none;
-  border-radius:24px;
-  padding:18px 40px;
-  font-size:1.1rem;
-  font-family:'DM Sans',sans-serif;
-  font-weight:700;
-  cursor:pointer;
-  box-shadow:0 6px 24px rgba(139,69,19,0.6);
-  white-space:nowrap;
-  -webkit-tap-highlight-color:transparent;
-  letter-spacing:0.02em;
-}
-
-/* Actual printer output — only hides #app, leaves #_kp visible for paper */
-@media print {
-  #app { display:none !important; }
-  #_kp {
-    display:block !important;
-    font-family:Georgia,serif;
-    font-size:11pt;
-    line-height:1.7;
-    color:#000;
-    background:#fff;
-    padding:0;
-    margin:0;
-    max-width:none;
-  }
-  #_kp h1 { font-size:18pt; margin-bottom:4pt; }
-  #_kp .byl { font-style:italic; color:#555; margin-bottom:1.5em; }
-  #_kp h2 { font-size:11pt; font-weight:bold; margin-top:18pt; padding-bottom:4pt; border-bottom:1pt solid #ccc; color:#8B4513; }
-  #_kp p { margin:0 0 8pt; }
-  #_kp .ft { margin-top:2em; font-size:8pt; color:#aaa; font-style:italic; border-top:1pt solid #ddd; padding-top:8pt; }
-  #_kp table { width:100%; border-collapse:collapse; font-size:10pt; }
+/* Print view styles — used when ?print=1 is in the URL */
+.print-view{font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.75;color:var(--ink);background:var(--paper);min-height:100vh;padding:2rem 1.5rem 8rem;max-width:700px;margin:0 auto}
+.print-view h1{font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:600;color:var(--ink);margin-bottom:0.25rem}
+.print-view .byl{font-style:italic;color:var(--muted);margin-bottom:1.75em;font-size:0.9rem}
+.print-view h2{font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:600;color:var(--accent);margin-top:1.75rem;padding-bottom:0.35rem;border-bottom:1px solid var(--border);margin-bottom:0.75rem}
+.print-view p{margin-bottom:1rem}
+.print-view .ft{margin-top:2rem;font-size:0.78rem;color:var(--muted);font-style:italic;border-top:1px solid var(--border);padding-top:0.75rem}
+.print-back-btn{position:fixed;bottom:2.5rem;left:50%;transform:translateX(-50%);z-index:9999;background:#8B4513;color:#fff;border:none;border-radius:24px;padding:18px 40px;font-size:1.1rem;font-family:'DM Sans',sans-serif;font-weight:700;cursor:pointer;box-shadow:0 6px 24px rgba(139,69,19,0.6);white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.print-back-btn:active{transform:translateX(-50%) scale(0.97)}
+@media print{
+  .print-back-btn{display:none}
+  .print-view{font-family:Georgia,serif;font-size:11pt;padding:0;max-width:none}
+  .print-view h1{font-size:18pt}
+  .print-view h2{font-size:11pt;border-bottom:1pt solid #ccc;color:#8B4513}
+  .print-view p{margin:0 0 8pt}
 }
 </style>
 </head>
@@ -237,7 +151,6 @@ body.kernl-printing #_pb {
     </div>
   </div>
 </div>
-
 <script>
 const AMAZON_TAG = 'gd7vibe-21';
 let currentSummary = null;
@@ -572,102 +485,24 @@ function downloadEpub() {
   document.head.appendChild(script);
 }
 
-function isIOSPWA() {
-  // Skip window.print() on ALL iOS — both Chrome and Safari get stuck
-  // on the print preview with no way back. Show formatted view instead.
-  return /iP(ad|hone|od)/.test(navigator.userAgent);
-}
-
 function printSummary() {
   if (!currentSummary) return;
-
-  // DEBUG OVERLAY — shows live diagnostics on screen
-  var oldDbg = document.getElementById('_dbg'); if (oldDbg) oldDbg.remove();
-  var dbg = document.createElement('div');
-  dbg.id = '_dbg';
-  dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;color:#0f0;font-family:monospace;font-size:13px;padding:12px;line-height:1.8;';
-  var ua = navigator.userAgent;
-  var _isIOS = /iP(ad|hone|od)/.test(ua);
-  var _standalone = navigator.standalone === true;
-  var _standaloneMedia = window.matchMedia('(display-mode: standalone)').matches;
-  var _isPWA = _standalone || _standaloneMedia;
-  var _willSkip = _isIOS && _isPWA;
-  dbg.innerHTML = '<strong>KERNL DEBUG — tap to close</strong><br>'
-    + 'isIOS: ' + _isIOS + '<br>'
-    + 'navigator.standalone: ' + _standalone + '<br>'
-    + 'display-mode standalone: ' + _standaloneMedia + '<br>'
-    + 'isPWA: ' + _isPWA + '<br>'
-    + 'isIOSPWA(): ' + _willSkip + '<br>'
-    + 'skipping window.print(): ' + _willSkip + '<br>'
-    + 'UA: ' + ua.substring(0,80);
-  dbg.addEventListener('click', function(){ dbg.remove(); });
-  document.body.appendChild(dbg);
-
-  // Build Mega Words HTML if open
-  var meganGrid = document.getElementById('megan-words-grid');
-  var meganOpen = meganGrid && meganGrid.classList.contains('open');
-  var words = currentSummary.words || [];
-  var meganHtml = '';
-  if (meganOpen && words.length) {
-    var wordRows = words.map(function(w){
-      return '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">'+esc(w.word)+'</td>'
-           + '<td style="padding:5pt 0;color:#444;line-height:1.5">'+esc(w.definition)+'</td></tr>';
-    }).join('');
-    meganHtml = '<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em">'
-              + '<h2>Mega Words</h2>'
-              + '<table style="width:100%;border-collapse:collapse;font-size:10pt">'+wordRows+'</table>'
-              + '</div>';
-  }
-
-  // Remove any leftover elements from a previous call
-  var oldKp = document.getElementById('_kp'); if (oldKp) oldKp.remove();
-  var oldPb = document.getElementById('_pb'); if (oldPb) oldPb.remove();
-
-  // Create print content
-  var kp = document.createElement('div');
-  kp.id = '_kp';
-  kp.innerHTML = '<h1>' + esc(currentSummary.title) + '</h1>'
-    + '<div class="byl">by ' + esc(currentSummary.author) + ' \u2014 KERNL Deep Summary</div>'
-    + currentSummary.html
-    + meganHtml
-    + '<div class="ft">Generated by KERNL \u2014 for the curious</div>';
-  document.body.appendChild(kp);
-
-  // Create back button — the ONLY escape route on iOS PWA
-  var pb = document.createElement('button');
-  pb.id = '_pb';
-  pb.textContent = '\u2190 Back to Summary';
-  pb.addEventListener('click', cleanup);
-  document.body.appendChild(pb);
-
-  // Add class to body — CSS takes over all visibility from here
-  document.body.classList.add('kernl-printing');
-
-  function cleanup() {
-    document.body.classList.remove('kernl-printing');
-    var k = document.getElementById('_kp'); if (k) k.remove();
-    var p = document.getElementById('_pb'); if (p) p.remove();
-  }
-
-  // iOS PWA (Safari or Chrome): skip window.print() entirely.
-  // On iOS PWA, window.print() shows a native sheet but afterprint never fires,
-  // and iOS applies @media print CSS to the screen — which fights our back button.
-  // Instead we just show the formatted print view with the back button.
-  // User can still print via the browser's share/options menu if needed.
-  if (isIOSPWA()) {
-    return;
-  }
-
-  // Desktop + Android: normal print flow
-  function onAfterPrint() {
-    window.removeEventListener('afterprint', onAfterPrint);
-    cleanup();
-  }
-  window.addEventListener('afterprint', onAfterPrint);
-  window.print();
-  setTimeout(function() {
-    window.removeEventListener('afterprint', onAfterPrint);
-  }, 10000);
+  // Navigate to print view — same page, same PWA window, no new tab needed.
+  // history.back() on the print page returns here cleanly.
+  var params = new URLSearchParams(window.location.search);
+  var printUrl = '/summary.html?print=1'
+    + '&title=' + encodeURIComponent(currentSummary.title)
+    + '&author=' + encodeURIComponent(currentSummary.author);
+  // Store summary data in sessionStorage so print view can access it
+  try {
+    sessionStorage.setItem('kernl_print', JSON.stringify({
+      title: currentSummary.title,
+      author: currentSummary.author,
+      html: currentSummary.html,
+      words: currentSummary.words || []
+    }));
+  } catch(e) {}
+  window.location.href = printUrl;
 }
 
 function triggerDownload(blob,filename) {
@@ -762,17 +597,84 @@ function renderSummary(data) {
   checkAudioCache();
 }
 
+function renderPrintView(data) {
+  // Hide the normal app shell, show print view
+  document.getElementById('app').style.display = 'none';
+  document.title = 'Print \u2014 ' + data.title + ' \u2014 KERNL';
+
+  var words = data.words || [];
+  var meganHtml = '';
+  if (words.length) {
+    var wordRows = words.map(function(w){
+      return '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:140px">'+esc(w.word)+'</td>'
+           + '<td style="padding:5pt 0;color:var(--muted);line-height:1.5">'+esc(w.definition)+'</td></tr>';
+    }).join('');
+    meganHtml = '<div style="margin-top:2rem;border-top:1px solid var(--border);padding-top:1rem">'
+              + '<h2>Mega Words</h2>'
+              + '<table style="width:100%;border-collapse:collapse;font-size:0.9rem">'+wordRows+'</table>'
+              + '</div>';
+  }
+
+  var pv = document.createElement('div');
+  pv.className = 'print-view';
+  pv.innerHTML = '<h1>' + esc(data.title) + '</h1>'
+    + '<div class="byl">by ' + esc(data.author) + ' \u2014 KERNL Deep Summary</div>'
+    + data.html
+    + meganHtml
+    + '<div class="ft">Generated by KERNL \u2014 for the curious</div>';
+  document.body.appendChild(pv);
+
+  var btn = document.createElement('button');
+  btn.className = 'print-back-btn';
+  btn.textContent = '\u2190 Back to Summary';
+  btn.addEventListener('click', function() { history.back(); });
+  document.body.appendChild(btn);
+}
+
 async function loadSummary() {
   var params = new URLSearchParams(window.location.search);
   var title = params.get('title');
   var author = params.get('author');
+  var isPrint = params.get('print') === '1';
   var voiceParam = params.get('voice');
   if (voiceParam === 'male') currentVoice = 'male';
+
   if (!title) {
     document.getElementById('content').innerHTML = '<div class="loading-card">No book specified. <a href="/library.html">&#8592; Back to Library</a></div>';
     return;
   }
+
   document.title = 'KERNL \u2014 ' + title;
+
+  // Print view mode — load from sessionStorage first (instant), fallback to API
+  if (isPrint) {
+    try {
+      var stored = sessionStorage.getItem('kernl_print');
+      if (stored) {
+        var d = JSON.parse(stored);
+        if (d.title === title) {
+          renderPrintView(d);
+          return;
+        }
+      }
+    } catch(e) {}
+    // Fallback: fetch from API if sessionStorage missed
+    try {
+      var url = '/api/get-summary?title=' + encodeURIComponent(title);
+      if (author) url += '&author=' + encodeURIComponent(author);
+      var res = await fetch(url);
+      if (!res.ok) throw new Error('Not found');
+      var data = await res.json();
+      var words = [];
+      try { words = data.words ? (typeof data.words === 'string' ? JSON.parse(data.words) : data.words) : []; } catch(e) {}
+      renderPrintView({title:title, author:author||data.author||'', html:data.html, words:words});
+    } catch(err) {
+      document.getElementById('content').innerHTML = '<div class="loading-card">Could not load summary. <a href="/library.html">&#8592; Back to Library</a></div>';
+    }
+    return;
+  }
+
+  // Normal summary view
   try {
     var url = '/api/get-summary?title=' + encodeURIComponent(title);
     if (author) url += '&author=' + encodeURIComponent(author);
