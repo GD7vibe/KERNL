@@ -573,9 +573,9 @@ function downloadEpub() {
 }
 
 function isIOSPWA() {
-  var isIOS = /iP(ad|hone|od)/.test(navigator.userAgent);
-  var isPWA = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  return isIOS && isPWA;
+  // Skip window.print() on ALL iOS — both Chrome and Safari get stuck
+  // on the print preview with no way back. Show formatted view instead.
+  return /iP(ad|hone|od)/.test(navigator.userAgent);
 }
 
 function printSummary() {
