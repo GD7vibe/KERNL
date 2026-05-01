@@ -581,6 +581,28 @@ function isIOSPWA() {
 function printSummary() {
   if (!currentSummary) return;
 
+  // DEBUG OVERLAY — shows live diagnostics on screen
+  var oldDbg = document.getElementById('_dbg'); if (oldDbg) oldDbg.remove();
+  var dbg = document.createElement('div');
+  dbg.id = '_dbg';
+  dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;color:#0f0;font-family:monospace;font-size:13px;padding:12px;line-height:1.8;';
+  var ua = navigator.userAgent;
+  var _isIOS = /iP(ad|hone|od)/.test(ua);
+  var _standalone = navigator.standalone === true;
+  var _standaloneMedia = window.matchMedia('(display-mode: standalone)').matches;
+  var _isPWA = _standalone || _standaloneMedia;
+  var _willSkip = _isIOS && _isPWA;
+  dbg.innerHTML = '<strong>KERNL DEBUG — tap to close</strong><br>'
+    + 'isIOS: ' + _isIOS + '<br>'
+    + 'navigator.standalone: ' + _standalone + '<br>'
+    + 'display-mode standalone: ' + _standaloneMedia + '<br>'
+    + 'isPWA: ' + _isPWA + '<br>'
+    + 'isIOSPWA(): ' + _willSkip + '<br>'
+    + 'skipping window.print(): ' + _willSkip + '<br>'
+    + 'UA: ' + ua.substring(0,80);
+  dbg.addEventListener('click', function(){ dbg.remove(); });
+  document.body.appendChild(dbg);
+
   // Build Mega Words HTML if open
   var meganGrid = document.getElementById('megan-words-grid');
   var meganOpen = meganGrid && meganGrid.classList.contains('open');
