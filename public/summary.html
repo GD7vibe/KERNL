@@ -644,14 +644,17 @@ function renderPrintView(data) {
   backBtn.textContent = '\u2190 Back';
   backBtn.addEventListener('click', function() { history.back(); });
 
-  var printBtn = document.createElement('button');
-  printBtn.className = 'print-back-btn';
-  printBtn.style.cssText = 'position:static;transform:none;background:#555';
-  printBtn.textContent = '\uD83D\uDDA8 Print';
-  printBtn.addEventListener('click', function() { window.print(); });
+  // Only show Print button on non-iOS — iOS gets stuck on the print screen
+  if (!/iP(ad|hone|od)/.test(navigator.userAgent)) {
+    var printBtn = document.createElement('button');
+    printBtn.className = 'print-back-btn';
+    printBtn.style.cssText = 'position:static;transform:none;background:#555';
+    printBtn.textContent = '\uD83D\uDDA8 Print';
+    printBtn.addEventListener('click', function() { window.print(); });
+    toolbar.appendChild(printBtn);
+  }
 
   toolbar.appendChild(backBtn);
-  toolbar.appendChild(printBtn);
   document.body.appendChild(toolbar);
 }
 
