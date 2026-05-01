@@ -572,6 +572,12 @@ function downloadEpub() {
   document.head.appendChild(script);
 }
 
+function isIOSPWA() {
+  var isIOS = /iP(ad|hone|od)/.test(navigator.userAgent);
+  var isPWA = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  return isIOS && isPWA;
+}
+
 function printSummary() {
   if (!currentSummary) return;
 
@@ -621,19 +627,22 @@ function printSummary() {
     var p = document.getElementById('_pb'); if (p) p.remove();
   }
 
-  // afterprint fires on desktop + Android after dialog closes
-  var afterPrintFired = false;
+  // iOS PWA (Safari or Chrome): skip window.print() entirely.
+  // On iOS PWA, window.print() shows a native sheet but afterprint never fires,
+  // and iOS applies @media print CSS to the screen — which fights our back button.
+  // Instead we just show the formatted print view with the back button.
+  // User can still print via the browser's share/options menu if needed.
+  if (isIOSPWA()) {
+    return;
+  }
+
+  // Desktop + Android: normal print flow
   function onAfterPrint() {
-    afterPrintFired = true;
     window.removeEventListener('afterprint', onAfterPrint);
     cleanup();
   }
   window.addEventListener('afterprint', onAfterPrint);
-
   window.print();
-
-  // Remove listener after 10s. Never calls cleanup() —
-  // on iOS PWA back button stays visible until tapped.
   setTimeout(function() {
     window.removeEventListener('afterprint', onAfterPrint);
   }, 10000);
