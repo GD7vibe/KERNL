@@ -63,38 +63,56 @@ async function startTTS() {
 
   if (isSafari()) {
     // ── Safari / iOS path ────────────────────────────────────────────────────
-    // No cached audio — grey out play button, generate in background, unlock when ready.
-    greyPlayBtn();
-    document.getElementById('player-sub').textContent = 'Audio generating\u2026 please wait';
+    // Poll /api/tts every 5s until the cached MP3 appears in Supabase Storage,
+    // then autoplay immediately — no second tap needed.
     unlockStreamingControls();
+    const pollTitle = currentSummary.title;
+    const pollAuthor = currentSummary.author;
+    const pollVoice = currentVoice;
+    let pollStopped = false;
+    window._safariPollStop = function() { pollStopped = true; };
 
-    fetch('/api/generate-audio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: currentSummary.plain,
-        voice: currentVoice,
-        title: currentSummary.title,
-        author: currentSummary.author
-      })
-    }).then(r => r.json()).then(data => {
-      if (data.ok) {
-        ungreyPlayBtn();
-        unlockVoiceButtons();
-        document.getElementById('player-sub').textContent =
-          (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 press play';
+    function updateSub(msg) {
+      const sub = document.getElementById('player-sub');
+      if (sub) sub.textContent = msg;
+    }
+
+    async function pollForAudio(attempt) {
+      if (pollStopped) return;
+      if (!currentSummary || currentSummary.title !== pollTitle) return;
+
+      const elapsed = attempt * 5;
+      updateSub('Audio preparing\u2026 ' + elapsed + 's');
+
+      try {
+        const res = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voice: pollVoice, title: pollTitle, author: pollAuthor })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) {
+            if (pollStopped) return;
+            // Audio ready — autoplay without user needing to tap again
+            unlockVoiceButtons();
+            playSingleAudio(data.url, null);
+            return;
+          }
+        }
+      } catch(e) { console.warn('Poll error:', e.message); }
+
+      // Not ready — retry in 5s, max ~3.5 mins (42 attempts)
+      if (attempt < 42) {
+        setTimeout(() => pollForAudio(attempt + 1), 5000);
       } else {
+        updateSub('Audio unavailable \u2014 tap to retry');
         ungreyPlayBtn();
         unlockVoiceButtons();
-        document.getElementById('player-sub').textContent = 'Audio unavailable \u2014 tap to retry';
       }
-    }).catch(e => {
-      console.warn('Audio generation failed:', e.message);
-      ungreyPlayBtn();
-      unlockVoiceButtons();
-      document.getElementById('player-sub').textContent = 'Audio unavailable \u2014 tap to retry';
-    });
+    }
 
+    pollForAudio(1);
     return;
   }
 
@@ -197,7 +215,10 @@ function _attachAudioHandlers(blobUrl) { if (!audioEl) return; audioEl.addEventL
 function playSingleAudio(audioUrl, blobUrl) { audioEl = new Audio(audioUrl); audioEl.playbackRate = playbackRate; _attachAudioHandlers(blobUrl); const p = audioEl.play(); if (p) p.catch(err => { console.warn('play() failed:', err.message); setPlayerState(false, 'Tap play to listen'); unlockVoiceButtons(); }); setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing'); setScrubActive(true); initScrubEvents(); if (currentSummary) registerMediaSession(currentSummary.title, currentSummary.author); }
 function togglePlay() { if (!currentSummary) return; if (isPlaying) { pauseAudio(); return; } if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; } if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; } startTTS(); }
 function setVoice(v) { currentVoice = v; document.getElementById('vbf').classList.toggle('active', v === 'female'); document.getElementById('vbm').classList.toggle('active', v === 'male'); const wasPlaying = isPlaying; stopAudio(); isPlaying = false; if (currentSummary) { document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play'; if (wasPlaying) setTimeout(startTTS, 150); } }
-async function handleGenerate() { const title = document.getElementById('book-input').value.trim(); const author = document.getElementById('author-input').value.trim(); const spoilers = false; setError(''); hideDropdown(); if (!title) { setError('Please enter a book title to continue.'); return; } const cached = getArchive().find(e => norm(e.title) === norm(title) && (!author || norm(e.author) === norm(author)) && (e.spoilers || false) === spoilers); if (cached) { setStatus('Found in your library \u2014 loading instantly!', true); setTimeout(async () => { setStatus('', false); let words = cached.words || []; if (!words.length) { try { const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || '')); if (r.ok) { const d = await r.json(); if (d.words) { try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {} } } } catch(e) {} } displaySummary(cached.title, cached.author, cached.html, cached.plain, words, cached.spoilers || false, true); }, 600); return; } document.getElementById('gen-btn').disabled = true; isGenerating = true; lockAllControls(); setStatus('Generating summary \u2014 appearing shortly\u2026', true); try { const res = await fetch('/api/summarise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, author, spoilers }) }); if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Error ' + res.status); } const contentType = res.headers.get('content-type') || ''; if (contentType.includes('application/json')) { const data = await res.json(); const displayAuthor = author || data.author || 'Unknown author'; saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], spoilers, savedAt: Date.now() }); setStatus('', false); renderArchive(); displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false); return; } const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let streamingStarted = false; let finalData = null; let lastHtml = ''; try { while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); for (const line of lines) { if (!line.startsWith('data: ')) continue; try { const msg = JSON.parse(line.slice(6).trim()); if (msg.error) throw new Error(msg.error); if (msg.done) { finalData = msg; continue; } if (msg.chunk) { lastHtml = msg.chunk; if (!streamingStarted) { streamingStarted = true; setStatus('', false); displaySummaryStreaming(title, author || 'Unknown author', msg.chunk); } else { updateStreamingBody(msg.chunk); } } } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; } } } } catch (streamErr) { if (!streamingStarted) throw streamErr; console.warn('Stream dropped early:', streamErr.message); } const displayAuthor = author || 'Unknown author'; if (finalData) { saveEntry({ title, author: displayAuthor, html: finalData.html, plain: finalData.plain, words: finalData.words || [], spoilers, savedAt: Date.now() }); renderArchive(); displaySummary(title, displayAuthor, finalData.html, finalData.plain, finalData.words || [], false); fetch('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, author: displayAuthor, plain: finalData.plain, voice: currentVoice }) }).then(r => r.json()).then(data => { if (data.ok) { ungreyPlayBtn(); unlockVoiceButtons(); document.getElementById('player-sub').textContent = (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 press play'; } }).catch(e => console.warn('Audio generation failed:', e.message)); } else if (streamingStarted && lastHtml) { const plainText = lastHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); saveEntry({ title, author: displayAuthor, html: lastHtml, plain: plainText, words: [], spoilers, savedAt: Date.now() }); renderArchive(); displaySummary(title, displayAuthor, lastHtml, plainText, [], false); } } catch (err) { setStatus('', false); setError('Could not generate summary: ' + err.message); } finally { document.getElementById('gen-btn').disabled = false; isGenerating = false; unlockAllControls(); } }
+async function handleGenerate() { const title = document.getElementById('book-input').value.trim(); const author = document.getElementById('author-input').value.trim(); const spoilers = false; setError(''); hideDropdown(); if (!title) { setError('Please enter a book title to continue.'); return; } const cached = getArchive().find(e => norm(e.title) === norm(title) && (!author || norm(e.author) === norm(author)) && (e.spoilers || false) === spoilers); if (cached) { setStatus('Found in your library \u2014 loading instantly!', true); setTimeout(async () => { setStatus('', false); let words = cached.words || []; if (!words.length) { try { const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || '')); if (r.ok) { const d = await r.json(); if (d.words) { try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {} } } } catch(e) {} } displaySummary(cached.title, cached.author, cached.html, cached.plain, words, cached.spoilers || false, true); }, 600); return; } document.getElementById('gen-btn').disabled = true; isGenerating = true; lockAllControls(); setStatus('Generating summary \u2014 appearing shortly\u2026', true); try { const res = await fetch('/api/summarise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, author, spoilers }) }); if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Error ' + res.status); } const contentType = res.headers.get('content-type') || ''; if (contentType.includes('application/json')) { const data = await res.json(); const displayAuthor = author || data.author || 'Unknown author'; saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], spoilers, savedAt: Date.now() }); setStatus('', false); renderArchive(); displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false); return; } const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let streamingStarted = false; let finalData = null; let lastHtml = ''; try { while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); for (const line of lines) { if (!line.startsWith('data: ')) continue; try { const msg = JSON.parse(line.slice(6).trim()); if (msg.error) throw new Error(msg.error); if (msg.done) { finalData = msg; continue; } if (msg.chunk) { lastHtml = msg.chunk; if (!streamingStarted) { streamingStarted = true; setStatus('', false); displaySummaryStreaming(title, author || 'Unknown author', msg.chunk); } else { updateStreamingBody(msg.chunk); } } } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; } } } } catch (streamErr) { if (!streamingStarted) throw streamErr; console.warn('Stream dropped early:', streamErr.message); } const displayAuthor = author || 'Unknown author'; if (finalData) { saveEntry({ title, author: displayAuthor, html: finalData.html, plain: finalData.plain, words: finalData.words || [], spoilers, savedAt: Date.now() }); renderArchive(); displaySummary(title, displayAuthor, finalData.html, finalData.plain, finalData.words || [], false); // Fire generate-audio in background — don't wait for it.
+        // On iOS, tapping play will poll until audio is ready and autoplay.
+        // On Chrome, tapping play will stream directly via tts-stream.
+        fetch('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, author: displayAuthor, plain: finalData.plain, voice: currentVoice }) }).catch(e => console.warn('generate-audio fire-and-forget failed:', e.message)); } else if (streamingStarted && lastHtml) { const plainText = lastHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); saveEntry({ title, author: displayAuthor, html: lastHtml, plain: plainText, words: [], spoilers, savedAt: Date.now() }); renderArchive(); displaySummary(title, displayAuthor, lastHtml, plainText, [], false); } } catch (err) { setStatus('', false); setError('Could not generate summary: ' + err.message); } finally { document.getElementById('gen-btn').disabled = false; isGenerating = false; unlockAllControls(); } }
 function stripGenreLine(html) { return html.replace(/^GENRE:(FICTION|NONFICTION)\s*/i, '').replace(/^<p>GENRE:(FICTION|NONFICTION)<\/p>\s*/i, ''); }
 function displaySummaryStreaming(title, author, htmlSoFar) { htmlSoFar = stripGenreLine(htmlSoFar); stopAudio(); currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] }; document.getElementById('s-title').textContent = title; document.getElementById('s-author').textContent = 'by ' + author; document.getElementById('s-words').textContent = 'generating\u2026'; document.getElementById('summary-body').innerHTML = htmlSoFar; document.getElementById('player-title').textContent = title; document.getElementById('player-sub').textContent = (currentVoice === 'female' ? 'Female' : 'Male') + ' voice'; resetScrubUI(); document.getElementById('megan-words-section').style.display = 'none'; document.getElementById('summary-card').classList.add('show'); document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' }); if (isGenerating) lockAllControls(); }
 function updateStreamingBody(htmlSoFar) { htmlSoFar = stripGenreLine(htmlSoFar); const body = document.getElementById('summary-body'); if (body) body.innerHTML = htmlSoFar; }
