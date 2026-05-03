@@ -84,6 +84,69 @@ async function saveToSupabase(title,author,key,html,plain,words) { const res=awa
 async function patchWordsById(id, words) { const res = await fetch(SUPABASE_URL+'/rest/v1/summaries?id=eq.'+id, { method: 'PATCH', headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'}, body: JSON.stringify({ words: JSON.stringify(words) }) }); if (!res.ok) console.error('Supabase patch failed:', res.status); }
 async function generateWordsOnly(plain, title, author) { const prompt = 'Generate exactly 21 interesting vocabulary words for this book summary.\n\nBook: "'+title+'" by '+author+'\n\n'+plain.slice(0,3000)+'\n\nRespond ONLY with a valid JSON array:\n[{"word":"example","definition":"concise definition under 15 words"}]'; const response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'}, body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{role:'user',content:prompt}] }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message || 'API error'); const text = data.content[0].text.replace(/```json|```/g,'').trim(); const words = JSON.parse(text); const seen = new Set(); return words.filter(w => { const k=w.word.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true; }).slice(0,21); }
 
+// ── Categories ────────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  'Business & Entrepreneurship',
+  'Personal Development',
+  'Psychology',
+  'History',
+  'Science & Technology',
+  'Politics & Society',
+  'Philosophy',
+  'Biography & Memoir',
+  'Fiction — Literary',
+  'Fiction — Thriller',
+  'Fiction — Sci-Fi',
+  'Fiction — Historical',
+  'Health & Wellbeing',
+  'Economics',
+  'Leadership',
+  'Nature & Environment',
+  'Crime & True Crime',
+  'Sport',
+  'Parenting & Family',
+  'Spirituality'
+];
+
+async function categoriseBook(title, author, plain) {
+  try {
+    const prompt = 'Categorise this book into 1-3 categories from the list below. Return ONLY a JSON array of category strings, nothing else.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\nSummary snippet: ' + (plain || '').slice(0, 400) + '\n\nAvailable categories:\n' + CATEGORIES.map((c, i) => (i + 1) + '. ' + c).join('\n') + '\n\nRules:\n- Choose 1 to 3 categories maximum\n- Only use categories from the list above, spelled exactly as shown\n- Return ONLY a JSON array e.g. ["History", "Biography & Memoir"]';
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 100, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const text = data.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const cats = JSON.parse(text);
+    const valid = cats.filter(c => CATEGORIES.includes(c)).slice(0, 3);
+    return valid.length > 0 ? valid : [];
+  } catch (e) {
+    console.warn('categoriseBook failed:', e.message);
+    return [];
+  }
+}
+
+// ── Synopsis ──────────────────────────────────────────────────────────────────
+async function generateSynopsis(title, author, plain) {
+  try {
+    const prompt = 'Write a single enticing synopsis for this book in 25 words or fewer. Be specific, punchy and compelling. Shorter is better. No quotes, no labels, just the synopsis itself.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\nSummary: ' + (plain || '').slice(0, 500);
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.content[0].text.trim().replace(/^["']|["']$/g, '');
+    return text.split(/\s+/).slice(0, 25).join(' ');
+  } catch (e) {
+    console.warn('generateSynopsis failed:', e.message);
+    return null;
+  }
+}
+
 async function findCached(title, author) {
   const nTitle=norm(title), nAuthor=norm(author), ntTitle=normTitle(title);
   const exactKey=makeKey(title, author);
@@ -163,7 +226,7 @@ module.exports = async (req, res) => {
     } catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
-  const { title, author, voice } = req.body;
+  const { title, author, voice, skipAudio } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
   // ── Cache check ───────────────────────────────────────────────────────────
@@ -256,6 +319,59 @@ module.exports = async (req, res) => {
     const plain = htmlToPlain(html);
 
     await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message));
+
+    // ── Categories + synopsis — fire and forget in parallel ───────────────────
+    // Does not block the response — runs after res.end()
+    // skipAudio flag suppresses audio generation (used for batch imports)
+    if (!skipAudio) {
+    Promise.all([
+      categoriseBook(title, author, plain),
+      generateSynopsis(title, author, plain)
+    ]).then(async ([categories, synopsis]) => {
+      try {
+        const findRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?lookup_key=eq.' + encodeURIComponent(saveKey) + '&select=id&limit=1', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        const rows = await findRes.json();
+        if (rows && rows[0]) {
+          const patch = {};
+          if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
+          if (synopsis) patch.synopsis = synopsis;
+          if (Object.keys(patch).length > 0) {
+            await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + rows[0].id, {
+              method: 'PATCH',
+              headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+              body: JSON.stringify(patch)
+            });
+            console.log('Categories + synopsis saved for:', title, categories, synopsis);
+          }
+        }
+      } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
+    }).catch(e => console.warn('Categories/synopsis generation failed:', e.message));
+    } else {
+      // skipAudio=true — still run categories+synopsis, just skip audio
+      categoriseBook(title, author, plain).then(async categories => {
+        try {
+          const synopsis = await generateSynopsis(title, author, plain);
+          const findRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?lookup_key=eq.' + encodeURIComponent(saveKey) + '&select=id&limit=1', {
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+          });
+          const rows = await findRes.json();
+          if (rows && rows[0]) {
+            const patch = {};
+            if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
+            if (synopsis) patch.synopsis = synopsis;
+            if (Object.keys(patch).length > 0) {
+              await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + rows[0].id, {
+                method: 'PATCH',
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                body: JSON.stringify(patch)
+              });
+            }
+          }
+        } catch(e) { console.warn('Categories/synopsis save failed (skipAudio):', e.message); }
+      }).catch(e => console.warn('Categories/synopsis failed (skipAudio):', e.message));
+    }
 
     res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
     res.end();
