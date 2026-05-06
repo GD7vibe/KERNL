@@ -82,7 +82,90 @@ function getDistinctiveWord(title) { const stops=new Set(['the','a','an','and','
 async function supabaseGet(url) { const res=await fetch(url,{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});const data=await res.json();return data&&data.length>0?data:null; }
 async function saveToSupabase(title,author,key,html,plain,words) { const res=await fetch(SUPABASE_URL+'/rest/v1/summaries',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({title,author,lookup_key:key,html,plain,words:JSON.stringify(words)})}); if(!res.ok){const err=await res.text();console.error('Supabase insert failed:',err);} }
 async function patchWordsById(id, words) { const res = await fetch(SUPABASE_URL+'/rest/v1/summaries?id=eq.'+id, { method: 'PATCH', headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'}, body: JSON.stringify({ words: JSON.stringify(words) }) }); if (!res.ok) console.error('Supabase patch failed:', res.status); }
-async function generateWordsOnly(plain, title, author) { const prompt = 'Generate exactly 21 interesting vocabulary words for this book summary.\n\nBook: "'+title+'" by '+author+'\n\n'+plain.slice(0,3000)+'\n\nRespond ONLY with a valid JSON array:\n[{"word":"example","definition":"concise definition under 15 words"}]'; const response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'}, body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{role:'user',content:prompt}] }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message || 'API error'); const text = data.content[0].text.replace(/```json|```/g,'').trim(); const words = JSON.parse(text); const seen = new Set(); return words.filter(w => { const k=w.word.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true; }).slice(0,21); }
+async function generateWordsOnly(plain, title, author) { const prompt = 'Generate exactly 21 interesting vocabulary words for this book summary. You MUST provide exactly 21 unique words — no more, no fewer.\n\nBook: "'+title+'" by '+author+'\n\n'+plain.slice(0,3000)+'\n\nRespond ONLY with a valid JSON array of exactly 21 items:\n[{"word":"example","definition":"concise definition under 15 words"}]'; const response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'}, body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1400, messages:[{role:'user',content:prompt}] }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message || 'API error'); const text = data.content[0].text.replace(/```json|```/g,'').trim(); const words = JSON.parse(text); const seen = new Set(); const unique = words.filter(w => { const k=w.word.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true; }).slice(0,21); if (unique.length < 21) console.warn(`generateWordsOnly: only got ${unique.length} words for "${title}"`); return unique; }
+
+// ── Categories ────────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  'Business & Entrepreneurship',
+  'Personal Development',
+  'Psychology',
+  'History',
+  'Science & Technology',
+  'Politics & Society',
+  'Philosophy',
+  'Biography & Memoir',
+  'Fiction — Literary',
+  'Fiction — Thriller',
+  'Fiction — Sci-Fi',
+  'Fiction — Historical',
+  'Health & Wellbeing',
+  'Economics',
+  'Leadership',
+  'Nature & Environment',
+  'Crime & True Crime',
+  'Sport',
+  'Parenting & Family',
+  'Spirituality'
+];
+
+async function categoriseBook(title, author, plain) {
+  try {
+    const prompt = 'Categorise this book into 1-3 categories from the list below. Return ONLY a JSON array of category strings, nothing else.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\nSummary snippet: ' + (plain || '').slice(0, 400) + '\n\nAvailable categories:\n' + CATEGORIES.map((c, i) => (i + 1) + '. ' + c).join('\n') + '\n\nRules:\n- Choose 1 to 3 categories maximum\n- Only use categories from the list above, spelled exactly as shown\n- Return ONLY a JSON array e.g. ["History", "Biography & Memoir"]';
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 100, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const text = data.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const cats = JSON.parse(text);
+    const valid = cats.filter(c => CATEGORIES.includes(c)).slice(0, 3);
+    return valid.length > 0 ? valid : [];
+  } catch (e) {
+    console.warn('categoriseBook failed:', e.message);
+    return [];
+  }
+}
+
+// ── Synopsis ──────────────────────────────────────────────────────────────────
+// FIX: trim to last complete sentence rather than raw word count, preventing cut-off synopses
+async function generateSynopsis(title, author, plain) {
+  try {
+    const prompt = 'Write a single enticing synopsis for this book in 25 words or fewer. Be specific, punchy and compelling. Shorter is better. Use British English spelling throughout (honour, colour, organise, centre, realise etc). Must be a complete sentence ending with a full stop. No markdown, no hashtags, no title, no quotes, no labels — just the synopsis.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\nSummary: ' + (plain || '').slice(0, 500);
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    let text = data.content[0].text.trim().replace(/^["']|["']$/g, '');
+
+    // Trim to 25 words max, but snap back to last sentence boundary so it never cuts mid-sentence
+    const words = text.split(/\s+/);
+    if (words.length > 25) {
+      text = words.slice(0, 25).join(' ');
+      // Walk back to the last sentence-ending punctuation
+      const lastSentenceEnd = Math.max(
+        text.lastIndexOf('.'),
+        text.lastIndexOf('!'),
+        text.lastIndexOf('?')
+      );
+      if (lastSentenceEnd > 10) {
+        text = text.slice(0, lastSentenceEnd + 1).trim();
+      }
+    }
+
+    // Ensure it ends with punctuation — add full stop if missing
+    if (text && !/[.!?]$/.test(text)) text = text + '.';
+
+    return text || null;
+  } catch (e) {
+    console.warn('generateSynopsis failed:', e.message);
+    return null;
+  }
+}
 
 async function findCached(title, author) {
   const nTitle=norm(title), nAuthor=norm(author), ntTitle=normTitle(title);
@@ -120,7 +203,7 @@ async function findCached(title, author) {
 }
 
 function buildPrompt(title, author) {
-  return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. Write a full, comprehensive summary covering all key arguments, themes, insights, plot points, character arcs, and conclusions. Include spoilers where relevant — the reader wants the complete picture. A disclaimer about spoilers will be shown separately so do not add one yourself. IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags - return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide exactly 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: Every word must be completely unique - no word may appear more than once in the list. Double-check your list before finalising it. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END';
+  return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. Write a full, comprehensive summary covering all key arguments, themes, insights, plot points, character arcs, and conclusions. Include spoilers where relevant — the reader wants the complete picture. A disclaimer about spoilers will be shown separately so do not add one yourself. IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags - return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide EXACTLY 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: You MUST provide exactly 21 words — not 20, not 22, exactly 21. Every word must be completely unique - no word may appear more than once in the list. Count your words before finalising. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END';
 }
 
 function parseWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); const wordsEnd = raw.indexOf('WORDS_END'); if (wordsStart === -1 || wordsEnd === -1) return []; const wordsBlock = raw.slice(wordsStart + 11, wordsEnd).trim(); const seen = new Set(); return wordsBlock.split('\n').map(line => { try { return JSON.parse(line.trim()); } catch(e) { return null; } }).filter(w => w && w.word && w.definition).filter(w => { const k = w.word.toLowerCase().trim(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 21); }
@@ -163,7 +246,7 @@ module.exports = async (req, res) => {
     } catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
-  const { title, author, voice } = req.body;
+  const { title, author, voice, skipAudio } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
   // ── Cache check ───────────────────────────────────────────────────────────
@@ -251,11 +334,60 @@ module.exports = async (req, res) => {
     const firstLine = raw.split('\n')[0].trim();
     if (firstLine.toUpperCase().startsWith('GENRE:')) raw = raw.slice(firstLine.length).trim();
     const saveKey = makeKey(title, author);
-    const words = parseWordsBlock(raw);
+    let words = parseWordsBlock(raw);
     const html = stripWordsBlock(raw);
     const plain = htmlToPlain(html);
 
+    // Ensure exactly 21 Mega Words — top up via Haiku if Claude returned fewer
+    if (words.length < 21) {
+      console.log(`Only ${words.length} words parsed — topping up to 21 via Haiku`);
+      try {
+        const existingWordSet = new Set(words.map(w => w.word.toLowerCase().trim()));
+        const topUpPrompt = 'Generate exactly ' + (21 - words.length) + ' more interesting vocabulary words for this book. They must be different from these already chosen: ' + words.map(w => w.word).join(', ') + '.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\n\n' + plain.slice(0, 2000) + '\n\nRespond ONLY with a valid JSON array:\n[{"word":"example","definition":"concise definition under 15 words"}]';
+        const topUpRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 800, messages: [{ role: 'user', content: topUpPrompt }] })
+        });
+        if (topUpRes.ok) {
+          const topUpData = await topUpRes.json();
+          const topUpText = topUpData.content[0].text.replace(/```json|```/g, '').trim();
+          const topUpWords = JSON.parse(topUpText);
+          const newWords = topUpWords.filter(w => w.word && w.definition && !existingWordSet.has(w.word.toLowerCase().trim()));
+          words = [...words, ...newWords].slice(0, 21);
+          console.log(`Topped up to ${words.length} words`);
+        }
+      } catch(e) { console.warn('Word top-up failed:', e.message); }
+    }
+
     await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message));
+
+    // ── FIX: Categories + synopsis awaited BEFORE res.end() ──────────────────
+    // Previously fire-and-forget — Vercel kills the process immediately after
+    // res.end(), so the patch was never reaching Supabase for live summaries.
+    try {
+      const [categories, synopsis] = await Promise.all([
+        categoriseBook(title, author, plain),
+        generateSynopsis(title, author, plain)
+      ]);
+      const findRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?lookup_key=eq.' + encodeURIComponent(saveKey) + '&select=id&limit=1', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const rows = await findRes.json();
+      if (rows && rows[0]) {
+        const patch = {};
+        if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
+        if (synopsis) patch.synopsis = synopsis;
+        if (Object.keys(patch).length > 0) {
+          await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + rows[0].id, {
+            method: 'PATCH',
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify(patch)
+          });
+          console.log('Categories + synopsis saved for:', title, categories, synopsis);
+        }
+      }
+    } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
 
     res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
     res.end();

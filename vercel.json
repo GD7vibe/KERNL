@@ -6,21 +6,17 @@
     { "source": "/library", "destination": "/library.html" }
   ],
   "functions": {
-    "api/summarise.js": { "maxDuration": 120 },
+    "api/summarise.js": { "maxDuration": 300 },
     "api/generate-audio.js": { "maxDuration": 300 }
   },
   "headers": [
     {
       "source": "/(app|index|library|summary).js",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     },
     {
       "source": "/(.*).html",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     }
   ]
 }
