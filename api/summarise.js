@@ -129,18 +129,38 @@ async function categoriseBook(title, author, plain) {
 }
 
 // ── Synopsis ──────────────────────────────────────────────────────────────────
+// FIX: trim to last complete sentence rather than raw word count, preventing cut-off synopses
 async function generateSynopsis(title, author, plain) {
   try {
-    const prompt = 'Write a single enticing synopsis for this book in 25 words or fewer. Be specific, punchy and compelling. Shorter is better. Use British English spelling throughout (honour, colour, organise, centre, realise etc). Must be a complete sentence. No markdown, no hashtags, no title, no quotes, no labels — just the synopsis.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\nSummary: ' + (plain || '').slice(0, 500);
+    const prompt = 'Write a single enticing synopsis for this book in 25 words or fewer. Be specific, punchy and compelling. Shorter is better. Use British English spelling throughout (honour, colour, organise, centre, realise etc). Must be a complete sentence ending with a full stop. No markdown, no hashtags, no title, no quotes, no labels — just the synopsis.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\nSummary: ' + (plain || '').slice(0, 500);
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const text = data.content[0].text.trim().replace(/^["']|["']$/g, '');
-    return text.split(/\s+/).slice(0, 25).join(' ');
+    let text = data.content[0].text.trim().replace(/^["']|["']$/g, '');
+
+    // Trim to 25 words max, but snap back to last sentence boundary so it never cuts mid-sentence
+    const words = text.split(/\s+/);
+    if (words.length > 25) {
+      text = words.slice(0, 25).join(' ');
+      // Walk back to the last sentence-ending punctuation
+      const lastSentenceEnd = Math.max(
+        text.lastIndexOf('.'),
+        text.lastIndexOf('!'),
+        text.lastIndexOf('?')
+      );
+      if (lastSentenceEnd > 10) {
+        text = text.slice(0, lastSentenceEnd + 1).trim();
+      }
+    }
+
+    // Ensure it ends with punctuation — add full stop if missing
+    if (text && !/[.!?]$/.test(text)) text = text + '.';
+
+    return text || null;
   } catch (e) {
     console.warn('generateSynopsis failed:', e.message);
     return null;
@@ -342,58 +362,32 @@ module.exports = async (req, res) => {
 
     await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message));
 
-    // ── Categories + synopsis — fire and forget in parallel ───────────────────
-    // Does not block the response — runs after res.end()
-    // skipAudio flag suppresses audio generation (used for batch imports)
-    if (!skipAudio) {
-    Promise.all([
-      categoriseBook(title, author, plain),
-      generateSynopsis(title, author, plain)
-    ]).then(async ([categories, synopsis]) => {
-      try {
-        const findRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?lookup_key=eq.' + encodeURIComponent(saveKey) + '&select=id&limit=1', {
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
-        });
-        const rows = await findRes.json();
-        if (rows && rows[0]) {
-          const patch = {};
-          if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
-          if (synopsis) patch.synopsis = synopsis;
-          if (Object.keys(patch).length > 0) {
-            await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + rows[0].id, {
-              method: 'PATCH',
-              headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-              body: JSON.stringify(patch)
-            });
-            console.log('Categories + synopsis saved for:', title, categories, synopsis);
-          }
-        }
-      } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
-    }).catch(e => console.warn('Categories/synopsis generation failed:', e.message));
-    } else {
-      // skipAudio=true — still run categories+synopsis, just skip audio
-      categoriseBook(title, author, plain).then(async categories => {
-        try {
-          const synopsis = await generateSynopsis(title, author, plain);
-          const findRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?lookup_key=eq.' + encodeURIComponent(saveKey) + '&select=id&limit=1', {
-            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    // ── FIX: Categories + synopsis awaited BEFORE res.end() ──────────────────
+    // Previously fire-and-forget — Vercel kills the process immediately after
+    // res.end(), so the patch was never reaching Supabase for live summaries.
+    try {
+      const [categories, synopsis] = await Promise.all([
+        categoriseBook(title, author, plain),
+        generateSynopsis(title, author, plain)
+      ]);
+      const findRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?lookup_key=eq.' + encodeURIComponent(saveKey) + '&select=id&limit=1', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const rows = await findRes.json();
+      if (rows && rows[0]) {
+        const patch = {};
+        if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
+        if (synopsis) patch.synopsis = synopsis;
+        if (Object.keys(patch).length > 0) {
+          await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + rows[0].id, {
+            method: 'PATCH',
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify(patch)
           });
-          const rows = await findRes.json();
-          if (rows && rows[0]) {
-            const patch = {};
-            if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
-            if (synopsis) patch.synopsis = synopsis;
-            if (Object.keys(patch).length > 0) {
-              await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + rows[0].id, {
-                method: 'PATCH',
-                headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-                body: JSON.stringify(patch)
-              });
-            }
-          }
-        } catch(e) { console.warn('Categories/synopsis save failed (skipAudio):', e.message); }
-      }).catch(e => console.warn('Categories/synopsis failed (skipAudio):', e.message));
-    }
+          console.log('Categories + synopsis saved for:', title, categories, synopsis);
+        }
+      }
+    } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
 
     res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
     res.end();
