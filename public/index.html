@@ -22,6 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script defer src="/_vercel/insights/script.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--success-bg:#e8f5ee;--success-fg:#2d6a4f;--error-bg:#fdf0f0;--error-fg:#8B1A1A;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
@@ -37,6 +38,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .dark-toggle{position:absolute;top:1rem;right:1rem;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);display:flex;align-items:center;gap:6px;opacity:0.7}
 .dark-toggle:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
 .dark-toggle-icon{font-size:0.85rem}
+
+/* ── User nav bar ── */
+.user-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:1.5rem;padding:10px 16px;background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm);flex-wrap:wrap;transition:all var(--transition)}
+.user-bar-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.user-tier{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;font-weight:500;padding:3px 10px;border-radius:10px}
+.user-tier.free{background:var(--warm);color:var(--muted);border:1px solid var(--border)}
+.user-tier.pro{background:var(--accent);color:#fff}
+.user-email{font-size:0.8rem;color:var(--muted)}
+.user-usage{font-size:0.78rem;color:var(--muted)}
+.user-usage span{color:var(--accent);font-weight:500}
+.user-bar-right{display:flex;gap:8px;align-items:center}
+.user-nav-btn{height:30px;padding:0 14px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;text-decoration:none;display:flex;align-items:center;transition:all 0.2s}
+.user-nav-btn:hover{border-color:var(--accent-light);color:var(--accent)}
+.user-nav-btn.upgrade{background:var(--accent);border-color:var(--accent);color:#fff}
+.user-nav-btn.upgrade:hover{background:var(--accent-light)}
+
+/* ── Limit warning bar ── */
+.limit-bar{display:none;padding:0.75rem 1rem;background:var(--error-bg);border:1px solid rgba(139,26,26,0.15);border-radius:var(--radius-sm);margin-bottom:1rem;font-size:0.85rem;color:var(--error-fg);line-height:1.5}
+.limit-bar.show{display:block}
+.limit-bar a{color:var(--error-fg);font-weight:500;text-decoration:underline}
+
 .search-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;margin-bottom:2rem;box-shadow:0 2px 16px rgba(139,69,19,0.06);transition:background var(--transition),border-color var(--transition)}
 .search-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 @media(max-width:560px){.search-grid{grid-template-columns:1fr}}
@@ -122,6 +144,9 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .disclaimer-text a:hover{text-decoration:underline}
 .buy-btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s;flex-shrink:0}
 .buy-btn:hover{background:var(--accent-light)}
+.save-btn{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.save-btn:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
+.save-btn.saved{background:var(--success-bg);color:var(--success-fg);border-color:rgba(45,106,79,0.2)}
 .megan-words-section{border-top:1px solid var(--border);transition:border-color var(--transition)}
 .megan-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm);transition:background var(--transition)}
 .megan-words-header:hover{background:var(--accent-pale)}
@@ -176,26 +201,13 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   .player-top{margin-bottom:8px}
   .player-scrub-row{padding:8px 6px}
   .summary-title-row{flex-wrap:wrap;gap:0.5rem}
+  .user-bar{padding:8px 12px}
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<script>
-(function() {
-  var ADMIN_KEY = 'kernl_admin_auth';
-  var ACCESS_CODE = 'kernl2026';
-  var stored = localStorage.getItem(ADMIN_KEY);
-  if (stored === ACCESS_CODE) return;
-  var input = prompt('Enter KERNL access code:');
-  if (input === ACCESS_CODE) {
-    localStorage.setItem(ADMIN_KEY, ACCESS_CODE);
-  } else {
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#7a7060;font-size:1rem;">Access denied. <a href="/library.html" style="margin-left:8px;color:#8B4513;">Browse the free library \u2192</a></div>';
-  }
-})();
-</script>
 <div id="app">
   <div class="masthead">
     <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()">
@@ -205,6 +217,26 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
     <div class="tagline">for the curious</div>
   </div>
+
+  <!-- User nav bar — shown when logged in -->
+  <div class="user-bar" id="user-bar" style="display:none">
+    <div class="user-bar-left">
+      <span class="user-tier" id="user-tier-badge">Free</span>
+      <span class="user-email" id="user-email-display"></span>
+      <span class="user-usage" id="user-usage-display"></span>
+    </div>
+    <div class="user-bar-right">
+      <span id="upgrade-btn-wrap"></span>
+      <a href="/account.html" class="user-nav-btn">My Library</a>
+      <button class="user-nav-btn" onclick="handleSignOut()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Limit warning -->
+  <div class="limit-bar" id="limit-bar">
+    You have used all your downloads. <a href="/upgrade.html">Upgrade to Pro</a> for 200 books per year.
+  </div>
+
   <div class="search-card">
     <div class="search-grid">
       <div class="field">
@@ -232,6 +264,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     </div>
     <div class="error-bar" id="error-bar"></div>
   </div>
+
   <div class="summary-card" id="summary-card">
     <div class="summary-header">
       <div class="summary-header-ornament">&ldquo;</div>
@@ -270,6 +303,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     <div class="summary-actions">
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
       <button class="btn-action" id="send-kindle-btn">&#128235; Send to Kindle</button>
+      <button class="save-btn" id="save-library-btn" onclick="saveToLibrary()" style="display:none">&#43; Save to My Library</button>
       <a id="buy-btn" class="buy-btn" href="#" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>
     </div>
     <div class="summary-body" id="summary-body"></div>
@@ -292,6 +326,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
       <button class="btn-action danger" onclick="closeSummary()">&#10005; Close</button>
     </div>
   </div>
+
   <div class="section-header">
     <div class="section-title">Your library</div>
     <div class="section-right">
