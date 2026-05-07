@@ -134,6 +134,58 @@ async function saveToLibrary() {
   }
 }
 
+// ── Auto save to library on summary load ──────────────────────────────────────
+async function autoSaveToLibrary(title, author) {
+  if (!_currentUser || !_userProfile) return;
+  const tier = _userProfile.tier || 'free';
+  const limit = tier === 'pro' ? 200 : 20;
+  const used = _userProfile.downloads_used || 0;
+  if (used >= limit) return; // silently skip if at limit
+
+  try {
+    const sb = getSB();
+
+    // Find summary ID
+    const { data: rows } = await sb
+      .from('summaries')
+      .select('id')
+      .ilike('title', title)
+      .limit(1);
+    if (!rows || !rows.length) return;
+    const summaryId = rows[0].id;
+
+    // Check if already saved (don't double-count)
+    const { data: existing } = await sb
+      .from('user_library')
+      .select('id')
+      .eq('user_id', _currentUser.id)
+      .eq('summary_id', summaryId)
+      .eq('voice', currentVoice)
+      .eq('language', 'en')
+      .limit(1);
+
+    if (existing && existing.length > 0) return; // already saved, don't decrement
+
+    // Insert into user_library
+    const { error: insertErr } = await sb.from('user_library').insert({
+      user_id: _currentUser.id,
+      summary_id: summaryId,
+      voice: currentVoice,
+      language: 'en'
+    });
+    if (insertErr) return;
+
+    // Increment counter
+    const newUsed = used + 1;
+    await sb.from('profiles').update({ downloads_used: newUsed }).eq('id', _currentUser.id);
+    _userProfile.downloads_used = newUsed;
+    renderUserBar();
+
+  } catch(e) {
+    console.warn('Auto-save to library failed:', e.message);
+  }
+}
+
 // ── Audio visibility (free tier only gets cached audio) ───────────────────────
 async function checkAudioAvailability() {
   if (!currentSummary) return;
@@ -342,14 +394,9 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   const kindleBtn = document.getElementById('send-kindle-btn');
   if (kindleBtn) kindleBtn.onclick = showKindleModal;
 
-  // Save to library button — only show for logged in Pro users (free shows but greyed if at limit)
+  // Hide save button — saving is automatic
   const saveBtn = document.getElementById('save-library-btn');
-  if (saveBtn && _currentUser) {
-    saveBtn.style.display = 'flex';
-    saveBtn.classList.remove('saved');
-    saveBtn.textContent = '+ Save to My Library';
-    saveBtn.disabled = false;
-  }
+  if (saveBtn) saveBtn.style.display = 'none';
 
   document.getElementById('player-title').textContent = title;
   document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
@@ -359,6 +406,11 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
   renderMeganWords(words);
   document.getElementById('summary-card').classList.add('show');
   document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Auto-save to library (only if logged in and not loading from local archive)
+  if (_currentUser && !fromArchive) {
+    autoSaveToLibrary(title, author);
+  }
 
   // Check audio availability based on tier
   checkAudioAvailability();
