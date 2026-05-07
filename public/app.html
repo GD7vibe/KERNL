@@ -182,20 +182,6 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<script>
-(function() {
-  var ADMIN_KEY = 'kernl_admin_auth';
-  var ACCESS_CODE = 'kernl2026';
-  var stored = localStorage.getItem(ADMIN_KEY);
-  if (stored === ACCESS_CODE) return;
-  var input = prompt('Enter KERNL access code:');
-  if (input === ACCESS_CODE) {
-    localStorage.setItem(ADMIN_KEY, ACCESS_CODE);
-  } else {
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#7a7060;font-size:1rem;">Access denied. <a href="/library.html" style="margin-left:8px;color:#8B4513;">Browse the free library \u2192</a></div>';
-  }
-})();
-</script>
 <div id="app">
   <div class="masthead">
     <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()">
