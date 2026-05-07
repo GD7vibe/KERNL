@@ -1,6 +1,7 @@
 {
   "version": 2,
   "outputDirectory": "public",
+  "toolbar": { "defaultOpen": false },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/library", "destination": "/library.html" }
