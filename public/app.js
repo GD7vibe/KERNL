@@ -387,15 +387,14 @@ let _activeCategory = 'All';
 
 async function loadLibrary() {
   try {
-    const sb = getSB();
     let all = [], offset = 0;
     while (true) {
-      const { data, error } = await sb
-        .from('summaries')
-        .select('title,author,synopsis,categories')
-        .range(offset, offset + 999)
-        .order('title', { ascending: true });
-      if (error || !data || !data.length) break;
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/summaries?select=title,author,synopsis,categories&limit=1000&offset=${offset}&order=title.asc`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }
+      );
+      const data = await res.json();
+      if (!data || !data.length) break;
       all = all.concat(data);
       if (data.length < 1000) break;
       offset += 1000;
