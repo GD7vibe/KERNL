@@ -203,7 +203,13 @@ async function handleSignUp() {
   if (password.length < 8) { setMsg('signup-msg', 'error', 'Password must be at least 8 characters.'); return; }
   if (password !== confirm) { setMsg('signup-msg', 'error', 'Passwords do not match.'); return; }
   setLoading('signup-btn', true, 'Create Account &rsaquo;');
-  const { error } = await sb.auth.signUp({ email, password });
+  const { error } = await sb.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: window.location.origin + '/login.html'
+    }
+  });
   setLoading('signup-btn', false, 'Create Account &rsaquo;');
   if (error) { setMsg('signup-msg', 'error', error.message); return; }
   setMsg('signup-msg', 'success', 'Welcome to KERNL! Check your email to confirm your account, then sign in.');
