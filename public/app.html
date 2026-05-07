@@ -122,6 +122,9 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .disclaimer-text a:hover{text-decoration:underline}
 .buy-btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s;flex-shrink:0}
 .buy-btn:hover{background:var(--accent-light)}
+.save-btn{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.save-btn:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
+.save-btn.saved{background:var(--success-bg);color:var(--success-fg);border-color:rgba(45,106,79,0.2)}
 .megan-words-section{border-top:1px solid var(--border);transition:border-color var(--transition)}
 .megan-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm);transition:background var(--transition)}
 .megan-words-header:hover{background:var(--accent-pale)}
@@ -159,6 +162,22 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .archive-date{font-size:0.72rem;color:var(--muted);opacity:0.7}
 .archive-chip{font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--success-fg);background:var(--success-bg);padding:2px 8px;border-radius:10px;font-weight:500;transition:all var(--transition)}
 .archive-empty{text-align:center;padding:2rem;color:var(--muted);font-size:0.9rem;font-style:italic;border:1px dashed var(--border);border-radius:var(--radius-sm);margin-bottom:2.5rem;background:var(--warm);opacity:0.7;transition:all var(--transition)}
+/* ── User nav bar ── */
+.user-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:1.5rem;padding:10px 16px;background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm);flex-wrap:wrap;transition:all var(--transition)}
+.user-bar-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.user-tier{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;font-weight:500;padding:3px 10px;border-radius:10px}
+.user-tier.free{background:var(--warm);color:var(--muted);border:1px solid var(--border)}
+.user-tier.pro{background:var(--accent);color:#fff}
+.user-email{font-size:0.8rem;color:var(--muted)}
+.user-usage{font-size:0.78rem;color:var(--muted)}
+.user-bar-right{display:flex;gap:8px;align-items:center}
+.user-nav-btn{height:30px;padding:0 14px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;text-decoration:none;display:flex;align-items:center;transition:all 0.2s}
+.user-nav-btn:hover{border-color:var(--accent-light);color:var(--accent)}
+.user-nav-btn.upgrade{background:var(--accent);border-color:var(--accent);color:#fff}
+.user-nav-btn.upgrade:hover{background:var(--accent-light)}
+.limit-bar{display:none;padding:0.75rem 1rem;background:var(--error-bg);border:1px solid rgba(139,26,26,0.15);border-radius:var(--radius-sm);margin-bottom:1rem;font-size:0.85rem;color:var(--error-fg);line-height:1.5}
+.limit-bar.show{display:block}
+.limit-bar a{color:var(--error-fg);font-weight:500;text-decoration:underline}
 /* ── Library browser ── */
 .library-section{margin-top:2.5rem}
 .library-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1rem}
@@ -200,9 +219,9 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
   .summary-title-row{flex-wrap:wrap;gap:0.5rem}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div id="app">
@@ -213,6 +232,25 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     </button>
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
     <div class="tagline">for the curious</div>
+  </div>
+
+  <!-- User nav bar -->
+  <div class="user-bar" id="user-bar" style="display:none">
+    <div class="user-bar-left">
+      <span class="user-tier" id="user-tier-badge">Free</span>
+      <span class="user-email" id="user-email-display"></span>
+      <span class="user-usage" id="user-usage-display"></span>
+    </div>
+    <div class="user-bar-right">
+      <span id="upgrade-btn-wrap"></span>
+      <a href="/account.html" class="user-nav-btn">My Library</a>
+      <button class="user-nav-btn" onclick="handleSignOut()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Limit warning -->
+  <div class="limit-bar" id="limit-bar">
+    You have used all your downloads. <a href="/upgrade.html">Upgrade to Pro</a> for 200 summaries per year.
   </div>
   <div class="search-card">
     <div class="search-grid">
@@ -279,6 +317,7 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     <div class="summary-actions">
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
       <button class="btn-action" id="send-kindle-btn">&#128235; Send to Kindle</button>
+      <button class="save-btn" id="save-library-btn" onclick="saveToLibrary()" style="display:none">&#43; Save to My Library</button>
       <a id="buy-btn" class="buy-btn" href="#" target="_blank" rel="noopener noreferrer">&#128218; Buy this book</a>
     </div>
     <div class="summary-body" id="summary-body"></div>
