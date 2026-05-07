@@ -159,9 +159,31 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
 .archive-date{font-size:0.72rem;color:var(--muted);opacity:0.7}
 .archive-chip{font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--success-fg);background:var(--success-bg);padding:2px 8px;border-radius:10px;font-weight:500;transition:all var(--transition)}
 .archive-empty{text-align:center;padding:2rem;color:var(--muted);font-size:0.9rem;font-style:italic;border:1px dashed var(--border);border-radius:var(--radius-sm);margin-bottom:2.5rem;background:var(--warm);opacity:0.7;transition:all var(--transition)}
+/* ── Library browser ── */
+.library-section{margin-top:2.5rem}
+.library-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1rem}
+.library-title{font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--muted)}
+.library-count{font-size:0.75rem;color:var(--muted);background:var(--warm);padding:3px 12px;border-radius:20px;border:1px solid var(--border)}
+.library-loading{text-align:center;padding:2rem;color:var(--muted);font-size:0.85rem;font-style:italic}
+.cat-filter-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1.25rem}
+.cat-btn{height:32px;padding:0 14px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.78rem;color:var(--muted);cursor:pointer;transition:all 0.2s;white-space:nowrap}
+.cat-btn:hover{border-color:var(--accent-light);color:var(--accent)}
+.cat-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:3rem}
+.lib-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem 1.25rem;cursor:pointer;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s,background var(--transition);position:relative;overflow:hidden;min-height:90px}
+.lib-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:0;transition:opacity 0.2s}
+.lib-card:hover{border-color:var(--accent-light);box-shadow:0 4px 16px rgba(139,69,19,0.12);transform:translateY(-1px)}
+.lib-card:hover::before{opacity:1}
+.lib-card-title{font-family:'Playfair Display',serif;font-size:0.92rem;font-weight:600;color:var(--ink);line-height:1.3;margin-bottom:3px}
+.lib-card-author{font-size:0.76rem;color:var(--muted);margin-bottom:0}
+.lib-card-synopsis{display:none;font-size:0.76rem;color:var(--muted);line-height:1.5;margin-top:8px;font-style:italic;border-top:1px solid var(--border);padding-top:8px}
+.lib-card:hover .lib-card-synopsis{display:block}
+.lib-empty{text-align:center;padding:2rem;color:var(--muted);font-size:0.88rem;font-style:italic;border:1px dashed var(--border);border-radius:var(--radius-sm);background:var(--warm);opacity:0.7}
 @media(max-width:560px){
-  body{overflow-x:hidden}
-  #app{padding:0 0 5rem}
+  .lib-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .cat-filter-row{gap:6px}
+  .cat-btn{font-size:0.72rem;padding:0 10px;height:30px}
+}
   .masthead{padding:1.5rem 1rem 1.25rem;margin-bottom:1rem}
   .summary-card{border-radius:0;border-left:none;border-right:none;box-shadow:none;margin-bottom:0}
   .summary-header{padding:1.25rem 1rem 1rem}
@@ -286,6 +308,18 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     </div>
   </div>
   <div id="archive-container"></div>
+
+  <!-- ── Library browser ── -->
+  <div class="library-section" id="library-section">
+    <div class="library-header">
+      <div class="library-title">Browse the library</div>
+      <div class="library-count" id="lib-count"></div>
+    </div>
+    <div class="cat-filter-row" id="cat-filter-row">
+      <button class="cat-btn active" data-cat="All" onclick="filterLibrary('All')">All</button>
+    </div>
+    <div id="lib-grid-container"><div class="library-loading">Loading library&hellip;</div></div>
+  </div>
 </div>
 <script src="/app.js"></script>
 </body>
