@@ -23,9 +23,6 @@ async function initAuth() {
   }
   _currentUser = session.user;
 
-  // Show the app now that we're authenticated
-  document.getElementById('app').style.display = '';
-
   // Load profile
   const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
   _userProfile = profile || { tier: 'free', downloads_used: 0, downloads_reset: null };
