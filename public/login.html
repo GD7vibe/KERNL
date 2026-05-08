@@ -150,9 +150,25 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   if (saved === '1' || (saved === null && prefersDark)) document.documentElement.classList.add('dark');
 })();
 
-// If already logged in, redirect
+// Handle email confirmation — token arrives in URL hash (#access_token=...)
+(async function(){
+  if (window.location.hash && window.location.hash.includes('access_token')) {
+    // Supabase JS picks up the token from the hash automatically
+    // Give it a moment to process
+    await new Promise(r => setTimeout(r, 500));
+    const { data } = await sb.auth.getSession();
+    if (data.session) {
+      window.location.href = '/app.html';
+      return;
+    }
+  }
+})();
+
+// If already logged in, redirect to app
 sb.auth.getSession().then(({ data }) => {
-  if (data.session) window.location.href = '/';
+  if (data.session && !window.location.hash.includes('access_token')) {
+    window.location.href = '/app.html';
+  }
 });
 
 function showPanel(name) {
