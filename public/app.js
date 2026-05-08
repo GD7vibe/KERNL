@@ -50,8 +50,6 @@ function renderUserBar() {
   const limit = tier === 'pro' ? 200 : 20;
   const remaining = Math.max(0, limit - used);
   const pct = Math.min(100, (used / limit) * 100);
-
-  // Colour: green up to 50%, amber 50-80%, red 80%+
   const colour = pct >= 80 ? '#8B1A1A' : pct >= 50 ? '#c47a3a' : '#2d6a4f';
 
   bar.style.display = 'flex';
@@ -66,6 +64,20 @@ function renderUserBar() {
   document.getElementById('upgrade-btn-wrap').innerHTML = tier === 'free'
     ? '<a href="/upgrade.html" class="user-nav-btn upgrade">Upgrade to Pro</a>'
     : '';
+
+  // Update search card hint for free users
+  const bookInput = document.getElementById('book-input');
+  const authorInput = document.getElementById('author-input');
+  const searchHint = document.getElementById('search-hint');
+  if (tier === 'free') {
+    if (bookInput) bookInput.placeholder = 'Search the free library by title\u2026';
+    if (authorInput) authorInput.placeholder = 'or search by author\u2026';
+    if (searchHint) searchHint.style.display = 'block';
+  } else {
+    if (bookInput) bookInput.placeholder = 'e.g. Papillon';
+    if (authorInput) authorInput.placeholder = 'e.g. Henri Charri\u00e8re';
+    if (searchHint) searchHint.style.display = 'none';
+  }
 
   // Show/hide limit bar
   const limitBar = document.getElementById('limit-bar');
@@ -228,9 +240,43 @@ async function checkAudioAvailability() {
 function toggleDark() { const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('kernl_dark', isDark ? '1' : '0'); document.getElementById('dark-icon').textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'; document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark'; }
 function initDark() { const saved = localStorage.getItem('kernl_dark'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const isDark = saved !== null ? saved === '1' : prefersDark; if (isDark) { document.documentElement.classList.add('dark'); document.getElementById('dark-icon').textContent = '\u2600\uFE0F'; document.getElementById('dark-label').textContent = 'Light'; } }
 
-// ── Autocomplete ──────────────────────────────────────────────────────────────
-async function fetchBookSuggestions(query) { if (!query || query.length < 3) { hideDropdown(); return; } try { const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(query)}&limit=6&fields=title,author_name,first_publish_year`); const data = await res.json(); if (!data.docs || !data.docs.length) { hideDropdown(); return; } const results = data.docs.filter(d => d.title && d.author_name && d.author_name.length).slice(0, 5).map(d => ({ title: d.title, author: d.author_name[0], year: d.first_publish_year || '' })); if (results.length) showDropdown(results); else hideDropdown(); } catch (e) { hideDropdown(); } }
+// ── Autocomplete / Library search ────────────────────────────────────────────
+async function fetchBookSuggestions(query) {
+  if (!query || query.length < 2) { hideDropdown(); return; }
+  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
+  if (tier === 'pro') {
+    fetchOpenLibrarySuggestions(query);
+  } else {
+    fetchLibrarySuggestions(query);
+  }
+}
+
+async function fetchOpenLibrarySuggestions(query) {
+  try {
+    const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(query)}&limit=6&fields=title,author_name,first_publish_year`);
+    const data = await res.json();
+    if (!data.docs || !data.docs.length) { hideDropdown(); return; }
+    const results = data.docs.filter(d => d.title && d.author_name && d.author_name.length).slice(0, 5).map(d => ({
+      title: d.title, author: d.author_name[0], year: d.first_publish_year || ''
+    }));
+    if (results.length) showDropdown(results); else hideDropdown();
+  } catch(e) { hideDropdown(); }
+}
+
+async function fetchLibrarySuggestions(query) {
+  if (!_allBooks || !_allBooks.length) { hideDropdown(); return; }
+  const q = query.toLowerCase().trim();
+  const results = _allBooks.filter(b =>
+    (b.title && b.title.toLowerCase().includes(q)) ||
+    (b.author && b.author.toLowerCase().includes(q))
+  ).slice(0, 6).map(b => ({ title: b.title, author: b.author || '', year: '' }));
+  if (results.length) showDropdown(results); else {
+    showDropdownEmpty('No matches in the free library — upgrade to Pro to search any book.');
+  }
+}
 function showDropdown(results) { let dropdown = document.getElementById('book-dropdown'); if (!dropdown) { dropdown = document.createElement('div'); dropdown.id = 'book-dropdown'; dropdown.className = 'book-dropdown'; document.getElementById('book-input').parentNode.appendChild(dropdown); } dropdown.innerHTML = results.map((r, i) => `<div class="dropdown-item" onmousedown="selectBook(${i})" data-title="${esc(r.title)}" data-author="${esc(r.author)}"><div class="dropdown-title">${esc(r.title)}</div><div class="dropdown-author">${esc(r.author)}${r.year ? ' · ' + r.year : ''}</div></div>`).join(''); dropdown.style.display = 'block'; }
+
+function showDropdownEmpty(msg) { let dropdown = document.getElementById('book-dropdown'); if (!dropdown) { dropdown = document.createElement('div'); dropdown.id = 'book-dropdown'; dropdown.className = 'book-dropdown'; document.getElementById('book-input').parentNode.appendChild(dropdown); } dropdown.innerHTML = `<div class="dropdown-item" style="cursor:default;opacity:0.7"><div class="dropdown-author">${esc(msg)}</div></div>`; dropdown.style.display = 'block'; }
 function hideDropdown() { const dropdown = document.getElementById('book-dropdown'); if (dropdown) dropdown.style.display = 'none'; }
 function selectBook(idx) { const dropdown = document.getElementById('book-dropdown'); if (!dropdown) return; const items = dropdown.querySelectorAll('.dropdown-item'); if (!items[idx]) return; const title = items[idx].getAttribute('data-title'); const author = items[idx].getAttribute('data-author'); document.getElementById('book-input').value = title; const authorInput = document.getElementById('author-input'); authorInput.value = author; authorInput.classList.add('author-autofilled'); setTimeout(() => authorInput.classList.remove('author-autofilled'), 1500); hideDropdown(); }
 
@@ -338,6 +384,19 @@ async function handleGenerate() {
   const author = document.getElementById('author-input').value.trim();
   setError(''); hideDropdown();
   if (!title) { setError('Please enter a book title to continue.'); return; }
+
+  // Free tier — only allow books already in the library
+  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
+  if (tier !== 'pro' && _allBooks && _allBooks.length) {
+    const q = title.toLowerCase().trim();
+    const inLibrary = _allBooks.some(b =>
+      b.title && b.title.toLowerCase().includes(q)
+    );
+    if (!inLibrary) {
+      setError('This book isn\u2019t in the free library. Upgrade to Pro to generate summaries for any book.');
+      return;
+    }
+  }
 
   const cached = getArchive().find(e => norm(e.title) === norm(title) && (!author || norm(e.author) === norm(author)));
   if (cached) { setStatus('Found in your library \u2014 loading instantly!', true); setTimeout(async () => { setStatus('', false); let words = cached.words || []; if (!words.length) { try { const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || '')); if (r.ok) { const d = await r.json(); if (d.words) { try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {} } } } catch(e) {} } displaySummary(cached.title, cached.author, cached.html, cached.plain, words, cached.spoilers || false, true); }, 600); return; }
@@ -521,7 +580,8 @@ function loadLibraryBook(title, author) {
 }
 
 // ── Event listeners ───────────────────────────────────────────────────────────
-document.getElementById('book-input').addEventListener('input', e => { clearTimeout(autocompleteTimer); autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 500); });
+document.getElementById('book-input').addEventListener('input', e => { clearTimeout(autocompleteTimer); autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 300); });
+document.getElementById('author-input').addEventListener('input', e => { clearTimeout(autocompleteTimer); autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 300); });
 document.getElementById('book-input').addEventListener('keydown', e => { if (e.key === 'Enter') { hideDropdown(); handleGenerate(); } if (e.key === 'Escape') hideDropdown(); });
 document.getElementById('author-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });
 document.addEventListener('click', e => { if (!e.target.closest('#book-input') && !e.target.closest('#book-dropdown')) hideDropdown(); });
