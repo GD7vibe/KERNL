@@ -153,12 +153,11 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Handle email confirmation — token arrives in URL hash (#access_token=...)
 (async function(){
   if (window.location.hash && window.location.hash.includes('access_token')) {
-    // Supabase JS picks up the token from the hash automatically
-    // Give it a moment to process
     await new Promise(r => setTimeout(r, 500));
     const { data } = await sb.auth.getSession();
     if (data.session) {
-      window.location.href = '/app.html';
+      const base = window.location.hostname.includes('kernlbooks.com') ? 'https://kernlbooks.com' : 'https://kernl-git-dev-gd7vibes-projects.vercel.app';
+      window.location.href = base + '/app.html';
       return;
     }
   }
@@ -167,7 +166,8 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // If already logged in, redirect to app
 sb.auth.getSession().then(({ data }) => {
   if (data.session && !window.location.hash.includes('access_token')) {
-    window.location.href = '/app.html';
+    const base = window.location.hostname.includes('kernlbooks.com') ? 'https://kernlbooks.com' : 'https://kernl-git-dev-gd7vibes-projects.vercel.app';
+    window.location.href = base + '/app.html';
   }
 });
 
@@ -208,7 +208,9 @@ async function handleSignIn() {
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setLoading('signin-btn', false, 'Sign In &rsaquo;');
   if (error) { setMsg('signin-msg', 'error', error.message); return; }
-  window.location.href = '/app.html';
+  // Redirect to stable dev URL
+  const base = window.location.hostname.includes('kernlbooks.com') ? 'https://kernlbooks.com' : 'https://kernl-git-dev-gd7vibes-projects.vercel.app';
+  window.location.href = base + '/app.html';
 }
 
 async function handleSignUp() {
