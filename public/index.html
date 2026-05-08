@@ -63,7 +63,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .demo-label-inner{display:inline-flex;align-items:center;gap:10px;font-size:0.75rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
 .demo-label-inner::before,.demo-label-inner::after{content:'';display:inline-block;width:40px;height:1px;background:var(--border)}
 
-/* ── Summary card (identical to app) ── */
+/* ── Preview card (collapsed state) ── */
+.preview-card{background:var(--card);border:2px solid var(--accent);border-radius:var(--radius);padding:1.5rem 2rem;margin-bottom:2rem;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(139,69,19,0.12)}
+.preview-card:hover{box-shadow:0 6px 28px rgba(139,69,19,0.2);transform:translateY(-1px)}
+.preview-inner{display:flex;align-items:center;justify-content:space-between;gap:1.5rem}
+.preview-left{flex:1}
+.preview-title{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,4vw,1.9rem);font-weight:600;color:var(--ink);line-height:1.2;margin-bottom:4px}
+.preview-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:0.6rem}
+.preview-synopsis{font-size:0.88rem;color:var(--muted);line-height:1.6;border-left:2px solid var(--accent);padding-left:12px;font-style:italic}
+.preview-right{text-align:center;flex-shrink:0}
+.preview-words{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);margin-bottom:8px}
+.preview-cta{font-size:0.82rem;color:var(--accent);font-weight:500}
+@media(max-width:560px){.preview-inner{flex-direction:column;gap:1rem}.preview-right{align-self:flex-start}}
 .summary-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 4px 24px rgba(139,69,19,0.1);margin-bottom:2rem;transition:background var(--transition),border-color var(--transition)}
 .summary-header{padding:2rem 2rem 1.75rem;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--warm) 0%,var(--warm) 100%);position:relative;transition:background var(--transition)}
 .summary-header-ornament{position:absolute;top:1rem;right:1.5rem;font-family:'Playfair Display',serif;font-size:5rem;color:var(--accent);opacity:0.06;line-height:1;pointer-events:none}
@@ -231,8 +242,25 @@ html.dark .more-overlay{background:linear-gradient(to bottom,rgba(26,23,20,0) 0%
     <span class="demo-label-inner">Free sample summary</span>
   </div>
 
-  <!-- ── THE DEMO SUMMARY CARD ── -->
-  <div class="summary-card">
+  <!-- ── THE DEMO SUMMARY CARD — collapsed by default, expands on click ── -->
+
+  <!-- Collapsed preview card -->
+  <div class="preview-card" id="preview-card" onclick="expandDemo()">
+    <div class="preview-inner">
+      <div class="preview-left">
+        <div class="preview-title">Meditations</div>
+        <div class="preview-author">by Marcus Aurelius</div>
+        <div class="preview-synopsis">A Roman emperor&rsquo;s private journals reveal timeless wisdom on resilience, duty, and inner peace amid life&rsquo;s chaos and suffering.</div>
+      </div>
+      <div class="preview-right">
+        <div class="preview-words">1,847 words</div>
+        <div class="preview-cta">Read &amp; Listen &#9660;</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full summary card — hidden until expanded -->
+  <div class="summary-card" id="demo-card" style="display:none">
     <div class="summary-header">
       <div class="summary-header-ornament">&ldquo;</div>
       <div class="summary-title-row">
@@ -277,7 +305,7 @@ html.dark .more-overlay{background:linear-gradient(to bottom,rgba(26,23,20,0) 0%
       </div>
     </div>
 
-    <!-- Actions — print, kindle, buy fully unlocked; save/download gated -->
+    <!-- Actions -->
     <div class="summary-actions">
       <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
       <button class="btn-action" onclick="showKindleModal()">&#128235; Send to Kindle</button>
@@ -301,6 +329,11 @@ html.dark .more-overlay{background:linear-gradient(to bottom,rgba(26,23,20,0) 0%
       <div class="disclaimer-bar">
         <div class="disclaimer-text">KERNL summaries are original works intended to complement, not replace, the reading experience. We encourage you to read the full book and support the author.</div>
       </div>
+    </div>
+
+    <!-- Collapse button -->
+    <div style="padding:1rem 2rem;background:var(--warm);border-top:1px solid var(--border);text-align:center">
+      <button onclick="collapseDemo()" style="background:none;border:none;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;text-decoration:underline">&#9650; Collapse summary</button>
     </div>
   </div>
 
@@ -578,6 +611,21 @@ function playSingleAudio(url) {
   audioEl.play().catch(e => { setPlayerState(false,'Tap play to listen'); });
   setPlayerState(true, (currentVoice==='female'?'Female':'Male') + ' voice \u2014 now playing');
   initScrubEvents();
+}
+
+function expandDemo() {
+  document.getElementById('preview-card').style.display = 'none';
+  const card = document.getElementById('demo-card');
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function collapseDemo() {
+  stopAudio();
+  document.getElementById('demo-card').style.display = 'none';
+  const preview = document.getElementById('preview-card');
+  preview.style.display = 'block';
+  preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Mega Words toggle ─────────────────────────────────────────────────────────
