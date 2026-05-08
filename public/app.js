@@ -18,11 +18,13 @@ async function initAuth() {
   const sb = getSB();
   const { data: { session } } = await sb.auth.getSession();
   if (!session) {
-    // Not logged in — redirect to login
     window.location.href = '/login.html';
     return;
   }
   _currentUser = session.user;
+
+  // Show the app now that we're authenticated
+  document.getElementById('app').style.display = '';
 
   // Load profile
   const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
