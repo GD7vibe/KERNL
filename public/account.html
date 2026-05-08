@@ -199,7 +199,7 @@ function renderLibrary(items) {
 
 function openBook(title, author) {
   if (!title) return;
-  window.location.href = '/?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
+  window.location.href = '/app.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author);
 }
 
 async function removeFromLibrary(e, id) {
