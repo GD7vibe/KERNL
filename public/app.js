@@ -279,12 +279,12 @@ function showDropdownEmpty(msg) { let dropdown = document.getElementById('book-d
 function hideDropdown() { const dropdown = document.getElementById('book-dropdown'); if (dropdown) dropdown.style.display = 'none'; }
 function selectBook(idx) { const dropdown = document.getElementById('book-dropdown'); if (!dropdown) return; const items = dropdown.querySelectorAll('.dropdown-item'); if (!items[idx]) return; const title = items[idx].getAttribute('data-title'); const author = items[idx].getAttribute('data-author'); document.getElementById('book-input').value = title; const authorInput = document.getElementById('author-input'); authorInput.value = author; authorInput.classList.add('author-autofilled'); setTimeout(() => authorInput.classList.remove('author-autofilled'), 1500); hideDropdown(); }
 
-// ── Archive ───────────────────────────────────────────────────────────────────
+// ── Archive (local storage — kept for backward compat but no longer rendered) ──
 function getArchive() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; } }
 function saveEntry(entry) { const arc = getArchive(); const key = norm(entry.title) + '||' + norm(entry.author); const idx = arc.findIndex(e => norm(e.title) + '||' + norm(e.author) === key); if (idx >= 0) arc[idx] = entry; else arc.unshift(entry); localStorage.setItem(STORAGE_KEY, JSON.stringify(arc.slice(0, 300))); }
-function clearArchive() { if (!confirm('Clear your entire KERNL library? This cannot be undone.')) return; localStorage.removeItem(STORAGE_KEY); renderArchive(); }
-function renderArchive() { const arc = getArchive(); const container = document.getElementById('archive-container'); const countEl = document.getElementById('archive-count'); const clearBtn = document.getElementById('clear-btn'); countEl.textContent = arc.length + ' summar' + (arc.length === 1 ? 'y' : 'ies'); clearBtn.style.display = arc.length ? 'inline' : 'none'; if (!arc.length) { container.innerHTML = '<div class="archive-empty">Your library is empty \u2014 summarise a book above to begin.</div>'; return; } container.innerHTML = '<div class="archive-grid">' + arc.map((e, i) => `<div class="archive-item" onclick="loadEntry(${i})"><div class="archive-book-title">${esc(e.title)}</div><div class="archive-book-author">by ${esc(e.author)}</div><div class="archive-footer"><div class="archive-date">${fmtDate(e.savedAt)}</div><div style="display:flex;gap:6px;align-items:center"><div class="archive-chip">Archived</div></div></div></div>`).join('') + '</div>'; }
-function loadEntry(idx) { const e = getArchive()[idx]; if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || []); }
+function clearArchive() { if (!confirm('Clear your entire local KERNL cache? This cannot be undone.')) return; localStorage.removeItem(STORAGE_KEY); }
+function renderArchive() { /* no-op: library display is now handled by Supabase loadLibrary / renderLibraryGrid */ }
+function loadEntry(idx) { const e = getArchive()[idx]; if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], false, true); }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function norm(s) { return String(s || '').toLowerCase().trim().replace(/\s+/g, ' '); }
@@ -409,7 +409,14 @@ async function handleGenerate() {
     const res = await fetch('/api/summarise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, author }) });
     if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Error ' + res.status); }
     const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) { const data = await res.json(); const displayAuthor = author || data.author || 'Unknown author'; saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], savedAt: Date.now() }); setStatus('', false); renderArchive(); displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false); return; }
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      const displayAuthor = author || data.author || 'Unknown author';
+      saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], savedAt: Date.now() });
+      setStatus('', false);
+      displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false);
+      return;
+    }
     const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let streamingStarted = false; let finalData = null; let lastHtml = '';
     try {
       while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); for (const line of lines) { if (!line.startsWith('data: ')) continue; try { const msg = JSON.parse(line.slice(6).trim()); if (msg.error) throw new Error(msg.error); if (msg.done) { finalData = msg; continue; } if (msg.chunk) { lastHtml = msg.chunk; if (!streamingStarted) { streamingStarted = true; setStatus('', false); displaySummaryStreaming(title, author || 'Unknown author', msg.chunk); } else { updateStreamingBody(msg.chunk); } } } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; } } }
@@ -417,13 +424,11 @@ async function handleGenerate() {
     const displayAuthor = author || 'Unknown author';
     if (finalData) {
       saveEntry({ title, author: displayAuthor, html: finalData.html, plain: finalData.plain, words: finalData.words || [], savedAt: Date.now() });
-      renderArchive();
       displaySummary(title, displayAuthor, finalData.html, finalData.plain, finalData.words || [], false);
       fetch('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, author: displayAuthor, plain: finalData.plain, voice: currentVoice }) }).catch(e => console.warn('generate-audio fire-and-forget failed:', e.message));
     } else if (streamingStarted && lastHtml) {
       const plainText = lastHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       saveEntry({ title, author: displayAuthor, html: lastHtml, plain: plainText, words: [], savedAt: Date.now() });
-      renderArchive();
       displaySummary(title, displayAuthor, lastHtml, plainText, [], false);
     }
   } catch (err) { setStatus('', false); setError('Could not generate summary: ' + err.message); }
@@ -476,7 +481,7 @@ function displaySummary(title, author, html, plain, words, spoilers, fromArchive
 
 function closeSummary() { stopAudio(); unlockVoiceButtons(); document.getElementById('summary-card').classList.remove('show'); currentSummary = null; }
 
-// ── Kindle / EPUB / Print (unchanged) ────────────────────────────────────────
+// ── Kindle / EPUB / Print ────────────────────────────────────────────────────
 function showKindleModal() { if (!currentSummary) return; const existing = document.getElementById('kindle-modal'); if (existing) existing.remove(); const modal = document.createElement('div'); modal.id = 'kindle-modal'; modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem'; modal.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)"><h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3><p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p><input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between"><button onclick="downloadEpub()" style="height:38px;padding:0 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;display:flex;align-items:center;gap:6px">\uD83D\uDCDA Download EPUB</button><div style="display:flex;gap:10px"><button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button><button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button></div></div><div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div></div>'; document.body.appendChild(modal); setTimeout(() => document.getElementById('kindle-email-input').focus(), 100); }
 async function sendToKindle() { const email = document.getElementById('kindle-email-input').value.trim(); const status = document.getElementById('kindle-status'); const btn = document.getElementById('kindle-send-btn'); if (!email || !email.includes('@')) { status.style.display = 'block'; status.style.color = 'var(--error-fg)'; status.textContent = 'Please enter a valid Kindle email address.'; return; } btn.disabled = true; btn.textContent = 'Sending\u2026'; status.style.display = 'block'; status.style.color = 'var(--muted)'; status.textContent = 'Generating EPUB and sending\u2026'; try { const res = await fetch('/api/send-to-kindle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: currentSummary.title, author: currentSummary.author, html: currentSummary.html, kindleEmail: email }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Send failed'); status.style.color = 'var(--success-fg)'; status.textContent = '\u2713 Sent! Check your Kindle in a few minutes.'; btn.textContent = 'Sent \u2713'; setTimeout(() => { const m = document.getElementById('kindle-modal'); if(m) m.remove(); }, 3000); } catch(err) { status.style.color = 'var(--error-fg)'; status.textContent = 'Error: ' + err.message; btn.disabled = false; btn.textContent = 'Send \u2192'; } }
 function downloadEpub() { if (!currentSummary) return; if (typeof JSZip === 'undefined') { alert('Please wait a moment and try again.'); return; } const id = 'kernl-' + Date.now(); const t = esc(currentSummary.title), a = esc(currentSummary.author); const contentHtml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + t + '</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>' + t + '</h1><div class="byline">by ' + a + ' \u2014 KERNL Summary</div>' + currentSummary.html + '<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>'; const opf = '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + t + ' \u2014 KERNL</dc:title><dc:creator>' + a + '</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">' + id + '</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>'; const ncx = '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="' + id + '"/></head><docTitle><text>' + t + '</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>'; const container = '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'; const zip = new JSZip(); (async () => { zip.file('mimetype', 'application/epub+zip'); zip.folder('META-INF').file('container.xml', container); const oebps = zip.folder('OEBPS'); oebps.file('content.opf', opf); oebps.file('toc.ncx', ncx); oebps.file('content.html', contentHtml); const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' }); triggerDownload(blob, safe(currentSummary.title) + '_KERNL.epub'); })(); }
@@ -537,7 +542,6 @@ async function loadLibrary() {
 
 function filterLibrary(cat) {
   _activeCategory = cat;
-  // Update active button
   document.querySelectorAll('.cat-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.cat === cat);
   });
@@ -568,7 +572,6 @@ function renderLibraryGrid(books) {
 }
 
 function loadLibraryBook(title, author) {
-  // Decode HTML entities back to plain text
   const ta = document.createElement('textarea');
   ta.innerHTML = title; const t = ta.value;
   ta.innerHTML = author; const a = ta.value;
