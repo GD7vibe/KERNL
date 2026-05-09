@@ -588,5 +588,4 @@ document.addEventListener('click', e => { if (!e.target.closest('#book-input') &
 // ── Init ──────────────────────────────────────────────────────────────────────
 initDark();
 setVoice('female');
-renderArchive();
 initAuth();
