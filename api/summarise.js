@@ -72,40 +72,120 @@ async function generateAndCacheAudio(title, author, plainText, voice = 'female')
   }
 }
 
-// ── Existing helpers ──────────────────────────────────────────────────────────
-function norm(s) { return String(s||'').toLowerCase().replace(/[\u2018\u2019\u201C\u201D'"]/g,'').replace(/[*!?@#$%^&()_+=\[\]{};:<>,.\/\\|~`]/g,'').replace(/\s+/g,' ').trim(); }
-function normTitle(s) { return norm(s).replace(/^(the|a|an)\s+/i,'').replace(/\s*[:\-\u2014]\s*.+$/,'').trim(); }
+// ── String helpers ────────────────────────────────────────────────────────────
+function norm(s) {
+  return String(s||'').toLowerCase()
+    .replace(/[\u2018\u2019\u201C\u201D'"]/g,'')
+    .replace(/[*!?@#$%^&()_+=\[\]{};:<>,.\/\\|~`]/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+
+// normTitle: strip leading articles AND common subtitle patterns for fuzzy comparison
+function normTitle(s) {
+  return norm(s)
+    .replace(/^(the|a|an)\s+/i,'')
+    .replace(/\s*[:\-\u2014]\s*.+$/,'')
+    .trim();
+}
+
 function makeKey(title, author) { return norm(title)+'||'+norm(author)+'||nospoilers'; }
-function levenshtein(a,b) { const m=a.length,n=b.length,dp=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);for(let j=0;j<=n;j++)dp[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);return dp[m][n]; }
-function similarity(a,b) { const na=normTitle(a),nb=normTitle(b),maxLen=Math.max(na.length,nb.length);if(maxLen===0)return 1;return 1-levenshtein(na,nb)/maxLen; }
-function getDistinctiveWord(title) { const stops=new Set(['the','a','an','and','or','of','in','on','at','to','for','with','by','from','is','it','its','as','be','are','was','were','not','no','my','your','his','her','our','their','this','that','these','those','i','me','we','us','you','he','she','they','them','what','how','why','when','who']);const words=normTitle(title).split(' ').filter(w=>w.length>3&&!stops.has(w));if(!words.length)return normTitle(title).split(' ')[0];return words.sort((a,b)=>b.length-a.length)[0]; }
-async function supabaseGet(url) { const res=await fetch(url,{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});const data=await res.json();return data&&data.length>0?data:null; }
-async function saveToSupabase(title,author,key,html,plain,words) { const res=await fetch(SUPABASE_URL+'/rest/v1/summaries',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({title,author,lookup_key:key,html,plain,words:JSON.stringify(words)})}); if(!res.ok){const err=await res.text();console.error('Supabase insert failed:',err);} }
-async function patchWordsById(id, words) { const res = await fetch(SUPABASE_URL+'/rest/v1/summaries?id=eq.'+id, { method: 'PATCH', headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'}, body: JSON.stringify({ words: JSON.stringify(words) }) }); if (!res.ok) console.error('Supabase patch failed:', res.status); }
-async function generateWordsOnly(plain, title, author) { const prompt = 'Generate exactly 21 interesting vocabulary words for this book summary. You MUST provide exactly 21 unique words — no more, no fewer.\n\nBook: "'+title+'" by '+author+'\n\n'+plain.slice(0,3000)+'\n\nRespond ONLY with a valid JSON array of exactly 21 items:\n[{"word":"example","definition":"concise definition under 15 words"}]'; const response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'}, body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1400, messages:[{role:'user',content:prompt}] }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message || 'API error'); const text = data.content[0].text.replace(/```json|```/g,'').trim(); const words = JSON.parse(text); const seen = new Set(); const unique = words.filter(w => { const k=w.word.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true; }).slice(0,21); if (unique.length < 21) console.warn(`generateWordsOnly: only got ${unique.length} words for "${title}"`); return unique; }
+
+function levenshtein(a, b) {
+  const m=a.length, n=b.length;
+  const dp=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++)
+    for(let j=1;j<=n;j++)
+      dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+// Combined score: weighted blend of title similarity + author similarity
+function combinedScore(candidateTitle, candidateAuthor, queryTitle, queryAuthor) {
+  const nt1 = normTitle(queryTitle), nt2 = normTitle(candidateTitle);
+  const maxTLen = Math.max(nt1.length, nt2.length);
+  const titleScore = maxTLen === 0 ? 1 : 1 - levenshtein(nt1, nt2) / maxTLen;
+
+  if (!queryAuthor || queryAuthor.length < 2) return titleScore;
+
+  const na1 = norm(queryAuthor), na2 = norm(candidateAuthor || '');
+  const maxALen = Math.max(na1.length, na2.length);
+  const authorScore = maxALen === 0 ? 0 : 1 - levenshtein(na1, na2) / maxALen;
+
+  // Title weighted 60%, author 40% — author is a strong discriminator
+  return titleScore * 0.6 + authorScore * 0.4;
+}
+
+// Exact title match check — must be very close to avoid cross-title collisions
+function titleExactEnough(candidateTitle, queryTitle) {
+  const nt1 = normTitle(queryTitle), nt2 = normTitle(candidateTitle);
+  const maxLen = Math.max(nt1.length, nt2.length);
+  if (maxLen === 0) return true;
+  return (1 - levenshtein(nt1, nt2) / maxLen) >= 0.85;
+}
+
+function getDistinctiveWord(title) {
+  const stops = new Set([
+    'the','a','an','and','or','of','in','on','at','to','for','with','by',
+    'from','is','it','its','as','be','are','was','were','not','no','my',
+    'your','his','her','our','their','this','that','these','those','i','me',
+    'we','us','you','he','she','they','them','what','how','why','when','who',
+    'walk','walks','into','out','up','down','back','all','new','one','two',
+    'book','life','story','world','man','woman','way','day','time','year'
+  ]);
+  const words = normTitle(title).split(' ').filter(w => w.length > 4 && !stops.has(w));
+  if (!words.length) return normTitle(title).split(' ').find(w => w.length > 3) || '';
+  return words.sort((a, b) => b.length - a.length)[0];
+}
+
+async function supabaseGet(url) {
+  const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } });
+  const data = await res.json();
+  return data && data.length > 0 ? data : null;
+}
+
+async function saveToSupabase(title, author, key, html, plain, words) {
+  const res = await fetch(SUPABASE_URL+'/rest/v1/summaries', {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ title, author, lookup_key: key, html, plain, words: JSON.stringify(words) })
+  });
+  if (!res.ok) { const err = await res.text(); console.error('Supabase insert failed:', err); }
+}
+
+async function patchWordsById(id, words) {
+  const res = await fetch(SUPABASE_URL+'/rest/v1/summaries?id=eq.'+id, {
+    method: 'PATCH',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ words: JSON.stringify(words) })
+  });
+  if (!res.ok) console.error('Supabase patch failed:', res.status);
+}
+
+async function generateWordsOnly(plain, title, author) {
+  const prompt = 'Generate exactly 21 interesting vocabulary words for this book summary. You MUST provide exactly 21 unique words — no more, no fewer.\n\nBook: "'+title+'" by '+author+'\n\n'+plain.slice(0,3000)+'\n\nRespond ONLY with a valid JSON array of exactly 21 items:\n[{"word":"example","definition":"concise definition under 15 words"}]';
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1400, messages: [{ role: 'user', content: prompt }] })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || 'API error');
+  const text = data.content[0].text.replace(/```json|```/g,'').trim();
+  const words = JSON.parse(text);
+  const seen = new Set();
+  const unique = words.filter(w => { const k=w.word.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true; }).slice(0,21);
+  if (unique.length < 21) console.warn(`generateWordsOnly: only got ${unique.length} words for "${title}"`);
+  return unique;
+}
 
 // ── Categories ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  'Business & Entrepreneurship',
-  'Personal Development',
-  'Psychology',
-  'History',
-  'Science & Technology',
-  'Politics & Society',
-  'Philosophy',
-  'Biography & Memoir',
-  'Fiction — Literary',
-  'Fiction — Thriller',
-  'Fiction — Sci-Fi',
-  'Fiction — Historical',
-  'Health & Wellbeing',
-  'Economics',
-  'Leadership',
-  'Nature & Environment',
-  'Crime & True Crime',
-  'Sport',
-  'Parenting & Family',
-  'Spirituality'
+  'Business & Entrepreneurship','Personal Development','Psychology','History',
+  'Science & Technology','Politics & Society','Philosophy','Biography & Memoir',
+  'Fiction — Literary','Fiction — Thriller','Fiction — Sci-Fi','Fiction — Historical',
+  'Health & Wellbeing','Economics','Leadership','Nature & Environment',
+  'Crime & True Crime','Sport','Parenting & Family','Spirituality'
 ];
 
 async function categoriseBook(title, author, plain) {
@@ -129,7 +209,6 @@ async function categoriseBook(title, author, plain) {
 }
 
 // ── Synopsis ──────────────────────────────────────────────────────────────────
-// FIX: trim to last complete sentence rather than raw word count, preventing cut-off synopses
 async function generateSynopsis(title, author, plain) {
   try {
     const prompt = 'Write a single enticing synopsis for this book in 25 words or fewer. Be specific, punchy and compelling. Shorter is better. Use British English spelling throughout (honour, colour, organise, centre, realise etc). Must be a complete sentence ending with a full stop. No markdown, no hashtags, no title, no quotes, no labels — just the synopsis.\n\nBook: "' + title + '" by ' + (author || 'Unknown') + '\nSummary: ' + (plain || '').slice(0, 500);
@@ -141,25 +220,13 @@ async function generateSynopsis(title, author, plain) {
     if (!res.ok) return null;
     const data = await res.json();
     let text = data.content[0].text.trim().replace(/^["']|["']$/g, '');
-
-    // Trim to 25 words max, but snap back to last sentence boundary so it never cuts mid-sentence
     const words = text.split(/\s+/);
     if (words.length > 25) {
       text = words.slice(0, 25).join(' ');
-      // Walk back to the last sentence-ending punctuation
-      const lastSentenceEnd = Math.max(
-        text.lastIndexOf('.'),
-        text.lastIndexOf('!'),
-        text.lastIndexOf('?')
-      );
-      if (lastSentenceEnd > 10) {
-        text = text.slice(0, lastSentenceEnd + 1).trim();
-      }
+      const lastSentenceEnd = Math.max(text.lastIndexOf('.'), text.lastIndexOf('!'), text.lastIndexOf('?'));
+      if (lastSentenceEnd > 10) text = text.slice(0, lastSentenceEnd + 1).trim();
     }
-
-    // Ensure it ends with punctuation — add full stop if missing
     if (text && !/[.!?]$/.test(text)) text = text + '.';
-
     return text || null;
   } catch (e) {
     console.warn('generateSynopsis failed:', e.message);
@@ -167,39 +234,65 @@ async function generateSynopsis(title, author, plain) {
   }
 }
 
+// ── Cache lookup — robust multi-level with combined title+author scoring ───────
 async function findCached(title, author) {
-  const nTitle=norm(title), nAuthor=norm(author), ntTitle=normTitle(title);
-  const exactKey=makeKey(title, author);
+  const nAuthor = norm(author || '');
+  const exactKey = makeKey(title, author);
 
-  // L1: exact key match (nospoilers — all new records)
-  let rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(exactKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
-  if(rows){console.log('Cache hit L1');return rows[0];}
+  // L1: exact lookup_key match — most reliable, always try first
+  let rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(exactKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
+  if (rows) { console.log('Cache hit L1'); return rows[0]; }
 
-  // L1b: also check old spoilers key for backward compat with any old records
+  // L1b: old spoilers key (backward compat)
   const oldSpoilersKey = norm(title)+'||'+norm(author)+'||spoilers';
-  rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(oldSpoilersKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
-  if(rows){console.log('Cache hit L1b (old spoilers key)');return rows[0];}
+  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(oldSpoilersKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
+  if (rows) { console.log('Cache hit L1b'); return rows[0]; }
 
-  // L2: title-only key (legacy records without author)
-  const titleKey=norm(title)+'||nospoilers';
-  rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(titleKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
-  if(rows){console.log('Cache hit L2');return rows[0];}
+  // L2: title-only key (legacy records without author in key)
+  const titleKey = norm(title)+'||nospoilers';
+  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(titleKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
+  if (rows) { console.log('Cache hit L2'); return rows[0]; }
 
-  // L3: title ILIKE fuzzy
-  rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+nTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=10');
-  if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.75).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L3');return scored[0].row;}}
+  // ── Fuzzy matching helper ─────────────────────────────────────────────────
+  // Uses combined title+author score. Title MUST be close enough on its own
+  // (titleExactEnough) AND the combined score must clear the threshold.
+  // This prevents "In the Woods" matching "A Walk in the Woods".
+  function pickBest(candidates, minCombined) {
+    return candidates
+      .filter(r => titleExactEnough(r.title, title)) // hard title gate first
+      .map(r => ({ row: r, score: combinedScore(r.title, r.author, title, author) }))
+      .filter(r => r.score >= minCombined)
+      .sort((a, b) => b.score - a.score)
+      .map(r => r.row)[0] || null;
+  }
 
-  // L3b: normTitle fuzzy
-  if(ntTitle!==nTitle){rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+ntTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=10');if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.75).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L3b');return scored[0].row;}}}
+  // L3: title ILIKE on normalised title
+  const nTitle = norm(title);
+  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+nTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+  if (rows) { const m = pickBest(rows, 0.82); if (m) { console.log('Cache hit L3'); return m; } }
 
-  // L4: distinctive word
-  const word=getDistinctiveWord(title);
-  if(word&&word.length>=4){rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+word+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.70).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L4');return scored[0].row;}}}
+  // L3b: title ILIKE on normTitle (strips article + subtitle)
+  const ntTitle = normTitle(title);
+  if (ntTitle !== nTitle) {
+    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+ntTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+    if (rows) { const m = pickBest(rows, 0.82); if (m) { console.log('Cache hit L3b'); return m; } }
+  }
 
-  // L5: author fuzzy
-  if(nAuthor&&nAuthor.length>2){rows=await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?author=ilike.'+encodeURIComponent('%'+nAuthor+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');if(rows){const scored=rows.map(r=>({row:r,score:similarity(title,r.title)})).filter(r=>r.score>=0.65).sort((a,b)=>b.score-a.score);if(scored.length){console.log('Cache hit L5');return scored[0].row;}}}
+  // L4: distinctive word search — highest collision risk, so strictest threshold
+  // Stop-word list is extended to exclude generic words like "walk", "woods", "story"
+  const word = getDistinctiveWord(title);
+  if (word && word.length >= 5) {
+    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+word+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+    if (rows) { const m = pickBest(rows, 0.85); if (m) { console.log('Cache hit L4'); return m; } }
+  }
 
-  console.log('Cache miss');return null;
+  // L5: author search — only if title similarity also clears bar
+  if (nAuthor && nAuthor.length > 2) {
+    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?author=ilike.'+encodeURIComponent('%'+nAuthor+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+    if (rows) { const m = pickBest(rows, 0.80); if (m) { console.log('Cache hit L5'); return m; } }
+  }
+
+  console.log('Cache miss'); return null;
 }
 
 function buildPrompt(title, author) {
@@ -209,19 +302,6 @@ function buildPrompt(title, author) {
 function parseWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); const wordsEnd = raw.indexOf('WORDS_END'); if (wordsStart === -1 || wordsEnd === -1) return []; const wordsBlock = raw.slice(wordsStart + 11, wordsEnd).trim(); const seen = new Set(); return wordsBlock.split('\n').map(line => { try { return JSON.parse(line.trim()); } catch(e) { return null; } }).filter(w => w && w.word && w.definition).filter(w => { const k = w.word.toLowerCase().trim(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 21); }
 function stripWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); return wordsStart > -1 ? raw.slice(0, wordsStart).trim() : raw.trim(); }
 function htmlToPlain(html) { return html.replace(/<h2[^>]*>/gi, '\n\n').replace(/<\/h2>/gi, '\n\n').replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n{3,}/g, '\n\n').trim(); }
-
-function extractCompleteSentences(text) {
-  const sentenceEnd = /[.!?]+(?:\s|$)/g;
-  let lastIdx = 0;
-  let match;
-  let sentences = '';
-  while ((match = sentenceEnd.exec(text)) !== null) {
-    lastIdx = match.index + match[0].length;
-    sentences = text.slice(0, lastIdx);
-  }
-  const remaining = text.slice(lastIdx);
-  return { sentences: sentences.trim(), remaining: remaining };
-}
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -268,7 +348,6 @@ module.exports = async (req, res) => {
   // ── Not cached — stream from Anthropic ───────────────────────────────────
   const prompt = buildPrompt(title, author);
   const audioVoice = voice || 'female';
-  const audioFilename = makeAudioKey(title, author, audioVoice);
 
   try {
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -329,7 +408,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ── Claude done — parse and save ─────────────────────────────────────────
+    // ── Parse and save ────────────────────────────────────────────────────────
     let raw = fullText.trim();
     const firstLine = raw.split('\n')[0].trim();
     if (firstLine.toUpperCase().startsWith('GENRE:')) raw = raw.slice(firstLine.length).trim();
@@ -338,7 +417,7 @@ module.exports = async (req, res) => {
     const html = stripWordsBlock(raw);
     const plain = htmlToPlain(html);
 
-    // Ensure exactly 21 Mega Words — top up via Haiku if Claude returned fewer
+    // Top up to 21 words if Claude returned fewer
     if (words.length < 21) {
       console.log(`Only ${words.length} words parsed — topping up to 21 via Haiku`);
       try {
@@ -362,9 +441,7 @@ module.exports = async (req, res) => {
 
     await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message));
 
-    // ── FIX: Categories + synopsis awaited BEFORE res.end() ──────────────────
-    // Previously fire-and-forget — Vercel kills the process immediately after
-    // res.end(), so the patch was never reaching Supabase for live summaries.
+    // ── Categories + synopsis ─────────────────────────────────────────────────
     try {
       const [categories, synopsis] = await Promise.all([
         categoriseBook(title, author, plain),

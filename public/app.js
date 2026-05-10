@@ -205,7 +205,6 @@ async function checkAudioAvailability() {
   const sub = document.getElementById('player-sub');
 
   if (tier === 'pro') {
-    // Pro — always show play button, generate on demand
     ungreyPlayBtn();
     return;
   }
@@ -219,20 +218,9 @@ async function checkAudioAvailability() {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.url) {
-        ungreyPlayBtn();
-      } else {
-        greyPlayBtn();
-        if (sub) sub.textContent = 'Audio available on Pro';
-      }
-    } else {
-      greyPlayBtn();
-      if (sub) sub.textContent = 'Audio available on Pro';
-    }
-  } catch(e) {
-    greyPlayBtn();
-    if (sub) sub.textContent = 'Audio available on Pro';
-  }
+      if (data.url) { ungreyPlayBtn(); } else { greyPlayBtn(); if (sub) sub.textContent = 'Audio available on Pro'; }
+    } else { greyPlayBtn(); if (sub) sub.textContent = 'Audio available on Pro'; }
+  } catch(e) { greyPlayBtn(); if (sub) sub.textContent = 'Audio available on Pro'; }
 }
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
@@ -243,11 +231,7 @@ function initDark() { const saved = localStorage.getItem('kernl_dark'); const pr
 async function fetchBookSuggestions(query) {
   if (!query || query.length < 2) { hideDropdown(); return; }
   const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
-  if (tier === 'pro') {
-    fetchOpenLibrarySuggestions(query);
-  } else {
-    fetchLibrarySuggestions(query);
-  }
+  if (tier === 'pro') { fetchOpenLibrarySuggestions(query); } else { fetchLibrarySuggestions(query); }
 }
 
 async function fetchOpenLibrarySuggestions(query) {
@@ -274,7 +258,6 @@ async function fetchLibrarySuggestions(query) {
   }
 }
 function showDropdown(results) { let dropdown = document.getElementById('book-dropdown'); if (!dropdown) { dropdown = document.createElement('div'); dropdown.id = 'book-dropdown'; dropdown.className = 'book-dropdown'; document.getElementById('book-input').parentNode.appendChild(dropdown); } dropdown.innerHTML = results.map((r, i) => `<div class="dropdown-item" onmousedown="selectBook(${i})" data-title="${esc(r.title)}" data-author="${esc(r.author)}"><div class="dropdown-title">${esc(r.title)}</div><div class="dropdown-author">${esc(r.author)}${r.year ? ' · ' + r.year : ''}</div></div>`).join(''); dropdown.style.display = 'block'; }
-
 function showDropdownEmpty(msg) { let dropdown = document.getElementById('book-dropdown'); if (!dropdown) { dropdown = document.createElement('div'); dropdown.id = 'book-dropdown'; dropdown.className = 'book-dropdown'; document.getElementById('book-input').parentNode.appendChild(dropdown); } dropdown.innerHTML = `<div class="dropdown-item" style="cursor:default;opacity:0.7"><div class="dropdown-author">${esc(msg)}</div></div>`; dropdown.style.display = 'block'; }
 function hideDropdown() { const dropdown = document.getElementById('book-dropdown'); if (dropdown) dropdown.style.display = 'none'; }
 function selectBook(idx) { const dropdown = document.getElementById('book-dropdown'); if (!dropdown) return; const items = dropdown.querySelectorAll('.dropdown-item'); if (!items[idx]) return; const title = items[idx].getAttribute('data-title'); const author = items[idx].getAttribute('data-author'); document.getElementById('book-input').value = title; const authorInput = document.getElementById('author-input'); authorInput.value = author; authorInput.classList.add('author-autofilled'); setTimeout(() => authorInput.classList.remove('author-autofilled'), 1500); hideDropdown(); }
@@ -373,7 +356,10 @@ async function startTTS() {
 }
 
 function _attachAudioHandlers(blobUrl) { if (!audioEl) return; audioEl.addEventListener('timeupdate', updateScrubUI); audioEl.addEventListener('ended', () => { const fill = document.getElementById('scrub-fill'); if (fill) fill.style.width = '100%'; if (blobUrl) URL.revokeObjectURL(blobUrl); setPlayerState(false, 'Finished \u2014 press play to replay'); setScrubActive(false); unlockVoiceButtons(); audioEl = null; }); audioEl.addEventListener('error', e => { console.error('Audio error:', e.target.error); if (blobUrl) URL.revokeObjectURL(blobUrl); audioEl = null; setPlayerState(false, 'Audio unavailable \u2014 tap to retry'); setScrubActive(false); unlockVoiceButtons(); }); }
-function playSingleAudio(audioUrl, blobUrl) { audioEl = new Audio(audioUrl); audioEl.playbackRate = playbackRate; _attachAudioHandlers(blobUrl); const p = audioEl.play(); if (p) p.catch(err => { console.warn('play() failed:', err.message); setPlayerState(false, 'Tap play to listen'); unlockVoiceButtons(); }); setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing'); setScrubActive(true); initScrubEvents(); if (currentSummary) registerMediaSession(currentSummary.title, currentSummary.author); }
+
+// ── FIX: unlockStreamingControls() called first so scrub/skip work on cached audio ──
+function playSingleAudio(audioUrl, blobUrl) { unlockStreamingControls(); audioEl = new Audio(audioUrl); audioEl.playbackRate = playbackRate; _attachAudioHandlers(blobUrl); const p = audioEl.play(); if (p) p.catch(err => { console.warn('play() failed:', err.message); setPlayerState(false, 'Tap play to listen'); unlockVoiceButtons(); }); setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing'); setScrubActive(true); initScrubEvents(); if (currentSummary) registerMediaSession(currentSummary.title, currentSummary.author); }
+
 function togglePlay() { if (!currentSummary) return; if (isPlaying) { pauseAudio(); return; } if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; } if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; } startTTS(); }
 function setVoice(v) { currentVoice = v; document.getElementById('vbf').classList.toggle('active', v === 'female'); document.getElementById('vbm').classList.toggle('active', v === 'male'); const wasPlaying = isPlaying; stopAudio(); isPlaying = false; if (currentSummary) { document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play'; if (wasPlaying) setTimeout(startTTS, 150); } }
 
@@ -516,7 +502,6 @@ async function loadLibrary() {
     }
     _allBooks = all;
 
-    // Build category filter buttons
     const row = document.getElementById('cat-filter-row');
     row.innerHTML = '<button class="cat-btn active" data-cat="All" onclick="filterLibrary(\'All\')">All</button>';
     CATEGORIES.forEach(cat => {
