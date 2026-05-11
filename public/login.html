@@ -48,10 +48,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .forgot{text-align:right;margin-top:-0.5rem;margin-bottom:1rem}
 .forgot a{font-size:0.78rem;color:var(--muted);text-decoration:none;transition:color 0.2s}
 .forgot a:hover{color:var(--accent)}
-.divider{text-align:center;font-size:0.75rem;color:var(--muted);margin:1.25rem 0;position:relative}
-.divider::before,.divider::after{content:'';position:absolute;top:50%;width:calc(50% - 1.5rem);height:1px;background:var(--border)}
-.divider::before{left:0}
-.divider::after{right:0}
 .terms{font-size:0.72rem;color:var(--muted);text-align:center;margin-top:1.25rem;line-height:1.6}
 .terms a{color:var(--accent);text-decoration:none}
 .terms a:hover{text-decoration:underline}
@@ -143,6 +139,14 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Determine the correct stable base URL for redirects.
+// Always land on the stable URLs — never on random Vercel snapshot domains.
+function getAppUrl() {
+  var host = window.location.hostname;
+  if (host === 'kernlbooks.com') return 'https://kernlbooks.com/app.html';
+  return 'https://kernl-git-dev-gd7vibes-projects.vercel.app/app.html';
+}
+
 // Dark mode
 (function(){
   const saved = localStorage.getItem('kernl_dark');
@@ -156,7 +160,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     await new Promise(r => setTimeout(r, 500));
     const { data } = await sb.auth.getSession();
     if (data.session) {
-      window.location.href = '/app.html';
+      window.location.href = getAppUrl();
       return;
     }
   }
@@ -165,7 +169,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // If already logged in, redirect to app
 sb.auth.getSession().then(({ data }) => {
   if (data.session && !window.location.hash.includes('access_token')) {
-    window.location.href = '/app.html';
+    window.location.href = getAppUrl();
   }
 });
 
@@ -175,7 +179,6 @@ function showPanel(name) {
   document.getElementById('panel-' + name).classList.add('active');
   const tabEl = document.getElementById('tab-' + name);
   if (tabEl) tabEl.classList.add('active');
-  // Show forgot tab when on forgot panel
   document.getElementById('tab-forgot').style.display = name === 'forgot' ? '' : 'none';
 }
 
@@ -206,7 +209,7 @@ async function handleSignIn() {
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setLoading('signin-btn', false, 'Sign In &rsaquo;');
   if (error) { setMsg('signin-msg', 'error', error.message); return; }
-  window.location.href = '/app.html';
+  window.location.href = getAppUrl();
 }
 
 async function handleSignUp() {
