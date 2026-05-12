@@ -5,7 +5,7 @@
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 
 const PORTRAIT_THRESHOLD = 5;
-const REGEN_EVERY        = 5;
+const REGEN_EVERY        = 20;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+  const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY;
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
   try {
@@ -24,10 +24,7 @@ module.exports = async (req, res) => {
     if (!token) return res.status(401).json({ error: 'Not authenticated' });
 
     const authRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${token}` }
     });
     if (!authRes.ok) return res.status(401).json({ error: 'Invalid session' });
     const user = await authRes.json();
@@ -35,7 +32,7 @@ module.exports = async (req, res) => {
 
     // ── Fetch user library ─────────────────────────────────────────────────────
     const libRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_library?select=added_at,summaries(title,author)&user_id=eq.${user.id}&order=added_at.asc`,
+      `${SUPABASE_URL}/rest/v1/user_library?select=summaries(title,author)&user_id=eq.${user.id}&order=added_at.asc`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     const library = await libRes.json();
@@ -80,50 +77,35 @@ module.exports = async (req, res) => {
       library.map(item => item.summaries?.title?.toLowerCase().trim()).filter(Boolean)
     );
 
-    // Fetch unread books for recommendations
+    // Fetch a small sample of unread books for recommendations — 40 max to keep prompt short
     const allBooksRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/summaries?select=title,author,synopsis&limit=500`,
+      `${SUPABASE_URL}/rest/v1/summaries?select=title,author,synopsis&limit=100&order=title.asc`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     const allBooks = await allBooksRes.json();
 
     const unreadBooks = (allBooks || [])
-      .filter(b => !readTitles.has(b.title?.toLowerCase().trim()))
-      .map(b => `${b.title} by ${b.author}${b.synopsis ? ' — ' + b.synopsis.slice(0, 80) : ''}`)
-      .slice(0, 200)
+      .filter(b => b.title && !readTitles.has(b.title.toLowerCase().trim()))
+      .slice(0, 40)
+      .map(b => `- ${b.title} by ${b.author}`)
       .join('\n');
 
     // ── Call Anthropic ─────────────────────────────────────────────────────────
-    const prompt = `You are a perceptive literary companion with deep knowledge of books and human character. A reader has saved the following books to their personal library:
+    const prompt = `You are a perceptive literary companion. A reader has saved these books:
 
 ${bookList}
 
-Your task is two parts:
-
-PART 1 — THE READING PORTRAIT:
-Write a single paragraph (4-6 sentences, around 100-130 words) that reflects back who this person appears to be intellectually and personally, based purely on their reading choices.
-
-This should feel like a thoughtful, warm observation from a brilliant friend who knows them well — not a personality quiz result, not generic flattery. It should be specific to their actual choices, name particular themes or tensions you notice, and offer a genuine insight that might surprise or delight them. Write in second person ("You seem drawn to..."). British English throughout.
-
-Do not mention that you are analysing their reading list. Simply speak as if you know them.
+PART 1 — READING PORTRAIT:
+Write one paragraph (4-6 sentences, ~100 words) reflecting who this person appears to be intellectually, based on their choices. Be specific, warm, surprising. Second person ("You seem drawn to..."). British English. Do not mention you are analysing a reading list.
 
 PART 2 — THREE RECOMMENDATIONS:
-From the following unread books available in the KERNL library, choose exactly 3 that would genuinely resonate with this reader. For each, give:
-- The exact title and author
-- One sentence (max 15 words) explaining specifically why it suits THIS reader based on their portrait
-
-Available books:
+From this list of available books, pick exactly 3 that suit this reader:
 ${unreadBooks}
 
-Respond in this exact JSON format and nothing else:
-{
-  "portrait": "Your portrait paragraph here...",
-  "recommendations": [
-    { "title": "Book Title", "author": "Author Name", "reason": "One sentence reason." },
-    { "title": "Book Title", "author": "Author Name", "reason": "One sentence reason." },
-    { "title": "Book Title", "author": "Author Name", "reason": "One sentence reason." }
-  ]
-}`;
+Give the exact title, author, and one sentence (max 12 words) explaining why.
+
+Reply ONLY in this JSON format:
+{"portrait":"...","recommendations":[{"title":"...","author":"...","reason":"..."},{"title":"...","author":"...","reason":"..."},{"title":"...","author":"...","reason":"..."}]}`;
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -133,24 +115,23 @@ Respond in this exact JSON format and nothing else:
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
         messages: [{ role: 'user', content: prompt }]
       })
     });
 
     if (!anthropicRes.ok) {
       const err = await anthropicRes.json();
-      throw new Error(err.error?.message || 'Anthropic API error');
+      throw new Error(err.error?.message || 'Anthropic API error ' + anthropicRes.status);
     }
 
     const anthropicData = await anthropicRes.json();
-    const raw   = anthropicData.content[0].text.trim();
-    const clean = raw.replace(/```json|```/g, '').trim();
+    const raw    = anthropicData.content[0].text.trim();
+    const clean  = raw.replace(/```json|```/g, '').trim();
     const result = JSON.parse(clean);
 
     // ── Cache in Supabase ──────────────────────────────────────────────────────
-    // Use service key for upsert
     await fetch(`${SUPABASE_URL}/rest/v1/portraits`, {
       method: 'POST',
       headers: {
