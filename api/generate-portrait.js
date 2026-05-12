@@ -1,20 +1,11 @@
 // api/generate-portrait.js
 // Generates a personalised "Reading Portrait" for a user based on their library.
-// Called from account.html when a user has 5+ books saved.
-// Caches result in Supabase `portraits` table — regenerates after every 5 new books.
+// Uses raw fetch to Anthropic API — no SDK dependency required.
 
-const { createClient } = require('@supabase/supabase-js');
-const Anthropic = require('@anthropic-ai/sdk');
+const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 
-const sb = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const PORTRAIT_THRESHOLD = 5;  // minimum books before first portrait
-const REGEN_EVERY       = 5;   // regenerate after every N new books
+const PORTRAIT_THRESHOLD = 5;
+const REGEN_EVERY        = 5;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -23,21 +14,31 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+
   try {
     // ── Auth ───────────────────────────────────────────────────────────────────
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace('Bearer ', '').trim();
     if (!token) return res.status(401).json({ error: 'Not authenticated' });
 
-    const { data: { user }, error: authErr } = await sb.auth.getUser(token);
-    if (authErr || !user) return res.status(401).json({ error: 'Invalid session' });
+    const authRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!authRes.ok) return res.status(401).json({ error: 'Invalid session' });
+    const user = await authRes.json();
+    if (!user || !user.id) return res.status(401).json({ error: 'Invalid session' });
 
     // ── Fetch user library ─────────────────────────────────────────────────────
-    const { data: library } = await sb
-      .from('user_library')
-      .select('added_at, summaries(title, author, categories)')
-      .eq('user_id', user.id)
-      .order('added_at', { ascending: true });
+    const libRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_library?select=added_at,summaries(title,author)&user_id=eq.${user.id}&order=added_at.asc`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    const library = await libRes.json();
 
     if (!library || library.length < PORTRAIT_THRESHOLD) {
       return res.status(200).json({
@@ -50,14 +51,14 @@ module.exports = async (req, res) => {
     const bookCount = library.length;
 
     // ── Check cache ────────────────────────────────────────────────────────────
-    const { data: cached } = await sb
-      .from('portraits')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    const cacheRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/portraits?user_id=eq.${user.id}&limit=1`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    const cacheRows = await cacheRes.json();
+    const cached = cacheRows && cacheRows[0] ? cacheRows[0] : null;
 
     if (cached) {
-      // Only regenerate if user has read REGEN_EVERY more books since last portrait
       const booksSinceRegen = bookCount - (cached.book_count_at_generation || 0);
       if (booksSinceRegen < REGEN_EVERY) {
         return res.status(200).json({
@@ -69,21 +70,22 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ── Build book list for Claude ─────────────────────────────────────────────
+    // ── Build book list ────────────────────────────────────────────────────────
     const bookList = library
       .map(item => item.summaries ? `${item.summaries.title} by ${item.summaries.author}` : null)
       .filter(Boolean)
       .join('\n');
 
-    // Also grab all library books for recommendation pool (exclude already read)
-    const { data: allBooks } = await sb
-      .from('summaries')
-      .select('title, author, synopsis, categories')
-      .limit(500);
-
     const readTitles = new Set(
       library.map(item => item.summaries?.title?.toLowerCase().trim()).filter(Boolean)
     );
+
+    // Fetch unread books for recommendations
+    const allBooksRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/summaries?select=title,author,synopsis&limit=500`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    const allBooks = await allBooksRes.json();
 
     const unreadBooks = (allBooks || [])
       .filter(b => !readTitles.has(b.title?.toLowerCase().trim()))
@@ -91,7 +93,7 @@ module.exports = async (req, res) => {
       .slice(0, 200)
       .join('\n');
 
-    // ── Generate portrait with Claude ──────────────────────────────────────────
+    // ── Call Anthropic ─────────────────────────────────────────────────────────
     const prompt = `You are a perceptive literary companion with deep knowledge of books and human character. A reader has saved the following books to their personal library:
 
 ${bookList}
@@ -99,7 +101,7 @@ ${bookList}
 Your task is two parts:
 
 PART 1 — THE READING PORTRAIT:
-Write a single paragraph (4-6 sentences, around 100-130 words) that reflects back who this person appears to be intellectually and personally, based purely on their reading choices. 
+Write a single paragraph (4-6 sentences, around 100-130 words) that reflects back who this person appears to be intellectually and personally, based purely on their reading choices.
 
 This should feel like a thoughtful, warm observation from a brilliant friend who knows them well — not a personality quiz result, not generic flattery. It should be specific to their actual choices, name particular themes or tensions you notice, and offer a genuine insight that might surprise or delight them. Write in second person ("You seem drawn to..."). British English throughout.
 
@@ -123,24 +125,48 @@ Respond in this exact JSON format and nothing else:
   ]
 }`;
 
-    const message = await anthropic.messages.create({
-     model: 'claude-sonnet-4-5',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }]
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompt }]
+      })
     });
 
-    const raw = message.content[0].text.trim();
+    if (!anthropicRes.ok) {
+      const err = await anthropicRes.json();
+      throw new Error(err.error?.message || 'Anthropic API error');
+    }
+
+    const anthropicData = await anthropicRes.json();
+    const raw   = anthropicData.content[0].text.trim();
     const clean = raw.replace(/```json|```/g, '').trim();
     const result = JSON.parse(clean);
 
     // ── Cache in Supabase ──────────────────────────────────────────────────────
-    await sb.from('portraits').upsert({
-      user_id: user.id,
-      portrait: result.portrait,
-      recommendations: result.recommendations,
-      book_count_at_generation: bookCount,
-      generated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' });
+    // Use service key for upsert
+    await fetch(`${SUPABASE_URL}/rest/v1/portraits`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        user_id: user.id,
+        portrait: result.portrait,
+        recommendations: result.recommendations,
+        book_count_at_generation: bookCount,
+        generated_at: new Date().toISOString()
+      })
+    });
 
     return res.status(200).json({
       portrait: result.portrait,
