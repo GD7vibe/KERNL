@@ -78,6 +78,32 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .loading{text-align:center;padding:2rem;color:var(--muted);font-size:0.85rem}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.75s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Reading Portrait card ─────────────────────────────────────────────────── */
+.portrait-card{background:var(--card);border:1px solid var(--accent);border-radius:var(--radius);padding:1.75rem;margin-bottom:1.5rem;box-shadow:0 2px 24px rgba(139,69,19,0.1);position:relative;overflow:hidden}
+.portrait-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent-light),var(--accent))}
+.portrait-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border)}
+.portrait-title{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--ink)}
+.portrait-badge{font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;padding:3px 10px;border-radius:10px;background:var(--accent-pale);color:var(--accent);font-weight:500;border:1px solid rgba(139,69,19,0.15)}
+.portrait-text{font-size:0.95rem;line-height:1.75;color:var(--ink);font-style:italic;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--warm);border-radius:var(--radius-sm);border-left:3px solid var(--accent)}
+.portrait-recs-title{font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:0.875rem}
+.portrait-recs{display:flex;flex-direction:column;gap:10px}
+.portrait-rec{display:flex;flex-direction:column;gap:3px;padding:0.875rem 1rem;background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all 0.2s}
+.portrait-rec:hover{border-color:var(--accent-light);transform:translateX(3px)}
+.portrait-rec-title{font-family:'Playfair Display',serif;font-size:0.9rem;font-weight:600;color:var(--ink)}
+.portrait-rec-author{font-size:0.75rem;color:var(--muted)}
+.portrait-rec-reason{font-size:0.8rem;color:var(--accent);margin-top:4px;line-height:1.4;font-style:italic}
+.portrait-refresh{margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.portrait-refresh-note{font-size:0.75rem;color:var(--muted);font-style:italic}
+.portrait-refresh-btn{height:30px;padding:0 14px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
+.portrait-refresh-btn:hover{border-color:var(--accent-light);color:var(--accent)}
+.portrait-loading{text-align:center;padding:2.5rem 1rem}
+.portrait-loading-title{font-family:'Playfair Display',serif;font-size:1rem;color:var(--ink);margin-bottom:0.5rem}
+.portrait-loading-sub{font-size:0.82rem;color:var(--muted)}
+.portrait-teaser{text-align:center;padding:1.5rem;background:var(--warm);border-radius:var(--radius-sm);border:1px dashed var(--border)}
+.portrait-teaser-title{font-family:'Playfair Display',serif;font-size:1rem;color:var(--ink);margin-bottom:0.5rem}
+.portrait-teaser-sub{font-size:0.82rem;color:var(--muted);line-height:1.5}
+.portrait-teaser-count{display:inline-block;margin-top:0.75rem;font-size:0.78rem;color:var(--accent);font-weight:500;letter-spacing:0.04em}
 </style>
 </head>
 <body>
@@ -90,6 +116,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     <a href="/" class="logo">K<span class="logo-e">E</span>RNL</a>
     <div class="tagline">for the curious</div>
   </div>
+
   <div class="nav-bar">
     <span class="nav-email" id="nav-email"></span>
     <div class="nav-links">
@@ -97,9 +124,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <button class="nav-link danger" onclick="handleSignOut()">Sign Out</button>
     </div>
   </div>
+
+  <!-- Account / tier card -->
   <div class="card" id="tier-card">
     <div class="loading"><span class="spinner"></span>Loading account&hellip;</div>
   </div>
+
+  <!-- Reading Portrait card -->
+  <div id="portrait-section"></div>
+
+  <!-- My Library -->
   <div class="card">
     <div class="card-title">My Downloaded Books</div>
     <div id="library-container">
@@ -109,48 +143,60 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 </div>
 
 <script>
-const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
+const SUPABASE_URL     = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const PORTRAIT_THRESHOLD = 5;
+
+let _session = null;
+
+// ── Dark mode ─────────────────────────────────────────────────────────────────
 (function(){
   const saved = localStorage.getItem('kernl_dark');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   if (saved === '1' || (saved === null && prefersDark)) document.documentElement.classList.add('dark');
   updateDarkToggle();
 })();
-
 function updateDarkToggle() {
   const isDark = document.documentElement.classList.contains('dark');
   document.getElementById('dark-icon').textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19';
   document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark';
 }
-
 function toggleDark() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
   updateDarkToggle();
 }
 
+// ── Utilities ─────────────────────────────────────────────────────────────────
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(ts) { if (!ts) return ''; return new Date(ts).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}); }
 
+// ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = '/login.html'; return; }
+  _session = session;
   const user = session.user;
   document.getElementById('nav-email').textContent = user.email;
+
   const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).single();
   renderTierCard(profile);
+
   const { data: library } = await sb
     .from('user_library')
     .select('id, voice, language, added_at, summaries(title, author, synopsis)')
     .eq('user_id', user.id)
     .order('added_at', { ascending: false });
-  renderLibrary(library || []);
+
+  const items = library || [];
+  renderLibrary(items);
+  renderPortraitSection(items);
 }
 
+// ── Tier card ─────────────────────────────────────────────────────────────────
 function renderTierCard(profile) {
   const tier = profile ? profile.tier : 'free';
   const used = profile ? (profile.downloads_used || 0) : 0;
@@ -169,10 +215,7 @@ function renderTierCard(profile) {
       ${tier === 'free' ? '<a href="/upgrade.html" class="upgrade-btn">Upgrade to Pro &rsaquo;</a>' : ''}
     </div>
     <div class="usage-bar-wrap">
-      <div class="usage-label">
-        <span>Downloads used</span>
-        <strong>${used} / ${limit}</strong>
-      </div>
+      <div class="usage-label"><span>Downloads used</span><strong>${used} / ${limit}</strong></div>
       <div class="usage-bar"><div class="usage-fill ${fillClass}" style="width:${pct}%"></div></div>
       ${resetDate ? `<div class="usage-reset">Resets on ${resetDate}</div>` : ''}
     </div>
@@ -183,6 +226,123 @@ function renderTierCard(profile) {
     </div>`;
 }
 
+// ── Reading Portrait ──────────────────────────────────────────────────────────
+function renderPortraitSection(items) {
+  const section = document.getElementById('portrait-section');
+  const bookCount = items.length;
+
+  if (bookCount < PORTRAIT_THRESHOLD) {
+    // Show teaser
+    const needed = PORTRAIT_THRESHOLD - bookCount;
+    section.innerHTML = `
+      <div class="portrait-card">
+        <div class="portrait-header">
+          <div class="portrait-title">Your Reading Portrait</div>
+          <span class="portrait-badge">Coming soon</span>
+        </div>
+        <div class="portrait-teaser">
+          <div class="portrait-teaser-title">A mirror for curious minds</div>
+          <div class="portrait-teaser-sub">Save ${needed} more book${needed !== 1 ? 's' : ''} and KERNL will reflect back who you appear to be — your intellectual character, the themes you're drawn to, and three hand-picked recommendations that feel made for you.</div>
+          <div class="portrait-teaser-count">${bookCount} of ${PORTRAIT_THRESHOLD} books saved</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // Show loading state while we fetch
+  section.innerHTML = `
+    <div class="portrait-card">
+      <div class="portrait-header">
+        <div class="portrait-title">Your Reading Portrait</div>
+        <span class="portrait-badge">Personalised</span>
+      </div>
+      <div class="portrait-loading">
+        <div class="portrait-loading-title"><span class="spinner"></span>Reading your library&hellip;</div>
+        <div class="portrait-loading-sub">Composing your portrait</div>
+      </div>
+    </div>`;
+
+  loadPortrait(false);
+}
+
+async function loadPortrait(forceRefresh) {
+  const section = document.getElementById('portrait-section');
+  if (!_session) return;
+
+  try {
+    const res = await fetch('/api/generate-portrait', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + _session.access_token
+      },
+      body: JSON.stringify({ forceRefresh: !!forceRefresh })
+    });
+
+    if (!res.ok) throw new Error('Portrait generation failed');
+    const data = await res.json();
+
+    if (!data.portrait) return; // not enough books — shouldn't happen here
+
+    renderPortrait(data);
+  } catch(e) {
+    console.warn('Portrait error:', e.message);
+    section.innerHTML = `
+      <div class="portrait-card">
+        <div class="portrait-header">
+          <div class="portrait-title">Your Reading Portrait</div>
+          <span class="portrait-badge">Personalised</span>
+        </div>
+        <div class="portrait-teaser">
+          <div class="portrait-teaser-sub" style="color:var(--muted)">Could not load your portrait right now. Try again shortly.</div>
+        </div>
+      </div>`;
+  }
+}
+
+function renderPortrait(data) {
+  const section = document.getElementById('portrait-section');
+  const recs = (data.recommendations || []);
+
+  const recsHtml = recs.map(r => `
+    <div class="portrait-rec" onclick="openBook('${esc(r.title)}','${esc(r.author)}')">
+      <div class="portrait-rec-title">${esc(r.title)}</div>
+      <div class="portrait-rec-author">by ${esc(r.author)}</div>
+      <div class="portrait-rec-reason">${esc(r.reason)}</div>
+    </div>`).join('');
+
+  section.innerHTML = `
+    <div class="portrait-card">
+      <div class="portrait-header">
+        <div class="portrait-title">Your Reading Portrait</div>
+        <span class="portrait-badge">Personalised</span>
+      </div>
+      <div class="portrait-text">${esc(data.portrait)}</div>
+      ${recs.length ? `
+        <div class="portrait-recs-title">Recommended for you</div>
+        <div class="portrait-recs">${recsHtml}</div>` : ''}
+      <div class="portrait-refresh">
+        <div class="portrait-refresh-note">Based on ${data.bookCount} book${data.bookCount !== 1 ? 's' : ''} &mdash; refreshes as your library grows</div>
+        <button class="portrait-refresh-btn" onclick="refreshPortrait()">Refresh portrait</button>
+      </div>
+    </div>`;
+}
+
+async function refreshPortrait() {
+  const section = document.getElementById('portrait-section');
+  section.querySelector('.portrait-card').innerHTML = `
+    <div class="portrait-header" style="margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--ink)">Your Reading Portrait</div>
+      <span class="portrait-badge">Personalised</span>
+    </div>
+    <div class="portrait-loading">
+      <div class="portrait-loading-title"><span class="spinner"></span>Refreshing your portrait&hellip;</div>
+      <div class="portrait-loading-sub">This takes a moment</div>
+    </div>`;
+  await loadPortrait(true);
+}
+
+// ── Library ───────────────────────────────────────────────────────────────────
 function renderLibrary(items) {
   const container = document.getElementById('library-container');
   if (!items.length) {
@@ -191,21 +351,17 @@ function renderLibrary(items) {
   }
   const grid = document.createElement('div');
   grid.className = 'library-grid';
-
   items.forEach(item => {
-    const title = item.summaries ? item.summaries.title || '' : '';
-    const author = item.summaries ? item.summaries.author || '' : '';
+    const title    = item.summaries ? item.summaries.title  || '' : '';
+    const author   = item.summaries ? item.summaries.author || '' : '';
     const synopsis = item.summaries ? item.summaries.synopsis || '' : '';
-    const voice = item.voice || 'female';
-    const lang = (item.language || 'en').toUpperCase();
-
-    const card = document.createElement('div');
+    const voice    = item.voice || 'female';
+    const lang     = (item.language || 'en').toUpperCase();
+    const card     = document.createElement('div');
     card.className = 'book-card';
-    // Use dataset — safe with apostrophes, quotes, any special characters
-    card.dataset.title = title;
+    card.dataset.title  = title;
     card.dataset.author = author;
-    card.dataset.id = item.id;
-
+    card.dataset.id     = item.id;
     card.innerHTML = `
       <button class="book-remove" title="Remove">&times;</button>
       <div class="book-title">${esc(title)}</div>
@@ -215,22 +371,16 @@ function renderLibrary(items) {
         <span class="book-chip ${voice}">${voice === 'female' ? '&#9792; Female' : '&#9794; Male'} &middot; ${lang}</span>
         <span class="book-date">${fmtDate(item.added_at)}</span>
       </div>`;
-
-    // Card click — open book in app
     card.addEventListener('click', function(e) {
       if (e.target.classList.contains('book-remove')) return;
       openBook(this.dataset.title, this.dataset.author);
     });
-
-    // Remove button
     card.querySelector('.book-remove').addEventListener('click', function(e) {
       e.stopPropagation();
       removeFromLibrary(card.dataset.id);
     });
-
     grid.appendChild(card);
   });
-
   container.innerHTML = '';
   container.appendChild(grid);
 }
@@ -246,10 +396,7 @@ async function removeFromLibrary(id) {
   init();
 }
 
-async function handleSignOut() {
-  await sb.auth.signOut();
-  window.location.href = '/login.html';
-}
+async function handleSignOut() { await sb.auth.signOut(); window.location.href = '/login.html'; }
 
 init();
 </script>
