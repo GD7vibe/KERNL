@@ -33,7 +33,7 @@ module.exports = async (req, res) => {
     // ── Fetch user library ─────────────────────────────────────────────────────
     const libRes = await fetch(
       `${SUPABASE_URL}/rest/v1/user_library?select=summaries(title,author)&user_id=eq.${user.id}&order=added_at.asc`,
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+      { headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g', 'Authorization': `Bearer ${token}` } }
     );
     const library = await libRes.json();
 
