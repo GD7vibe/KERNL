@@ -266,8 +266,18 @@ async function checkAudioAvailability() {
   if (!currentSummary) return;
   const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
   if (tier === 'pro') {
-    // Pro: audio will be generated on demand — put into audio-prep state
-    // which will be overridden by generate-audio polling below
+    // Pro: check cache first — if already cached, unlock immediately
+    try {
+      const cacheRes = await fetch('/api/tts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author, checkOnly: true })
+      });
+      if (cacheRes.ok) {
+        const cacheData = await cacheRes.json();
+        if (cacheData.url) { setAudioState('cached'); return; }
+      }
+    } catch(e) { console.warn('Pro cache check failed:', e); }
+    // Not cached yet — set audio-prep state
     setAudioState('audio-prep');
     return;
   }
