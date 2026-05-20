@@ -26,6 +26,16 @@ function plainHash(plain) {
   return fnv32(String(plain || '').replace(/\s+/g, ' ').trim());
 }
 
+// Derive voice metadata from voice param
+// All current xAI voices are British English
+function getVoiceMeta(voice) {
+  return {
+    voice_gender:   voice === 'male' ? 'male' : 'female',
+    voice_accent:   'british',
+    voice_language: 'en'
+  };
+}
+
 async function saveAudioToStorage(filename, buffer) {
   try {
     let res = await fetch(
@@ -50,6 +60,7 @@ async function saveAudioToStorage(filename, buffer) {
 async function saveAudioMeta(title, author, voice, audioKey, plain) {
   try {
     const hash = plainHash(plain);
+    const voiceMeta = getVoiceMeta(voice);
     // Upsert — if a row already exists for this audio_key, update the hash
     const res = await fetch(`${SUPABASE_URL}/rest/v1/audio_meta`, {
       method: 'POST',
@@ -59,7 +70,16 @@ async function saveAudioMeta(title, author, voice, audioKey, plain) {
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates,return=minimal'
       },
-      body: JSON.stringify({ title, author, voice, audio_key: audioKey, plain_hash: hash })
+      body: JSON.stringify({
+        title,
+        author,
+        voice,
+        audio_key:      audioKey,
+        plain_hash:     hash,
+        voice_gender:   voiceMeta.voice_gender,
+        voice_accent:   voiceMeta.voice_accent,
+        voice_language: voiceMeta.voice_language
+      })
     });
     if (res.ok) console.log('[tts-stream] audio_meta saved for:', audioKey, '| hash:', hash);
     else console.error('[tts-stream] audio_meta save failed:', res.status, await res.text());
