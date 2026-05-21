@@ -80,7 +80,6 @@ function norm(s) {
     .replace(/\s+/g,' ').trim();
 }
 
-// normTitle: strip leading articles AND common subtitle patterns for fuzzy comparison
 function normTitle(s) {
   return norm(s)
     .replace(/^(the|a|an)\s+/i,'')
@@ -100,7 +99,6 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
-// Combined score: weighted blend of title similarity + author similarity
 function combinedScore(candidateTitle, candidateAuthor, queryTitle, queryAuthor) {
   const nt1 = normTitle(queryTitle), nt2 = normTitle(candidateTitle);
   const maxTLen = Math.max(nt1.length, nt2.length);
@@ -112,11 +110,9 @@ function combinedScore(candidateTitle, candidateAuthor, queryTitle, queryAuthor)
   const maxALen = Math.max(na1.length, na2.length);
   const authorScore = maxALen === 0 ? 0 : 1 - levenshtein(na1, na2) / maxALen;
 
-  // Title weighted 60%, author 40% — author is a strong discriminator
   return titleScore * 0.6 + authorScore * 0.4;
 }
 
-// Exact title match check — must be very close to avoid cross-title collisions
 function titleExactEnough(candidateTitle, queryTitle) {
   const nt1 = normTitle(queryTitle), nt2 = normTitle(candidateTitle);
   const maxLen = Math.max(nt1.length, nt2.length);
@@ -144,7 +140,52 @@ async function supabaseGet(url) {
   return data && data.length > 0 ? data : null;
 }
 
+// ── Sync error logger ─────────────────────────────────────────────────────────
+async function logSyncError(title, author, voice, errorType, detail) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/sync_errors`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ title, author, voice: voice || null, error_type: errorType, detail, resolved: false })
+    });
+  } catch (e) {
+    console.warn('logSyncError failed:', e.message);
+  }
+}
+
+// ── Duplicate detection before insert ────────────────────────────────────────
+async function checkForDuplicate(title, author, newKey) {
+  try {
+    const nTitle = norm(title);
+    const rows = await supabaseGet(
+      SUPABASE_URL + '/rest/v1/summaries?title=ilike.' + encodeURIComponent('%' + nTitle + '%') +
+      '&select=id,title,author,lookup_key&limit=20'
+    );
+    if (!rows) return;
+
+    for (const row of rows) {
+      if (row.lookup_key === newKey) continue; // same key — not a duplicate, it's the same record
+      const score = combinedScore(row.title, row.author, title, author);
+      if (score >= 0.85 && titleExactEnough(row.title, title)) {
+        const detail = `New entry "${title}" by "${author}" (key: ${newKey}) is very similar to existing row id=${row.id} "${row.title}" by "${row.author}" (key: ${row.lookup_key}). Score: ${score.toFixed(3)}. Review and merge if duplicate.`;
+        console.warn('[summarise] Potential duplicate detected:', detail);
+        await logSyncError(title, author, null, 'duplicate_entry', detail);
+      }
+    }
+  } catch (e) {
+    console.warn('checkForDuplicate failed:', e.message);
+  }
+}
+
 async function saveToSupabase(title, author, key, html, plain, words) {
+  // Check for near-duplicates before inserting
+  await checkForDuplicate(title, author, key);
+
   const res = await fetch(SUPABASE_URL+'/rest/v1/summaries', {
     method: 'POST',
     headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -239,54 +280,42 @@ async function findCached(title, author) {
   const nAuthor = norm(author || '');
   const exactKey = makeKey(title, author);
 
-  // L1: exact lookup_key match — most reliable, always try first
   let rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(exactKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
   if (rows) { console.log('Cache hit L1'); return rows[0]; }
 
-  // L1b: old spoilers key (backward compat)
   const oldSpoilersKey = norm(title)+'||'+norm(author)+'||spoilers';
   rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(oldSpoilersKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
   if (rows) { console.log('Cache hit L1b'); return rows[0]; }
 
-  // L2: title-only key (legacy records without author in key)
   const titleKey = norm(title)+'||nospoilers';
   rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?lookup_key=eq.'+encodeURIComponent(titleKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
   if (rows) { console.log('Cache hit L2'); return rows[0]; }
 
-  // ── Fuzzy matching helper ─────────────────────────────────────────────────
-  // Uses combined title+author score. Title MUST be close enough on its own
-  // (titleExactEnough) AND the combined score must clear the threshold.
-  // This prevents "In the Woods" matching "A Walk in the Woods".
   function pickBest(candidates, minCombined) {
     return candidates
-      .filter(r => titleExactEnough(r.title, title)) // hard title gate first
+      .filter(r => titleExactEnough(r.title, title))
       .map(r => ({ row: r, score: combinedScore(r.title, r.author, title, author) }))
       .filter(r => r.score >= minCombined)
       .sort((a, b) => b.score - a.score)
       .map(r => r.row)[0] || null;
   }
 
-  // L3: title ILIKE on normalised title
   const nTitle = norm(title);
   rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+nTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
   if (rows) { const m = pickBest(rows, 0.82); if (m) { console.log('Cache hit L3'); return m; } }
 
-  // L3b: title ILIKE on normTitle (strips article + subtitle)
   const ntTitle = normTitle(title);
   if (ntTitle !== nTitle) {
     rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+ntTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
     if (rows) { const m = pickBest(rows, 0.82); if (m) { console.log('Cache hit L3b'); return m; } }
   }
 
-  // L4: distinctive word search — highest collision risk, so strictest threshold
-  // Stop-word list is extended to exclude generic words like "walk", "woods", "story"
   const word = getDistinctiveWord(title);
   if (word && word.length >= 5) {
     rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?title=ilike.'+encodeURIComponent('%'+word+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
     if (rows) { const m = pickBest(rows, 0.85); if (m) { console.log('Cache hit L4'); return m; } }
   }
 
-  // L5: author search — only if title similarity also clears bar
   if (nAuthor && nAuthor.length > 2) {
     rows = await supabaseGet(SUPABASE_URL+'/rest/v1/summaries?author=ilike.'+encodeURIComponent('%'+nAuthor+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
     if (rows) { const m = pickBest(rows, 0.80); if (m) { console.log('Cache hit L5'); return m; } }

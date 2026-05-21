@@ -30,7 +30,9 @@
 html.dark{--ink:#e8e0d5;--paper:#1a1714;--warm:#242019;--accent:#c47a3a;--accent-light:#d4924f;--accent-pale:rgba(196,122,58,0.12);--muted:#9a8f80;--border:rgba(196,122,58,0.2);--card:#221f1a;--success-bg:#1a2e22;--success-fg:#5aab7a;--error-bg:#2e1a1a;--error-fg:#d4706f}
 html{font-size:16px;scroll-behavior:smooth}
 body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background var(--transition),color var(--transition)}
-#app{max-width:900px;margin:0 auto;padding:0 1.5rem 5rem}
+#app{width:100%;margin:0 auto;padding:0 1.5rem 5rem}
+@media(min-width:900px){#app{padding:0 3rem 5rem}}
+@media(min-width:1400px){#app{max-width:1400px;padding:0 4rem 5rem}}
 .masthead{text-align:center;padding:3rem 0 2.5rem;position:relative;margin-bottom:2.5rem}
 .masthead::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:80px;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .logo{font-family:'Playfair Display',serif;font-size:clamp(2.8rem,8vw,4rem);font-weight:600;letter-spacing:0.12em;color:var(--ink);line-height:1;transition:color var(--transition)}
