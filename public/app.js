@@ -13,10 +13,6 @@ function setAudioState(state) {
 }
 
 function applyAudioStateToUI() {
-  const playBtn   = document.getElementById('play-btn');
-  const scrubRow  = document.getElementById('scrub-row');
-  const scrubTrack= document.getElementById('scrub-track');
-
   switch (_audioState) {
     case 'idle':
     case 'generating':
@@ -118,8 +114,8 @@ function _setPrintKindle(enabled) {
 
 function lockAllControls()         { setAudioState('generating'); }
 function unlockAllControls()       { /* intentionally no-op — state machine handles this */ }
-function lockStreamingControls()   { /* no-op — handled by state machine */ }
-function unlockStreamingControls() { /* no-op — handled by state machine */ }
+function lockStreamingControls()   { /* no-op */ }
+function unlockStreamingControls() { /* no-op */ }
 function lockVoiceButtons()        { _setVoiceBtns(false); }
 function unlockVoiceButtons()      { _setVoiceBtns(true); }
 function greyPlayBtn()             { _setPlayBtn(false); }
@@ -136,9 +132,6 @@ function getSB() {
 
 async function initAuth() {
   const sb = getSB();
-  // Retry loop — session token can take a moment to propagate after sign-in.
-  // Without this, the first load after login incorrectly sees no session
-  // and bounces the user back to login.html.
   let session = null;
   for (let attempt = 1; attempt <= 5; attempt++) {
     const { data } = await sb.auth.getSession();
@@ -154,10 +147,11 @@ async function initAuth() {
   const params = new URLSearchParams(window.location.search);
   const autoTitle = params.get('title');
   const autoAuthor = params.get('author');
-  if (autoTitle) {
+  if (autoTitle && autoAuthor) {
     document.getElementById('book-input').value = autoTitle;
-    if (autoAuthor) document.getElementById('author-input').value = autoAuthor;
-    handleGenerate();
+    document.getElementById('author-input').value = autoAuthor;
+    // Show confirmation step rather than auto-generating
+    showConfirmation(autoTitle, autoAuthor, false);
   }
 }
 
@@ -325,6 +319,350 @@ function setStatus(msg,show) { const bar=document.getElementById('status-bar'); 
 function setError(msg) { const bar=document.getElementById('error-bar'); bar.textContent=msg; bar.classList.toggle('show',!!msg); }
 function setSpeed(rate) { playbackRate=rate; document.querySelectorAll('.speed-btn').forEach(btn=>{ btn.classList.toggle('active',parseFloat(btn.dataset.rate)===rate); }); if (audioEl) audioEl.playbackRate=rate; }
 
+// ── Confirmation panel ────────────────────────────────────────────────────────
+// isLibraryBook: true = known to exist in Supabase, skip Open Library verification
+// pendingGenerate: function to call when user confirms
+let _pendingGenerate = null;
+
+function dismissConfirmation() {
+  const panel = document.getElementById('confirm-panel');
+  if (panel) panel.remove();
+  _pendingGenerate = null;
+  setError('');
+}
+
+function showConfirmation(title, author, isLibraryBook) {
+  // Remove any existing panel
+  dismissConfirmation();
+  setError('');
+
+  // Validate author before showing confirmation
+  const authorTrimmed = (author || '').trim();
+  if (!authorTrimmed || /^unknown/i.test(authorTrimmed)) {
+    setError('Please enter the author\u2019s name before loading this summary.');
+    document.getElementById('author-input').focus();
+    return;
+  }
+
+  // Build the panel
+  const panel = document.createElement('div');
+  panel.id = 'confirm-panel';
+  panel.style.cssText = [
+    'background:var(--card)',
+    'border:2px solid var(--accent)',
+    'border-radius:var(--radius)',
+    'padding:1.25rem 1.5rem',
+    'margin-bottom:1.5rem',
+    'box-shadow:0 4px 20px rgba(139,69,19,0.12)',
+    'animation:kernlFadeIn 0.18s ease'
+  ].join(';');
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem">
+      <div>
+        <div style="font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:600;color:var(--ink);margin-bottom:2px">${esc(title)}</div>
+        <div style="font-size:0.85rem;color:var(--muted);font-style:italic">by ${esc(authorTrimmed)}</div>
+      </div>
+      <button onclick="dismissConfirmation()" style="background:none;border:none;font-size:1.1rem;color:var(--muted);cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0" title="Cancel">&times;</button>
+    </div>
+    <div id="confirm-verify-msg" style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem;display:${isLibraryBook ? 'none' : 'block'}">
+      <span id="confirm-verify-spinner" style="display:inline-block;width:10px;height:10px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:6px;vertical-align:middle"></span>
+      Verifying book\u2026
+    </div>
+    <div id="confirm-warning" style="display:none;background:var(--error-bg,#fdf0f0);border:1px solid rgba(139,69,19,0.2);border-radius:var(--radius-sm);padding:0.6rem 0.9rem;font-size:0.82rem;color:var(--error-fg,#8B1A1A);margin-bottom:1rem;line-height:1.5"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button id="confirm-load-btn" onclick="confirmAndGenerate()" style="height:38px;padding:0 20px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='var(--accent)'">
+        &#128218; Load Summary
+      </button>
+      <button onclick="dismissConfirmation()" style="height:38px;padding:0 20px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;font-family:'DM Sans',sans-serif;font-size:0.85rem;color:var(--muted);cursor:pointer">
+        Cancel
+      </button>
+    </div>
+  `;
+
+  // Insert panel above the summary card (or status bar area)
+  const anchor = document.getElementById('status-bar') || document.getElementById('summary-card');
+  if (anchor && anchor.parentNode) {
+    anchor.parentNode.insertBefore(panel, anchor);
+  } else {
+    document.getElementById('app').appendChild(panel);
+  }
+
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Store what to do when confirmed
+  _pendingGenerate = { title, author: authorTrimmed };
+
+  // For library books we trust the data — no verification needed
+  if (isLibraryBook) return;
+
+  // For new books, verify against Open Library in the background
+  verifyBookExists(title, authorTrimmed);
+}
+
+async function verifyBookExists(title, author) {
+  const verifyMsg  = document.getElementById('confirm-verify-msg');
+  const warning    = document.getElementById('confirm-warning');
+  const loadBtn    = document.getElementById('confirm-load-btn');
+  if (!verifyMsg) return;
+
+  try {
+    const res = await fetch(
+      `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=3&fields=title,author_name`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) throw new Error('network');
+    const data = await res.json();
+
+    verifyMsg.style.display = 'none';
+
+    const found = data.docs && data.docs.length > 0 &&
+      data.docs.some(d =>
+        d.title && d.title.toLowerCase().includes(title.toLowerCase().slice(0,15))
+      );
+
+    if (!found) {
+      warning.style.display = 'block';
+      warning.innerHTML = '&#9888;&#65039; We couldn\u2019t verify this book exists in Open Library. Generating anyway may produce an inaccurate summary. Proceed only if you\u2019re confident the title and author are correct.';
+      if (loadBtn) loadBtn.textContent = '\u26A0\uFE0F Generate anyway';
+    }
+  } catch(e) {
+    // Verification failed (timeout, network) — don't block the user, just hide spinner
+    if (verifyMsg) verifyMsg.style.display = 'none';
+  }
+}
+
+function confirmAndGenerate() {
+  if (!_pendingGenerate) return;
+  const { title, author } = _pendingGenerate;
+  dismissConfirmation();
+  _executeGenerate(title, author);
+}
+
+// ── Search button handler — now shows confirmation first ──────────────────────
+async function handleGenerate() {
+  const title  = document.getElementById('book-input').value.trim();
+  const author = document.getElementById('author-input').value.trim();
+  setError('');
+  hideDropdown();
+
+  // 1. Must have a title
+  if (!title) {
+    setError('Please enter a book title to continue.');
+    return;
+  }
+
+  // 2. Must have an author — never allow "Unknown"
+  if (!author || /^unknown/i.test(author)) {
+    setError('Please enter the author\u2019s name. Summaries cannot be generated without a known author.');
+    document.getElementById('author-input').focus();
+    return;
+  }
+
+  // 3. Free tier — must be in library
+  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
+  if (tier !== 'pro' && _allBooks && _allBooks.length) {
+    const q = title.toLowerCase().trim();
+    const inLibrary = _allBooks.some(b => b.title && b.title.toLowerCase().includes(q));
+    if (!inLibrary) {
+      setError('This book isn\u2019t in the free library. Upgrade to Pro to generate summaries for any book.');
+      return;
+    }
+  }
+
+  // 4. Check local cache — if found, it's verified, skip Open Library check
+  const cached = getArchive().find(e => norm(e.title) === norm(title) && norm(e.author) === norm(author));
+  if (cached) {
+    showConfirmation(title, author, true);
+    return;
+  }
+
+  // 5. Check Supabase library — if found there, it's a real book
+  const inSupabase = _allBooks && _allBooks.some(b => norm(b.title) === norm(title));
+
+  // Show confirmation. isLibraryBook=true skips Open Library verification.
+  showConfirmation(title, author, inSupabase);
+}
+
+// ── The actual generation logic (was handleGenerate body) ─────────────────────
+async function _executeGenerate(title, author) {
+  // Check local cache first
+  const cached = getArchive().find(e => norm(e.title) === norm(title) && norm(e.author) === norm(author));
+  if (cached) {
+    setStatus('Found in your library \u2014 loading instantly!', true);
+    setTimeout(async () => {
+      setStatus('', false);
+      let words = cached.words || [];
+      if (!words.length) {
+        try {
+          const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || ''));
+          if (r.ok) { const d = await r.json(); if (d.words) { try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {} } }
+        } catch(e) {}
+      }
+      displaySummary(cached.title, cached.author, cached.html, cached.plain, words, cached.spoilers || false, true);
+    }, 600);
+    return;
+  }
+
+  document.getElementById('gen-btn').disabled = true;
+  isGenerating = true;
+  setAudioState('generating');
+  setStatus('Generating summary \u2014 appearing shortly\u2026', true);
+
+  try {
+    const res = await fetch('/api/summarise', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, author })
+    });
+    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Error ' + res.status); }
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      const displayAuthor = author || data.author || 'Unknown author';
+      saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], savedAt: Date.now() });
+      setStatus('', false);
+      displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false);
+      return;
+    }
+    const reader = res.body.getReader(); const decoder = new TextDecoder();
+    let buffer = ''; let streamingStarted = false; let finalData = null; let lastHtml = '';
+    let audioTriggered = false;
+    const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const msg = JSON.parse(line.slice(6).trim());
+            if (msg.error) throw new Error(msg.error);
+            if (msg.done) {
+              finalData = msg;
+              if (!audioTriggered && tier === 'pro') {
+                audioTriggered = true;
+                const displayAuthorNow = author;
+                fetch('/api/generate-audio', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ title, author: displayAuthorNow, plain: msg.plain, voice: currentVoice })
+                }).catch(e => console.warn('generate-audio fire-and-forget failed:', e.message));
+              }
+              continue;
+            }
+            if (msg.chunk) {
+              lastHtml = msg.chunk;
+              if (!streamingStarted) {
+                streamingStarted = true;
+                setStatus('', false);
+                displaySummaryStreaming(title, author, msg.chunk);
+              } else {
+                updateStreamingBody(msg.chunk);
+              }
+            }
+          } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; }
+        }
+      }
+    } catch(streamErr) { if (!streamingStarted) throw streamErr; console.warn('Stream dropped early:', streamErr.message); }
+
+    if (finalData) {
+      saveEntry({ title, author, html: finalData.html, plain: finalData.plain, words: finalData.words || [], savedAt: Date.now() });
+      displaySummary(title, author, finalData.html, finalData.plain, finalData.words || [], false);
+      if (!audioTriggered && tier === 'pro') {
+        fetch('/api/generate-audio', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, author, plain: finalData.plain, voice: currentVoice })
+        }).catch(e => console.warn('generate-audio fallback failed:', e.message));
+      }
+    } else if (streamingStarted && lastHtml) {
+      const plainText = lastHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      saveEntry({ title, author, html: lastHtml, plain: plainText, words: [], savedAt: Date.now() });
+      displaySummary(title, author, lastHtml, plainText, [], false);
+    }
+  } catch(err) {
+    setStatus('', false);
+    setError('Could not generate summary: ' + err.message);
+  } finally {
+    document.getElementById('gen-btn').disabled = false;
+    isGenerating = false;
+  }
+}
+
+function stripGenreLine(html) { return html.replace(/^GENRE:(FICTION|NONFICTION)\s*/i,'').replace(/^<p>GENRE:(FICTION|NONFICTION)<\/p>\s*/i,''); }
+
+function displaySummaryStreaming(title, author, htmlSoFar) {
+  htmlSoFar = stripGenreLine(htmlSoFar);
+  stopAudio();
+  currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
+  document.getElementById('s-title').textContent = title;
+  document.getElementById('s-author').textContent = 'by ' + author;
+  document.getElementById('s-words').textContent = 'generating\u2026';
+  document.getElementById('summary-body').innerHTML = htmlSoFar;
+  document.getElementById('player-title').textContent = title;
+  document.getElementById('player-sub').textContent = (currentVoice === 'female' ? 'Female' : 'Male') + ' voice';
+  resetScrubUI();
+  document.getElementById('megan-words-section').style.display = 'none';
+  document.getElementById('summary-card').classList.add('show');
+  document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setAudioState('generating');
+}
+
+function updateStreamingBody(htmlSoFar) { htmlSoFar = stripGenreLine(htmlSoFar); const body = document.getElementById('summary-body'); if (body) body.innerHTML = htmlSoFar; }
+
+function renderMeganWords(words) {
+  const section = document.getElementById('megan-words-section');
+  if (!words || !words.length) { section.style.display = 'none'; return; }
+  const seen = new Set();
+  const uniqueWords = words.filter(w => { const key = w.word.toLowerCase().trim(); if (seen.has(key)) return false; seen.add(key); return true; });
+  section.style.display = 'block';
+  document.getElementById('megan-words-grid').innerHTML = uniqueWords.map(w => `<div class="megan-word-item"><div class="megan-word">${esc(w.word)}</div><div class="megan-definition">${esc(w.definition)}</div></div>`).join('');
+}
+
+function toggleMeganWords() { const grid = document.getElementById('megan-words-grid'); const arrow = document.getElementById('megan-arrow'); const isOpen = grid.classList.toggle('open'); arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)'; }
+
+function displaySummary(title, author, html, plain, words, spoilers, fromArchive) {
+  stopAudio();
+  currentSummary = { title, author, html, plain, words, spoilers };
+  document.getElementById('s-title').textContent = title;
+  document.getElementById('s-author').textContent = 'by ' + author;
+  document.getElementById('s-words').textContent = countWords(plain).toLocaleString() + ' words';
+  document.getElementById('summary-body').innerHTML = html;
+  const buyBtn = document.getElementById('buy-btn');
+  buyBtn.href = makeAmazonUrl(title, author);
+  const kindleBtn = document.getElementById('send-kindle-btn');
+  if (kindleBtn) kindleBtn.onclick = showKindleModal;
+  const saveBtn = document.getElementById('save-library-btn');
+  if (saveBtn) saveBtn.style.display = 'none';
+  document.getElementById('player-title').textContent = title;
+  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
+  resetScrubUI();
+  const grid  = document.getElementById('megan-words-grid');
+  const arrow = document.getElementById('megan-arrow');
+  grid.classList.remove('open'); arrow.style.transform = 'rotate(0deg)';
+  renderMeganWords(words);
+  document.getElementById('summary-card').classList.add('show');
+  document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (_currentUser && !fromArchive) autoSaveToLibrary(title, author);
+  checkAudioAvailability();
+}
+
+function closeSummary() { stopAudio(); document.getElementById('summary-card').classList.remove('show'); currentSummary = null; setAudioState('idle'); }
+
+// ── Library card handler — shows confirmation instead of immediate load ────────
+function loadLibraryBook(title, author) {
+  const ta = document.createElement('textarea');
+  ta.innerHTML = title; const t = ta.value;
+  ta.innerHTML = author; const a = ta.value;
+  document.getElementById('book-input').value = t;
+  document.getElementById('author-input').value = a;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Small delay so scroll completes before panel appears
+  setTimeout(() => showConfirmation(t, a, true), 300);
+}
+
+// ── Player state ──────────────────────────────────────────────────────────────
 function setPlayerState(playing, subText) {
   isPlaying = playing;
   const icon = document.getElementById('play-icon');
@@ -637,183 +975,14 @@ function setVoice(v) {
   }
 }
 
-async function handleGenerate() {
-  const title  = document.getElementById('book-input').value.trim();
-  const author = document.getElementById('author-input').value.trim();
-  setError(''); hideDropdown();
-  if (!title) { setError('Please enter a book title to continue.'); return; }
-  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
-  if (tier !== 'pro' && _allBooks && _allBooks.length) {
-    const q = title.toLowerCase().trim();
-    const inLibrary = _allBooks.some(b => b.title && b.title.toLowerCase().includes(q));
-    if (!inLibrary) { setError('This book isn\u2019t in the free library. Upgrade to Pro to generate summaries for any book.'); return; }
-  }
-  const cached = getArchive().find(e => norm(e.title) === norm(title) && (!author || norm(e.author) === norm(author)));
-  if (cached) {
-    setStatus('Found in your library \u2014 loading instantly!', true);
-    setTimeout(async () => {
-      setStatus('', false);
-      let words = cached.words || [];
-      if (!words.length) {
-        try {
-          const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || ''));
-          if (r.ok) { const d = await r.json(); if (d.words) { try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {} } }
-        } catch(e) {}
-      }
-      displaySummary(cached.title, cached.author, cached.html, cached.plain, words, cached.spoilers || false, true);
-    }, 600);
-    return;
-  }
-  document.getElementById('gen-btn').disabled = true;
-  isGenerating = true;
-  setAudioState('generating');
-  setStatus('Generating summary \u2014 appearing shortly\u2026', true);
-  try {
-    const res = await fetch('/api/summarise', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, author })
-    });
-    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Error ' + res.status); }
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      const data = await res.json();
-      const displayAuthor = author || data.author || 'Unknown author';
-      saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], savedAt: Date.now() });
-      setStatus('', false);
-      displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false);
-      return;
-    }
-    const reader = res.body.getReader(); const decoder = new TextDecoder();
-    let buffer = ''; let streamingStarted = false; let finalData = null; let lastHtml = '';
-    let audioTriggered = false;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const msg = JSON.parse(line.slice(6).trim());
-            if (msg.error) throw new Error(msg.error);
-            if (msg.done) {
-              finalData = msg;
-              if (!audioTriggered && tier === 'pro') {
-                audioTriggered = true;
-                const displayAuthorNow = author || 'Unknown author';
-                fetch('/api/generate-audio', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title, author: displayAuthorNow, plain: msg.plain, voice: currentVoice })
-                }).catch(e => console.warn('generate-audio fire-and-forget failed:', e.message));
-              }
-              continue;
-            }
-            if (msg.chunk) {
-              lastHtml = msg.chunk;
-              if (!streamingStarted) {
-                streamingStarted = true;
-                setStatus('', false);
-                displaySummaryStreaming(title, author || 'Unknown author', msg.chunk);
-              } else {
-                updateStreamingBody(msg.chunk);
-              }
-            }
-          } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; }
-        }
-      }
-    } catch(streamErr) { if (!streamingStarted) throw streamErr; console.warn('Stream dropped early:', streamErr.message); }
-    const displayAuthor = author || 'Unknown author';
-    if (finalData) {
-      saveEntry({ title, author: displayAuthor, html: finalData.html, plain: finalData.plain, words: finalData.words || [], savedAt: Date.now() });
-      displaySummary(title, displayAuthor, finalData.html, finalData.plain, finalData.words || [], false);
-      if (!audioTriggered && tier === 'pro') {
-        fetch('/api/generate-audio', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, author: displayAuthor, plain: finalData.plain, voice: currentVoice })
-        }).catch(e => console.warn('generate-audio fallback failed:', e.message));
-      }
-    } else if (streamingStarted && lastHtml) {
-      const plainText = lastHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-      saveEntry({ title, author: displayAuthor, html: lastHtml, plain: plainText, words: [], savedAt: Date.now() });
-      displaySummary(title, displayAuthor, lastHtml, plainText, [], false);
-    }
-  } catch(err) {
-    setStatus('', false);
-    setError('Could not generate summary: ' + err.message);
-  } finally {
-    document.getElementById('gen-btn').disabled = false;
-    isGenerating = false;
-  }
-}
-
-function stripGenreLine(html) { return html.replace(/^GENRE:(FICTION|NONFICTION)\s*/i,'').replace(/^<p>GENRE:(FICTION|NONFICTION)<\/p>\s*/i,''); }
-
-function displaySummaryStreaming(title, author, htmlSoFar) {
-  htmlSoFar = stripGenreLine(htmlSoFar);
-  stopAudio();
-  currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
-  document.getElementById('s-title').textContent = title;
-  document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = 'generating\u2026';
-  document.getElementById('summary-body').innerHTML = htmlSoFar;
-  document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = (currentVoice === 'female' ? 'Female' : 'Male') + ' voice';
-  resetScrubUI();
-  document.getElementById('megan-words-section').style.display = 'none';
-  document.getElementById('summary-card').classList.add('show');
-  document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  setAudioState('generating');
-}
-
-function updateStreamingBody(htmlSoFar) { htmlSoFar = stripGenreLine(htmlSoFar); const body = document.getElementById('summary-body'); if (body) body.innerHTML = htmlSoFar; }
-
-function renderMeganWords(words) {
-  const section = document.getElementById('megan-words-section');
-  if (!words || !words.length) { section.style.display = 'none'; return; }
-  const seen = new Set();
-  const uniqueWords = words.filter(w => { const key = w.word.toLowerCase().trim(); if (seen.has(key)) return false; seen.add(key); return true; });
-  section.style.display = 'block';
-  document.getElementById('megan-words-grid').innerHTML = uniqueWords.map(w => `<div class="megan-word-item"><div class="megan-word">${esc(w.word)}</div><div class="megan-definition">${esc(w.definition)}</div></div>`).join('');
-}
-
-function toggleMeganWords() { const grid = document.getElementById('megan-words-grid'); const arrow = document.getElementById('megan-arrow'); const isOpen = grid.classList.toggle('open'); arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)'; }
-
-function displaySummary(title, author, html, plain, words, spoilers, fromArchive) {
-  stopAudio();
-  currentSummary = { title, author, html, plain, words, spoilers };
-  document.getElementById('s-title').textContent = title;
-  document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = countWords(plain).toLocaleString() + ' words';
-  document.getElementById('summary-body').innerHTML = html;
-  const buyBtn = document.getElementById('buy-btn');
-  buyBtn.href = makeAmazonUrl(title, author);
-  const kindleBtn = document.getElementById('send-kindle-btn');
-  if (kindleBtn) kindleBtn.onclick = showKindleModal;
-  const saveBtn = document.getElementById('save-library-btn');
-  if (saveBtn) saveBtn.style.display = 'none';
-  document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
-  resetScrubUI();
-  const grid  = document.getElementById('megan-words-grid');
-  const arrow = document.getElementById('megan-arrow');
-  grid.classList.remove('open'); arrow.style.transform = 'rotate(0deg)';
-  renderMeganWords(words);
-  document.getElementById('summary-card').classList.add('show');
-  document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (_currentUser && !fromArchive) autoSaveToLibrary(title, author);
-  checkAudioAvailability();
-}
-
-function closeSummary() { stopAudio(); document.getElementById('summary-card').classList.remove('show'); currentSummary = null; setAudioState('idle'); }
-
+// ── Kindle / Print ────────────────────────────────────────────────────────────
 function showKindleModal() { if (!currentSummary) return; const existing = document.getElementById('kindle-modal'); if (existing) existing.remove(); const modal = document.createElement('div'); modal.id = 'kindle-modal'; modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem'; modal.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)"><h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3><p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p><input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between"><button onclick="downloadEpub()" style="height:38px;padding:0 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;display:flex;align-items:center;gap:6px">\uD83D\uDCDA Download EPUB</button><div style="display:flex;gap:10px"><button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button><button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button></div></div><div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div></div>'; document.body.appendChild(modal); setTimeout(() => document.getElementById('kindle-email-input').focus(), 100); }
 async function sendToKindle() { const email = document.getElementById('kindle-email-input').value.trim(); const status = document.getElementById('kindle-status'); const btn = document.getElementById('kindle-send-btn'); if (!email || !email.includes('@')) { status.style.display='block'; status.style.color='var(--error-fg)'; status.textContent='Please enter a valid Kindle email address.'; return; } btn.disabled=true; btn.textContent='Sending\u2026'; status.style.display='block'; status.style.color='var(--muted)'; status.textContent='Generating EPUB and sending\u2026'; try { const res = await fetch('/api/send-to-kindle', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ title:currentSummary.title, author:currentSummary.author, html:currentSummary.html, kindleEmail:email }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error||'Send failed'); status.style.color='var(--success-fg)'; status.textContent='\u2713 Sent! Check your Kindle in a few minutes.'; btn.textContent='Sent \u2713'; setTimeout(() => { const m=document.getElementById('kindle-modal'); if(m) m.remove(); }, 3000); } catch(err) { status.style.color='var(--error-fg)'; status.textContent='Error: '+err.message; btn.disabled=false; btn.textContent='Send \u2192'; } }
 function downloadEpub() { if (!currentSummary) return; if (typeof JSZip === 'undefined') { alert('Please wait a moment and try again.'); return; } const id='kernl-'+Date.now(); const t=esc(currentSummary.title), a=esc(currentSummary.author); const contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' \u2014 KERNL Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>'; const opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' \u2014 KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>'; const ncx='<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="'+id+'"/></head><docTitle><text>'+t+'</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>'; const container='<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'; const zip=new JSZip(); (async()=>{ zip.file('mimetype','application/epub+zip'); zip.folder('META-INF').file('container.xml',container); const oebps=zip.folder('OEBPS'); oebps.file('content.opf',opf); oebps.file('toc.ncx',ncx); oebps.file('content.html',contentHtml); const blob=await zip.generateAsync({type:'blob',mimeType:'application/epub+zip'}); triggerDownload(blob,safe(currentSummary.title)+'_KERNL.epub'); })(); }
 function printSummary() { if (!currentSummary) return; const meganGrid=document.getElementById('megan-words-grid'); const meganOpen=meganGrid&&meganGrid.classList.contains('open'); const words=currentSummary.words||[]; let meganSection=''; if (meganOpen&&words.length) { const wordRows=words.map(w=>`<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">${esc(w.word)}</td><td style="padding:5pt 0;color:#444;line-height:1.5">${esc(w.definition)}</td></tr>`).join(''); meganSection=`<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`; } const w=window.open('','_blank'); if (!w) { alert('Please allow popups for kernlbooks.com to use Print.'); return; } w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' \u2014 KERNL</title><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}.print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em}.print-header-left{flex:1}.qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em}#qr-code{margin-bottom:4pt}<\/style><\/head><body><div class="print-header"><div class="print-header-left"><h1>'+esc(currentSummary.title)+'<\/h1><div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Summary<\/div><\/div><div class="qr-block"><div id="qr-code"><\/div>Scan to buy this book<\/div><\/div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL \u2014 for the curious<\/div><script>new QRCode(document.getElementById("qr-code"),{text:"'+makeAmazonUrl(currentSummary.title,currentSummary.author)+'",width:100,height:100,colorDark:"#000000",colorLight:"#ffffff"});<\/script><\/body><\/html>'); w.document.close(); setTimeout(()=>w.print(),500); }
 function triggerDownload(blob,filename) { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); },1000); }
 
+// ── Library loading / filtering ───────────────────────────────────────────────
 const CATEGORIES = [
   'Business & Entrepreneurship','Personal Development','Psychology','History',
   'Science & Technology','Politics & Society','Philosophy','Biography & Memoir',
@@ -878,16 +1047,7 @@ function renderLibraryGrid(books) {
   }).join('') + '</div>';
 }
 
-function loadLibraryBook(title, author) {
-  const ta = document.createElement('textarea');
-  ta.innerHTML = title; const t = ta.value;
-  ta.innerHTML = author; const a = ta.value;
-  document.getElementById('book-input').value = t;
-  document.getElementById('author-input').value = a;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  handleGenerate();
-}
-
+// ── Event listeners ───────────────────────────────────────────────────────────
 document.getElementById('book-input').addEventListener('input', e => { clearTimeout(autocompleteTimer); autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 300); });
 document.getElementById('author-input').addEventListener('input', e => { clearTimeout(autocompleteTimer); autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 300); });
 document.getElementById('book-input').addEventListener('keydown', e => { if (e.key==='Enter') { hideDropdown(); handleGenerate(); } if (e.key==='Escape') hideDropdown(); });
