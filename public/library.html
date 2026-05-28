@@ -11,8 +11,8 @@
 <script defer src="/_vercel/insights/script.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
-html.dark{--ink:#e8e0d5;--paper:#1a1714;--warm:#242019;--accent:#c47a3a;--accent-light:#d4924f;--accent-pale:rgba(196,122,58,0.12);--muted:#9a8f80;--border:rgba(196,122,58,0.2);--card:#221f1a}
+:root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--error-bg:#fdf0f0;--error-fg:#8B1A1A;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
+html.dark{--ink:#e8e0d5;--paper:#1a1714;--warm:#242019;--accent:#c47a3a;--accent-light:#d4924f;--accent-pale:rgba(196,122,58,0.12);--muted:#9a8f80;--border:rgba(196,122,58,0.2);--card:#221f1a;--error-bg:#2e1a1a;--error-fg:#d4706f}
 html{font-size:16px;scroll-behavior:smooth}
 body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background var(--transition),color var(--transition)}
 #app{max-width:1100px;margin:0 auto;padding:0 1.5rem 5rem}
@@ -66,6 +66,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .loading{text-align:center;padding:4rem;color:var(--muted)}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.75s linear infinite;margin:0 auto 1rem}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Confirmation modal ── */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:500;display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:kernlFadeIn 0.15s ease}
+.confirm-box{background:var(--card);border:2px solid var(--accent);border-radius:var(--radius);padding:1.75rem 2rem;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(139,69,19,0.2);animation:kernlSlideUp 0.2s ease}
+.confirm-title{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--ink);margin-bottom:3px}
+.confirm-author{font-size:0.88rem;color:var(--muted);font-style:italic;margin-bottom:1.1rem}
+.confirm-verify{font-size:0.82rem;color:var(--muted);margin-bottom:0.9rem;display:flex;align-items:center;gap:8px;min-height:20px}
+.confirm-spinner{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0}
+.confirm-warning{display:none;background:var(--error-bg);border:1px solid rgba(139,69,19,0.2);border-radius:var(--radius-sm);padding:0.65rem 0.9rem;font-size:0.82rem;color:var(--error-fg);margin-bottom:1rem;line-height:1.5}
+.confirm-actions{display:flex;gap:10px;flex-wrap:wrap}
+.confirm-load-btn{height:40px;padding:0 22px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:500;cursor:pointer;transition:background 0.2s}
+.confirm-load-btn:hover{background:var(--accent-light)}
+.confirm-cancel-btn{height:40px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--muted);cursor:pointer;transition:all 0.2s}
+.confirm-cancel-btn:hover{border-color:var(--accent-light);color:var(--accent)}
+@keyframes kernlFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes kernlSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
@@ -91,6 +107,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     <div class="loading"><div class="spinner"></div>Loading library...</div>
   </div>
 </div>
+
+<!-- Confirmation modal (hidden by default) -->
+<div class="confirm-overlay" id="confirm-overlay" style="display:none" onclick="handleOverlayClick(event)">
+  <div class="confirm-box" id="confirm-box">
+    <div class="confirm-title" id="confirm-title"></div>
+    <div class="confirm-author" id="confirm-author"></div>
+    <div class="confirm-verify" id="confirm-verify">
+      <span class="confirm-spinner" id="confirm-spinner"></span>
+      <span id="confirm-verify-text">Verifying book&hellip;</span>
+    </div>
+    <div class="confirm-warning" id="confirm-warning"></div>
+    <div class="confirm-actions">
+      <button class="confirm-load-btn" id="confirm-load-btn" onclick="confirmOpen()">&#128218; Load Summary</button>
+      <button class="confirm-cancel-btn" onclick="closeConfirm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function e(cp){return String.fromCodePoint(cp);}
 
@@ -110,7 +144,6 @@ var CATEGORIES = [
   { id: 'philosophy', label: 'Philosophy',          icon: e(0x1F3AF) },
 ];
 
-// Exactly 24 curated books â 2 per category
 var CURATED_BOOKS = [
   { title: 'Thinking Fast and Slow',              author: 'Daniel Kahneman',   category: 'mind'       },
   { title: 'Quiet',                               author: 'Susan Cain',        category: 'mind'       },
@@ -138,14 +171,77 @@ var CURATED_BOOKS = [
   { title: 'Meditations',                         author: 'Marcus Aurelius',   category: 'philosophy' },
 ];
 
-// Track selected voice per book (default female)
 var voiceSelections = {};
-CURATED_BOOKS.forEach(function(b) {
-  voiceSelections[b.title] = 'female';
-});
+CURATED_BOOKS.forEach(function(b) { voiceSelections[b.title] = 'female'; });
 
 var activeCategory = 'all';
 
+// ── Pending confirmation state ────────────────────────────────────────────────
+var _pendingBook = null;
+
+function showConfirm(title, author) {
+  _pendingBook = { title: title, author: author };
+
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-author').textContent = 'by ' + author;
+
+  // Reset state
+  var verifyRow   = document.getElementById('confirm-verify');
+  var warning     = document.getElementById('confirm-warning');
+  var loadBtn     = document.getElementById('confirm-load-btn');
+  var spinner     = document.getElementById('confirm-spinner');
+  var verifyText  = document.getElementById('confirm-verify-text');
+
+  verifyRow.style.display  = 'flex';
+  warning.style.display    = 'none';
+  warning.innerHTML        = '';
+  loadBtn.textContent      = '\uD83D\uDCDA Load Summary';
+  spinner.style.display    = 'inline-block';
+  verifyText.textContent   = 'Verifying book\u2026';
+
+  document.getElementById('confirm-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  // These are all curated books — they're real. No Open Library check needed.
+  // Just hide the verify row after a brief moment so it feels considered.
+  setTimeout(function() {
+    verifyRow.style.display = 'none';
+  }, 600);
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+  _pendingBook = null;
+}
+
+function handleOverlayClick(event) {
+  // Close if user clicks the dark backdrop, not the box itself
+  if (event.target === document.getElementById('confirm-overlay')) {
+    closeConfirm();
+  }
+}
+
+function confirmOpen() {
+  if (!_pendingBook) return;
+  var title  = _pendingBook.title;
+  var author = _pendingBook.author;
+  var voice  = voiceSelections[title] || 'female';
+  closeConfirm();
+  window.location.href = '/summary.html?title=' + encodeURIComponent(title) +
+    '&author=' + encodeURIComponent(author) +
+    '&voice=' + voice;
+}
+
+// Keyboard: Escape closes, Enter confirms
+document.addEventListener('keydown', function(e) {
+  var overlay = document.getElementById('confirm-overlay');
+  if (overlay.style.display === 'none') return;
+  if (e.key === 'Escape') closeConfirm();
+  if (e.key === 'Enter')  confirmOpen();
+});
+
+// ── Dark mode ─────────────────────────────────────────────────────────────────
 function toggleDark() {
   var isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('kernl_dark', isDark ? '1' : '0');
@@ -162,20 +258,15 @@ function initDark() {
     document.getElementById('dark-label').textContent = 'Light';
   }
 }
+
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function getCategoryInfo(id) {
   return CATEGORIES.find(function(c){ return c.id === id; }) || CATEGORIES[0];
 }
 
-function openBook(title, author) {
-  var voice = voiceSelections[title] || 'female';
-  window.location.href = '/summary.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author) + '&voice=' + voice;
-}
-
 function setVoice(title, voice) {
   voiceSelections[title] = voice;
-  // Update button states for this card
   var cards = document.querySelectorAll('.book-card');
   cards.forEach(function(card) {
     if (card.dataset.title === title) {
@@ -217,7 +308,7 @@ function filterBooks() {
 function renderGrid() {
   var query = document.getElementById('search-input').value.toLowerCase().trim();
   var filtered = CURATED_BOOKS.filter(function(b) {
-    var matchCat = activeCategory === 'all' || b.category === activeCategory;
+    var matchCat    = activeCategory === 'all' || b.category === activeCategory;
     var matchSearch = !query || b.title.toLowerCase().indexOf(query) >= 0 || b.author.toLowerCase().indexOf(query) >= 0;
     return matchCat && matchSearch;
   });
@@ -245,7 +336,7 @@ function renderGrid() {
     var selectedVoice = voiceSelections[b.title] || 'female';
     var card = document.createElement('div');
     card.className = 'book-card';
-    card.dataset.title = b.title;
+    card.dataset.title  = b.title;
     card.dataset.author = b.author;
 
     card.innerHTML =
@@ -265,15 +356,14 @@ function renderGrid() {
             '&#9794; Male' +
           '</button>' +
         '</div>' +
-        '<button class="read-btn">Read &#x203A;</button>' +
+        '<button class="read-btn">Read &rsaquo;</button>' +
       '</div>';
 
-    // Click card body to open
+    // Clicking the card top or Read button shows confirmation — never navigates directly
     card.querySelector('.book-card-top').addEventListener('click', function() {
-      openBook(b.title, b.author);
+      showConfirm(b.title, b.author);
     });
 
-    // Voice buttons
     card.querySelectorAll('.voice-pick-btn').forEach(function(btn) {
       btn.addEventListener('click', function(ev) {
         ev.stopPropagation();
@@ -281,10 +371,9 @@ function renderGrid() {
       });
     });
 
-    // Read button
     card.querySelector('.read-btn').addEventListener('click', function(ev) {
       ev.stopPropagation();
-      openBook(b.title, b.author);
+      showConfirm(b.title, b.author);
     });
 
     wrap.appendChild(card);
