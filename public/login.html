@@ -58,7 +58,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .panel.active{display:block}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* Full-screen overlay shown while processing email confirmation token */
+.pw-strength{height:3px;border-radius:2px;margin-top:6px;background:var(--border);overflow:hidden}
+.pw-strength-bar{height:100%;border-radius:2px;width:0%;transition:width 0.3s,background 0.3s}
+.pw-hint{font-size:0.72rem;color:var(--muted);margin-top:4px}
+/* Full-screen overlay shown while processing token */
 .confirm-overlay{position:fixed;inset:0;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.25rem;z-index:100}
 .confirm-overlay .co-logo{font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:600;letter-spacing:0.12em;color:var(--ink)}
 .confirm-overlay .co-logo span{color:var(--accent)}
@@ -68,12 +71,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 </head>
 <body>
 
-<!-- Shown while processing email confirmation token — hides the login form so
-     the user never sees a confusing flash of the sign-in UI -->
+<!-- Shown while processing token — prevents confusing flash of sign-in UI -->
 <div class="confirm-overlay" id="confirm-overlay" style="display:none">
   <div class="co-logo">K<span>E</span>RNL</div>
-  <div class="co-spinner"></div>
-  <div class="co-msg" id="confirm-msg">Confirming your email&hellip;</div>
+  <div class="co-spinner" id="co-spinner"></div>
+  <div class="co-msg" id="confirm-msg">Verifying&hellip;</div>
 </div>
 
 <div class="wrap" id="main-wrap">
@@ -83,12 +85,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
   <div class="card">
     <div class="tabs">
-      <button class="tab active" id="tab-signin" onclick="showPanel('signin')">Sign In</button>
-      <button class="tab" id="tab-signup" onclick="showPanel('signup')">Create Account</button>
-      <button class="tab" id="tab-forgot" onclick="showPanel('forgot')" style="display:none">Reset Password</button>
+      <button class="tab active" id="tab-signin"  onclick="showPanel('signin')">Sign In</button>
+      <button class="tab"        id="tab-signup"  onclick="showPanel('signup')">Create Account</button>
+      <button class="tab"        id="tab-forgot"  onclick="showPanel('forgot')"  style="display:none">Forgot Password</button>
+      <button class="tab"        id="tab-reset"   onclick="return false"         style="display:none">Set New Password</button>
     </div>
 
-    <!-- Sign In -->
+    <!-- ── Sign In ── -->
     <div class="panel active" id="panel-signin">
       <div class="field">
         <label>Email</label>
@@ -106,7 +109,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <div class="msg" id="signin-msg"></div>
     </div>
 
-    <!-- Sign Up -->
+    <!-- ── Sign Up ── -->
     <div class="panel" id="panel-signup">
       <div class="field">
         <label>Email</label>
@@ -115,9 +118,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <div class="field">
         <label>Password</label>
         <div class="pw-wrap">
-          <input type="password" id="signup-password" placeholder="At least 8 characters" autocomplete="new-password" />
+          <input type="password" id="signup-password" placeholder="At least 8 characters" autocomplete="new-password"
+            oninput="updateStrength(this.value)" />
           <button class="pw-eye" type="button" onclick="togglePw('signup-password',this)" tabindex="-1">&#128065;</button>
         </div>
+        <div class="pw-strength"><div class="pw-strength-bar" id="pw-strength-bar"></div></div>
+        <div class="pw-hint" id="pw-hint"></div>
       </div>
       <div class="field">
         <label>Confirm Password</label>
@@ -131,9 +137,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <div class="terms">By creating an account you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</div>
     </div>
 
-    <!-- Forgot Password -->
+    <!-- ── Forgot Password (step 1 — request reset email) ── -->
     <div class="panel" id="panel-forgot">
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.6">Enter your email and we'll send you a link to reset your password.</p>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.6">
+        Enter your email and we&rsquo;ll send you a link to reset your password. The link expires after 1 hour.
+      </p>
       <div class="field">
         <label>Email</label>
         <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email" />
@@ -144,90 +152,164 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
         <a href="#" onclick="showPanel('signin');return false;" style="font-size:0.8rem;color:var(--muted);text-decoration:none">&larr; Back to sign in</a>
       </div>
     </div>
+
+    <!-- ── Set New Password (step 2 — arrived via reset link) ── -->
+    <div class="panel" id="panel-reset">
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.6">
+        Choose a new password for your account.
+      </p>
+      <div class="field">
+        <label>New Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="reset-password" placeholder="At least 8 characters" autocomplete="new-password"
+            oninput="updateStrength(this.value,'reset-strength-bar','reset-hint')" />
+          <button class="pw-eye" type="button" onclick="togglePw('reset-password',this)" tabindex="-1">&#128065;</button>
+        </div>
+        <div class="pw-strength"><div class="pw-strength-bar" id="reset-strength-bar"></div></div>
+        <div class="pw-hint" id="reset-hint"></div>
+      </div>
+      <div class="field">
+        <label>Confirm New Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="reset-confirm" placeholder="Repeat new password" autocomplete="new-password" />
+          <button class="pw-eye" type="button" onclick="togglePw('reset-confirm',this)" tabindex="-1">&#128065;</button>
+        </div>
+      </div>
+      <button class="btn" id="reset-btn" onclick="handleResetPassword()">Set New Password &rsaquo;</button>
+      <div class="msg" id="reset-msg"></div>
+    </div>
+
   </div>
   <div class="back-link"><a href="/">&larr; Back to KERNL</a></div>
 </div>
 
 <script>
-const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
+const SUPABASE_URL      = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Determine correct app URL (prod vs dev) ───────────────────────────────────
 function getAppUrl() {
-  var host = window.location.hostname;
+  const host = window.location.hostname;
   if (host === 'kernlbooks.com') return 'https://kernlbooks.com/app.html';
-  return 'https://kernl-git-dev-gd7vibes-projects.vercel.app/app.html';
+  return window.location.origin + '/app.html';
 }
 
-// Dark mode — applied immediately to prevent flash
+function getLoginUrl() {
+  const host = window.location.hostname;
+  if (host === 'kernlbooks.com') return 'https://kernlbooks.com/login.html';
+  return window.location.origin + '/login.html';
+}
+
+// ── Dark mode — applied immediately to prevent flash ──────────────────────────
 (function(){
   const saved = localStorage.getItem('kernl_dark');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   if (saved === '1' || (saved === null && prefersDark)) document.documentElement.classList.add('dark');
 })();
 
-// ── Email confirmation handler ────────────────────────────────────────────────
-// When a user clicks the confirmation link in their email, Supabase redirects
-// them back to login.html with #access_token=... in the URL hash.
-// Supabase JS v2 picks this up automatically but the internal token exchange
-// can take several seconds on slow connections. We:
-//   1. Show a full-screen overlay immediately so the user sees progress
-//   2. Poll getSession() up to 10 times (1 second apart = 10 seconds max)
-//   3. Redirect to app as soon as a session is confirmed
-//   4. Only fall back to manual sign-in if all 10 attempts fail (very rare)
-(async function handleEmailConfirmation() {
+// ── Token handler — runs first on every page load ─────────────────────────────
+// Supabase embeds tokens in the URL hash for both email confirmation (type=signup)
+// and password reset (type=recovery). We must handle these differently:
+//   type=signup   → confirm email, redirect to app
+//   type=recovery → show the Set New Password form
+(async function handleTokenInHash() {
   const hash = window.location.hash || '';
   if (!hash.includes('access_token')) return;
 
-  // Show overlay, hide the login form
-  const overlay   = document.getElementById('confirm-overlay');
+  const params  = new URLSearchParams(hash.replace(/^#/, ''));
+  const type    = params.get('type');  // 'signup', 'recovery', 'magiclink', etc.
+
+  const overlay    = document.getElementById('confirm-overlay');
   const confirmMsg = document.getElementById('confirm-msg');
-  const mainWrap  = document.getElementById('main-wrap');
+  const coSpinner  = document.getElementById('co-spinner');
+  const mainWrap   = document.getElementById('main-wrap');
+
   overlay.style.display  = 'flex';
   mainWrap.style.display = 'none';
 
+  // ── PASSWORD RESET ──────────────────────────────────────────────────────────
+  if (type === 'recovery') {
+    confirmMsg.textContent = 'Verifying reset link\u2026';
+
+    // Supabase JS v2 processes the hash automatically and establishes a session.
+    // Poll for it, then hand off to the Set New Password form.
+    const MAX_ATTEMPTS = 10;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      await new Promise(r => setTimeout(r, 800));
+      try {
+        const { data } = await sb.auth.getSession();
+        if (data && data.session) {
+          // Session confirmed — show the reset form
+          overlay.style.display  = 'none';
+          mainWrap.style.display = '';
+          // Clear the hash so it can't be replayed
+          history.replaceState(null, '', window.location.pathname);
+          showPanel('reset');
+          document.getElementById('reset-password').focus();
+          return;
+        }
+      } catch(e) {
+        console.warn('Recovery session poll attempt ' + attempt + ' failed:', e.message);
+      }
+    }
+
+    // Token expired or already used
+    overlay.style.display  = 'none';
+    mainWrap.style.display = '';
+    history.replaceState(null, '', window.location.pathname);
+    showPanel('forgot');
+    setMsg('forgot-msg', 'error',
+      'That reset link has expired or has already been used. Enter your email below to request a new one.');
+    return;
+  }
+
+  // ── EMAIL CONFIRMATION (signup / magic link) ────────────────────────────────
+  confirmMsg.textContent = 'Confirming your email\u2026';
+
   const MAX_ATTEMPTS = 10;
-  const DELAY_MS     = 1000;
-
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    await new Promise(r => setTimeout(r, DELAY_MS));
-
+    await new Promise(r => setTimeout(r, 1000));
     try {
       const { data } = await sb.auth.getSession();
       if (data && data.session) {
-        // Success — confirm and redirect
         confirmMsg.textContent = '\u2713 Email confirmed! Taking you to KERNL\u2026';
+        coSpinner.style.display = 'none';
         await new Promise(r => setTimeout(r, 700));
         window.location.href = getAppUrl();
         return;
       }
     } catch(e) {
-      console.warn('Session poll attempt ' + attempt + ' failed:', e.message);
+      console.warn('Confirmation poll attempt ' + attempt + ' failed:', e.message);
     }
-
-    // Reassure the user on slow connections
     if (attempt === 3) confirmMsg.textContent = 'Almost there\u2026';
     if (attempt === 6) confirmMsg.textContent = 'Just a moment longer\u2026';
     if (attempt === 9) confirmMsg.textContent = 'Nearly done\u2026';
   }
 
-  // All attempts exhausted — email is confirmed in Supabase but the session
-  // exchange timed out locally (extremely rare, usually a very poor connection).
-  // Show the sign-in form with a clear success message so the user knows
-  // their email IS confirmed and they just need to sign in manually.
+  // Timed out — email is confirmed server-side but local session exchange failed
   overlay.style.display  = 'none';
   mainWrap.style.display = '';
+  history.replaceState(null, '', window.location.pathname);
   showPanel('signin');
   setMsg('signin-msg', 'success',
     '\u2713 Your email has been confirmed! Please sign in with your password to continue.');
 })();
 
-// If already logged in (and not handling a token), go straight to the app
+// ── If already logged in (no token in hash), go straight to the app ───────────
 sb.auth.getSession().then(({ data }) => {
   const hash = window.location.hash || '';
   if (data.session && !hash.includes('access_token')) {
     window.location.href = getAppUrl();
+  }
+});
+
+// ── Listen for auth state changes (catches SIGNED_IN after token exchange) ────
+sb.auth.onAuthStateChange((event, session) => {
+  // After a successful password update, sign the user straight in
+  if (event === 'PASSWORD_RECOVERY') {
+    // Already handled above — ignore here to avoid double-firing
   }
 });
 
@@ -236,28 +318,57 @@ function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
+
+  // Show/hide tabs correctly
+  document.getElementById('tab-forgot').style.display = name === 'forgot' ? '' : 'none';
+  document.getElementById('tab-reset').style.display  = name === 'reset'  ? '' : 'none';
+
   const tabEl = document.getElementById('tab-' + name);
   if (tabEl) tabEl.classList.add('active');
-  document.getElementById('tab-forgot').style.display = name === 'forgot' ? '' : 'none';
 }
 
 function togglePw(id, btn) {
   const input = document.getElementById(id);
-  const show = input.type === 'password';
-  input.type = show ? 'text' : 'password';
+  const show  = input.type === 'password';
+  input.type  = show ? 'text' : 'password';
   btn.innerHTML = show ? '&#128064;' : '&#128065;';
 }
 
 function setMsg(id, type, text) {
   const el = document.getElementById(id);
-  el.className = 'msg ' + type;
+  el.className   = 'msg ' + type;
   el.textContent = text;
 }
 
-function setLoading(btnId, loading, defaultText) {
-  const btn = document.getElementById(btnId);
-  btn.disabled = loading;
-  btn.innerHTML = loading ? '<span class="spinner"></span>Please wait\u2026' : defaultText;
+function setLoading(btnId, loading, defaultHtml) {
+  const btn     = document.getElementById(btnId);
+  btn.disabled  = loading;
+  btn.innerHTML = loading ? '<span class="spinner"></span>Please wait\u2026' : defaultHtml;
+}
+
+// Password strength indicator
+function updateStrength(pw, barId, hintId) {
+  barId  = barId  || 'pw-strength-bar';
+  hintId = hintId || 'pw-hint';
+  const bar  = document.getElementById(barId);
+  const hint = document.getElementById(hintId);
+  if (!bar) return;
+
+  let score = 0;
+  if (pw.length >= 8)  score++;
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw))   score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+  const pct    = pw.length === 0 ? 0 : Math.max(20, score * 20);
+  const colour = score <= 1 ? '#c0392b' : score <= 2 ? '#e67e22' : score <= 3 ? '#f1c40f' : '#27ae60';
+  const label  = score <= 1 ? 'Weak' : score <= 2 ? 'Fair' : score <= 3 ? 'Good' : 'Strong';
+
+  bar.style.width      = pct + '%';
+  bar.style.background = colour;
+  hint.textContent     = pw.length > 0 ? label : '';
+  hint.style.color     = colour;
 }
 
 // ── Auth actions ──────────────────────────────────────────────────────────────
@@ -269,7 +380,6 @@ async function handleSignIn() {
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setLoading('signin-btn', false, 'Sign In &rsaquo;');
   if (error) {
-    // Give a friendlier message if email isn't confirmed yet
     const msg = error.message.toLowerCase().includes('not confirmed')
       ? 'Please check your inbox and click the confirmation link in your welcome email before signing in.'
       : error.message;
@@ -284,13 +394,13 @@ async function handleSignUp() {
   const password = document.getElementById('signup-password').value;
   const confirm  = document.getElementById('signup-confirm').value;
   if (!email || !password) { setMsg('signup-msg', 'error', 'Please fill in all fields.'); return; }
-  if (password.length < 8) { setMsg('signup-msg', 'error', 'Password must be at least 8 characters.'); return; }
-  if (password !== confirm) { setMsg('signup-msg', 'error', 'Passwords do not match.'); return; }
+  if (password.length < 8)  { setMsg('signup-msg', 'error', 'Password must be at least 8 characters.'); return; }
+  if (password !== confirm)  { setMsg('signup-msg', 'error', 'Passwords do not match.'); return; }
   setLoading('signup-btn', true, 'Create Account &rsaquo;');
   const { error } = await sb.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: window.location.origin + '/login.html' }
+    options: { emailRedirectTo: getLoginUrl() }
   });
   setLoading('signup-btn', false, 'Create Account &rsaquo;');
   if (error) { setMsg('signup-msg', 'error', error.message); return; }
@@ -302,20 +412,68 @@ async function handleForgot() {
   const email = document.getElementById('forgot-email').value.trim();
   if (!email) { setMsg('forgot-msg', 'error', 'Please enter your email address.'); return; }
   setLoading('forgot-btn', true, 'Send Reset Link &rsaquo;');
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: 'https://kernlbooks.com/login.html' });
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: getLoginUrl()
+  });
   setLoading('forgot-btn', false, 'Send Reset Link &rsaquo;');
   if (error) { setMsg('forgot-msg', 'error', error.message); return; }
-  setMsg('forgot-msg', 'success', 'Reset link sent \u2014 check your email.');
+  setMsg('forgot-msg', 'success',
+    'Reset link sent \u2014 check your email. The link expires after 1 hour. If you don\u2019t see it, check your spam folder.');
 }
 
-// Enter key support
+async function handleResetPassword() {
+  const password = document.getElementById('reset-password').value;
+  const confirm  = document.getElementById('reset-confirm').value;
+
+  if (!password)             { setMsg('reset-msg', 'error', 'Please enter a new password.'); return; }
+  if (password.length < 8)   { setMsg('reset-msg', 'error', 'Password must be at least 8 characters.'); return; }
+  if (password !== confirm)  { setMsg('reset-msg', 'error', 'Passwords do not match.'); return; }
+
+  setLoading('reset-btn', true, 'Set New Password &rsaquo;');
+  const { error } = await sb.auth.updateUser({ password });
+  setLoading('reset-btn', false, 'Set New Password &rsaquo;');
+
+  if (error) {
+    // Most likely cause of error here is an expired session token
+    const msg = error.message.toLowerCase().includes('expired') || error.message.toLowerCase().includes('invalid')
+      ? 'This reset link has expired. Please request a new one.'
+      : error.message;
+    setMsg('reset-msg', 'error', msg);
+
+    // If session is gone, send them back to request a new link
+    if (error.message.toLowerCase().includes('expired') || error.message.toLowerCase().includes('invalid')) {
+      setTimeout(() => {
+        showPanel('forgot');
+        setMsg('forgot-msg', 'error', 'Your reset link expired. Enter your email to request a fresh one.');
+      }, 2500);
+    }
+    return;
+  }
+
+  // Success — sign them in and redirect
+  setMsg('reset-msg', 'success', '\u2713 Password updated! Taking you to KERNL\u2026');
+  await new Promise(r => setTimeout(r, 1200));
+  window.location.href = getAppUrl();
+}
+
+// ── Enter key support ─────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
-  const active = document.querySelector('.panel.active').id;
-  if (active === 'panel-signin')      handleSignIn();
-  else if (active === 'panel-signup') handleSignUp();
-  else if (active === 'panel-forgot') handleForgot();
+  const activePanel = document.querySelector('.panel.active');
+  if (!activePanel) return;
+  switch (activePanel.id) {
+    case 'panel-signin':  handleSignIn();         break;
+    case 'panel-signup':  handleSignUp();         break;
+    case 'panel-forgot':  handleForgot();         break;
+    case 'panel-reset':   handleResetPassword();  break;
+  }
 });
+
+// ── Hash fragment — check on load if coming from #signup anchor ───────────────
+if (window.location.hash === '#signup') {
+  showPanel('signup');
+  history.replaceState(null, '', window.location.pathname);
+}
 </script>
 </body>
 </html>
