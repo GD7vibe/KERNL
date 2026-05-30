@@ -240,6 +240,15 @@ async function autoSaveToLibrary(title, author) {
   } catch(e) { console.warn('Auto-save to library failed:', e.message); }
 }
 
+// ── Audio generation helper — fire-and-forget, safe to call multiple times ────
+function triggerAudioGeneration(title, author, plain, voice) {
+  if (!title || !plain) return;
+  fetch('/api/generate-audio', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, author, plain, voice: voice || currentVoice })
+  }).catch(e => console.warn('generate-audio failed:', e.message));
+}
+
 async function checkAudioAvailability() {
   if (!currentSummary) return;
   const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
@@ -254,6 +263,10 @@ async function checkAudioAvailability() {
         if (cacheData.url) { setAudioState('cached'); return; }
       }
     } catch(e) { console.warn('Pro cache check failed:', e); }
+    // No cached audio — trigger generation in background
+    if (currentSummary && currentSummary.plain) {
+      triggerAudioGeneration(currentSummary.title, currentSummary.author, currentSummary.plain, currentVoice);
+    }
     setAudioState('audio-prep');
     return;
   }
@@ -544,11 +557,7 @@ async function _executeGenerate(title, author) {
               finalData = msg;
               if (!audioTriggered && tier === 'pro') {
                 audioTriggered = true;
-                const displayAuthorNow = author;
-                fetch('/api/generate-audio', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title, author: displayAuthorNow, plain: msg.plain, voice: currentVoice })
-                }).catch(e => console.warn('generate-audio fire-and-forget failed:', e.message));
+                triggerAudioGeneration(title, author, msg.plain, currentVoice);
               }
               continue;
             }
@@ -571,10 +580,7 @@ async function _executeGenerate(title, author) {
       saveEntry({ title, author, html: finalData.html, plain: finalData.plain, words: finalData.words || [], savedAt: Date.now() });
       displaySummary(title, author, finalData.html, finalData.plain, finalData.words || [], false);
       if (!audioTriggered && tier === 'pro') {
-        fetch('/api/generate-audio', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, author, plain: finalData.plain, voice: currentVoice })
-        }).catch(e => console.warn('generate-audio fallback failed:', e.message));
+        triggerAudioGeneration(title, author, finalData.plain, currentVoice);
       }
     } else if (streamingStarted && lastHtml) {
       const plainText = lastHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
@@ -830,6 +836,10 @@ async function startTTS() {
       } catch(e) { console.warn('Poll error:', e.message); }
       if (attempt < 42) { setTimeout(() => pollForAudio(attempt + 1), 5000); }
       else { document.getElementById('player-sub').textContent = 'Audio unavailable \u2014 tap to retry'; setAudioState('cached'); }
+    }
+    // Trigger generation before polling so audio is being built while we wait
+    if (currentSummary && currentSummary.plain) {
+      triggerAudioGeneration(currentSummary.title, currentSummary.author, currentSummary.plain, currentVoice);
     }
     pollForAudio(1);
     return;
