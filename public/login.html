@@ -432,12 +432,19 @@ async function handleResetPassword() {
 
   if (error) {
     setLoading('reset-btn', false, 'Set New Password &rsaquo;');
-    setMsg('reset-msg', 'error',
-      'Could not update password \u2014 your reset link may have expired. Please request a new one.');
-    setTimeout(() => {
-      showPanel('forgot');
-      setMsg('forgot-msg', 'error', 'Your reset link expired. Enter your email to get a new one.');
-    }, 2500);
+    const msg = error.message.toLowerCase();
+    if (msg.includes('same') || msg.includes('different') || msg.includes('previously') || msg.includes('reuse')) {
+      setMsg('reset-msg', 'error', 'That password has been used before. Please choose a different one.');
+    } else if (msg.includes('expired') || msg.includes('invalid') || msg.includes('session')) {
+      setMsg('reset-msg', 'error', 'Your reset link has expired. Sending you back to request a new one\u2026');
+      setTimeout(() => {
+        showPanel('forgot');
+        setMsg('forgot-msg', 'error', 'Your reset link expired. Enter your email to get a new one.');
+      }, 2500);
+    } else {
+      // Generic fallback — in practice usually means same password was used
+      setMsg('reset-msg', 'error', 'Could not update password. If you\u2019re using your existing password, please choose a different one.');
+    }
     return;
   }
 
