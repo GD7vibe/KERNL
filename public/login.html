@@ -61,7 +61,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .pw-strength{height:3px;border-radius:2px;margin-top:6px;background:var(--border);overflow:hidden}
 .pw-strength-bar{height:100%;border-radius:2px;width:0%;transition:width 0.3s,background 0.3s}
 .pw-hint{font-size:0.72rem;color:var(--muted);margin-top:4px}
-/* Full-screen overlay shown while processing token */
 .confirm-overlay{position:fixed;inset:0;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.25rem;z-index:100}
 .confirm-overlay .co-logo{font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:600;letter-spacing:0.12em;color:var(--ink)}
 .confirm-overlay .co-logo span{color:var(--accent)}
@@ -71,7 +70,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 </head>
 <body>
 
-<!-- Shown while processing token — prevents confusing flash of sign-in UI -->
 <div class="confirm-overlay" id="confirm-overlay" style="display:none">
   <div class="co-logo">K<span>E</span>RNL</div>
   <div class="co-spinner" id="co-spinner"></div>
@@ -85,13 +83,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   </div>
   <div class="card">
     <div class="tabs">
-      <button class="tab active" id="tab-signin"  onclick="showPanel('signin')">Sign In</button>
-      <button class="tab"        id="tab-signup"  onclick="showPanel('signup')">Create Account</button>
-      <button class="tab"        id="tab-forgot"  onclick="showPanel('forgot')"  style="display:none">Forgot Password</button>
-      <button class="tab"        id="tab-reset"   onclick="return false"         style="display:none">Set New Password</button>
+      <button class="tab active" id="tab-signin" onclick="showPanel('signin')">Sign In</button>
+      <button class="tab"        id="tab-signup" onclick="showPanel('signup')">Create Account</button>
+      <button class="tab"        id="tab-forgot" onclick="showPanel('forgot')" style="display:none">Forgot Password</button>
+      <button class="tab"        id="tab-reset"  style="display:none;pointer-events:none">Set New Password</button>
     </div>
 
-    <!-- ── Sign In ── -->
+    <!-- Sign In -->
     <div class="panel active" id="panel-signin">
       <div class="field">
         <label>Email</label>
@@ -109,7 +107,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <div class="msg" id="signin-msg"></div>
     </div>
 
-    <!-- ── Sign Up ── -->
+    <!-- Sign Up -->
     <div class="panel" id="panel-signup">
       <div class="field">
         <label>Email</label>
@@ -119,7 +117,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
         <label>Password</label>
         <div class="pw-wrap">
           <input type="password" id="signup-password" placeholder="At least 8 characters" autocomplete="new-password"
-            oninput="updateStrength(this.value)" />
+            oninput="updateStrength(this.value,'pw-strength-bar','pw-hint')" />
           <button class="pw-eye" type="button" onclick="togglePw('signup-password',this)" tabindex="-1">&#128065;</button>
         </div>
         <div class="pw-strength"><div class="pw-strength-bar" id="pw-strength-bar"></div></div>
@@ -137,7 +135,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       <div class="terms">By creating an account you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</div>
     </div>
 
-    <!-- ── Forgot Password (step 1 — request reset email) ── -->
+    <!-- Forgot Password -->
     <div class="panel" id="panel-forgot">
       <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.6">
         Enter your email and we&rsquo;ll send you a link to reset your password. The link expires after 1 hour.
@@ -153,7 +151,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
       </div>
     </div>
 
-    <!-- ── Set New Password (step 2 — arrived via reset link) ── -->
+    <!-- Set New Password (arrived via reset email link) -->
     <div class="panel" id="panel-reset">
       <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.6">
         Choose a new password for your account.
@@ -189,142 +187,36 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ── Determine correct app URL (prod vs dev) ───────────────────────────────────
-function getAppUrl() {
-  const host = window.location.hostname;
-  if (host === 'kernlbooks.com') return 'https://kernlbooks.com/app.html';
-  return window.location.origin + '/app.html';
-}
+function getAppUrl()   { return window.location.origin + '/app.html'; }
+function getLoginUrl() { return window.location.origin + '/login.html'; }
 
-function getLoginUrl() {
-  const host = window.location.hostname;
-  if (host === 'kernlbooks.com') return 'https://kernlbooks.com/login.html';
-  return window.location.origin + '/login.html';
-}
-
-// ── Dark mode — applied immediately to prevent flash ──────────────────────────
+// Dark mode — applied immediately to prevent flash
 (function(){
   const saved = localStorage.getItem('kernl_dark');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   if (saved === '1' || (saved === null && prefersDark)) document.documentElement.classList.add('dark');
 })();
 
-// ── Token handler — runs first on every page load ─────────────────────────────
-// Supabase embeds tokens in the URL hash for both email confirmation (type=signup)
-// and password reset (type=recovery). We must handle these differently:
-//   type=signup   → confirm email, redirect to app
-//   type=recovery → show the Set New Password form
-(async function handleTokenInHash() {
-  const hash = window.location.hash || '';
-  if (!hash.includes('access_token')) return;
-
-  const params  = new URLSearchParams(hash.replace(/^#/, ''));
-  const type    = params.get('type');  // 'signup', 'recovery', 'magiclink', etc.
-
-  const overlay    = document.getElementById('confirm-overlay');
-  const confirmMsg = document.getElementById('confirm-msg');
-  const coSpinner  = document.getElementById('co-spinner');
-  const mainWrap   = document.getElementById('main-wrap');
-
-  overlay.style.display  = 'flex';
-  mainWrap.style.display = 'none';
-
-  // ── PASSWORD RESET ──────────────────────────────────────────────────────────
-  if (type === 'recovery') {
-    confirmMsg.textContent = 'Verifying reset link\u2026';
-
-    // Supabase JS v2 processes the hash automatically and establishes a session.
-    // Poll for it, then hand off to the Set New Password form.
-    const MAX_ATTEMPTS = 10;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      await new Promise(r => setTimeout(r, 800));
-      try {
-        const { data } = await sb.auth.getSession();
-        if (data && data.session) {
-          // Session confirmed — show the reset form
-          overlay.style.display  = 'none';
-          mainWrap.style.display = '';
-          // Clear the hash so it can't be replayed
-          history.replaceState(null, '', window.location.pathname);
-          showPanel('reset');
-          document.getElementById('reset-password').focus();
-          return;
-        }
-      } catch(e) {
-        console.warn('Recovery session poll attempt ' + attempt + ' failed:', e.message);
-      }
-    }
-
-    // Token expired or already used
-    overlay.style.display  = 'none';
-    mainWrap.style.display = '';
-    history.replaceState(null, '', window.location.pathname);
-    showPanel('forgot');
-    setMsg('forgot-msg', 'error',
-      'That reset link has expired or has already been used. Enter your email below to request a new one.');
-    return;
-  }
-
-  // ── EMAIL CONFIRMATION (signup / magic link) ────────────────────────────────
-  confirmMsg.textContent = 'Confirming your email\u2026';
-
-  const MAX_ATTEMPTS = 10;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    await new Promise(r => setTimeout(r, 1000));
-    try {
-      const { data } = await sb.auth.getSession();
-      if (data && data.session) {
-        confirmMsg.textContent = '\u2713 Email confirmed! Taking you to KERNL\u2026';
-        coSpinner.style.display = 'none';
-        await new Promise(r => setTimeout(r, 700));
-        window.location.href = getAppUrl();
-        return;
-      }
-    } catch(e) {
-      console.warn('Confirmation poll attempt ' + attempt + ' failed:', e.message);
-    }
-    if (attempt === 3) confirmMsg.textContent = 'Almost there\u2026';
-    if (attempt === 6) confirmMsg.textContent = 'Just a moment longer\u2026';
-    if (attempt === 9) confirmMsg.textContent = 'Nearly done\u2026';
-  }
-
-  // Timed out — email is confirmed server-side but local session exchange failed
-  overlay.style.display  = 'none';
-  mainWrap.style.display = '';
-  history.replaceState(null, '', window.location.pathname);
-  showPanel('signin');
-  setMsg('signin-msg', 'success',
-    '\u2713 Your email has been confirmed! Please sign in with your password to continue.');
-})();
-
-// ── If already logged in (no token in hash), go straight to the app ───────────
-sb.auth.getSession().then(({ data }) => {
-  const hash = window.location.hash || '';
-  if (data.session && !hash.includes('access_token')) {
-    window.location.href = getAppUrl();
-  }
-});
-
-// ── Listen for auth state changes (catches SIGNED_IN after token exchange) ────
-sb.auth.onAuthStateChange((event, session) => {
-  // After a successful password update, sign the user straight in
-  if (event === 'PASSWORD_RECOVERY') {
-    // Already handled above — ignore here to avoid double-firing
-  }
-});
-
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
-
-  // Show/hide tabs correctly
   document.getElementById('tab-forgot').style.display = name === 'forgot' ? '' : 'none';
   document.getElementById('tab-reset').style.display  = name === 'reset'  ? '' : 'none';
-
   const tabEl = document.getElementById('tab-' + name);
   if (tabEl) tabEl.classList.add('active');
+}
+
+function showOverlay(msg) {
+  document.getElementById('confirm-msg').textContent  = msg;
+  document.getElementById('confirm-overlay').style.display = 'flex';
+  document.getElementById('main-wrap').style.display  = 'none';
+}
+
+function hideOverlay() {
+  document.getElementById('confirm-overlay').style.display = 'none';
+  document.getElementById('main-wrap').style.display  = '';
 }
 
 function togglePw(id, btn) {
@@ -346,30 +238,119 @@ function setLoading(btnId, loading, defaultHtml) {
   btn.innerHTML = loading ? '<span class="spinner"></span>Please wait\u2026' : defaultHtml;
 }
 
-// Password strength indicator
 function updateStrength(pw, barId, hintId) {
-  barId  = barId  || 'pw-strength-bar';
-  hintId = hintId || 'pw-hint';
   const bar  = document.getElementById(barId);
   const hint = document.getElementById(hintId);
   if (!bar) return;
-
   let score = 0;
   if (pw.length >= 8)  score++;
   if (pw.length >= 12) score++;
   if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
   if (/[0-9]/.test(pw))   score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-
   const pct    = pw.length === 0 ? 0 : Math.max(20, score * 20);
   const colour = score <= 1 ? '#c0392b' : score <= 2 ? '#e67e22' : score <= 3 ? '#f1c40f' : '#27ae60';
   const label  = score <= 1 ? 'Weak' : score <= 2 ? 'Fair' : score <= 3 ? 'Good' : 'Strong';
-
   bar.style.width      = pct + '%';
   bar.style.background = colour;
   hint.textContent     = pw.length > 0 ? label : '';
   hint.style.color     = colour;
 }
+
+// ── Token handler ─────────────────────────────────────────────────────────────
+// Supabase sends two different link formats depending on the flow:
+//
+//   PKCE (default in v2):
+//     login.html?code=XXXX            ← password reset + magic link
+//
+//   Implicit (legacy / email confirm):
+//     login.html#access_token=X&type=signup|recovery
+//
+// We handle both. The `type` tells us what to do after the token is exchanged:
+//   recovery → show Set New Password form
+//   signup   → email confirmed, redirect to app
+//
+(async function handleIncomingToken() {
+
+  const queryParams = new URLSearchParams(window.location.search);
+  const hashParams  = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+
+  const code        = queryParams.get('code');                           // PKCE
+  const accessToken = hashParams.get('access_token');                   // implicit
+  const tokenType   = queryParams.get('type') || hashParams.get('type'); // recovery | signup
+
+  // ── Nothing to handle — normal page load ──────────────────────────────────
+  if (!code && !accessToken) {
+    // Check if already logged in; if so, go straight to the app
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) window.location.href = getAppUrl();
+    return;
+  }
+
+  // ── Show overlay while we process ─────────────────────────────────────────
+  showOverlay('Verifying\u2026');
+
+  try {
+    let session = null;
+
+    if (code) {
+      // PKCE: exchange the code for a session
+      const { data, error } = await sb.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+      session = data.session;
+    } else {
+      // Implicit: Supabase JS v2 processes the hash automatically;
+      // poll until the session is available
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 800));
+        const { data } = await sb.auth.getSession();
+        if (data && data.session) { session = data.session; break; }
+      }
+    }
+
+    if (!session) throw new Error('Session could not be established. The link may have expired.');
+
+    // Clean the URL so the token can't be replayed
+    history.replaceState(null, '', window.location.pathname);
+
+    // ── Decide what to do based on token type ────────────────────────────────
+    // tokenType may be 'recovery', 'signup', 'magiclink', or undefined.
+    // If undefined and we have a session, treat as recovery (safest default
+    // when arriving from a password-reset email with no explicit type param).
+    const isRecovery = tokenType === 'recovery' || (!tokenType && !!code);
+
+    if (isRecovery) {
+      // Password reset — show the Set New Password form
+      hideOverlay();
+      showPanel('reset');
+      document.getElementById('reset-password').focus();
+    } else {
+      // Email confirmation — redirect to app
+      document.getElementById('confirm-msg').textContent = '\u2713 Email confirmed! Taking you to KERNL\u2026';
+      document.getElementById('co-spinner').style.display = 'none';
+      await new Promise(r => setTimeout(r, 800));
+      window.location.href = getAppUrl();
+    }
+
+  } catch(err) {
+    // Token exchange failed — expired link or already used
+    console.warn('Token handling failed:', err.message);
+    history.replaceState(null, '', window.location.pathname);
+    hideOverlay();
+
+    const isRecovery = tokenType === 'recovery' || !!code;
+    if (isRecovery) {
+      showPanel('forgot');
+      setMsg('forgot-msg', 'error',
+        'That reset link has expired or has already been used. Enter your email below to send a fresh one.');
+    } else {
+      showPanel('signin');
+      setMsg('signin-msg', 'error',
+        'That confirmation link has expired. Try signing in — if your email is confirmed you\'ll get straight in, otherwise request a new confirmation email.');
+    }
+  }
+
+})();
 
 // ── Auth actions ──────────────────────────────────────────────────────────────
 async function handleSignIn() {
@@ -382,7 +363,7 @@ async function handleSignIn() {
   if (error) {
     const msg = error.message.toLowerCase().includes('not confirmed')
       ? 'Please check your inbox and click the confirmation link in your welcome email before signing in.'
-      : error.message;
+      : 'Incorrect email or password.';
     setMsg('signin-msg', 'error', msg);
     return;
   }
@@ -398,14 +379,13 @@ async function handleSignUp() {
   if (password !== confirm)  { setMsg('signup-msg', 'error', 'Passwords do not match.'); return; }
   setLoading('signup-btn', true, 'Create Account &rsaquo;');
   const { error } = await sb.auth.signUp({
-    email,
-    password,
+    email, password,
     options: { emailRedirectTo: getLoginUrl() }
   });
   setLoading('signup-btn', false, 'Create Account &rsaquo;');
   if (error) { setMsg('signup-msg', 'error', error.message); return; }
   setMsg('signup-msg', 'success',
-    'Welcome to KERNL! We\'ve sent you a confirmation email \u2014 click the link in it to activate your account, then come back here to sign in.');
+    'Welcome to KERNL! We\'ve sent a confirmation email \u2014 click the link in it to activate your account, then come back here to sign in.');
 }
 
 async function handleForgot() {
@@ -418,58 +398,78 @@ async function handleForgot() {
   setLoading('forgot-btn', false, 'Send Reset Link &rsaquo;');
   if (error) { setMsg('forgot-msg', 'error', error.message); return; }
   setMsg('forgot-msg', 'success',
-    'Reset link sent \u2014 check your email. The link expires after 1 hour. If you don\u2019t see it, check your spam folder.');
+    'Reset link sent \u2014 check your inbox (and spam folder). The link expires after 1 hour.');
 }
 
 async function handleResetPassword() {
   const password = document.getElementById('reset-password').value;
   const confirm  = document.getElementById('reset-confirm').value;
-
-  if (!password)             { setMsg('reset-msg', 'error', 'Please enter a new password.'); return; }
-  if (password.length < 8)   { setMsg('reset-msg', 'error', 'Password must be at least 8 characters.'); return; }
-  if (password !== confirm)  { setMsg('reset-msg', 'error', 'Passwords do not match.'); return; }
+  if (!password)            { setMsg('reset-msg', 'error', 'Please enter a new password.'); return; }
+  if (password.length < 8)  { setMsg('reset-msg', 'error', 'Password must be at least 8 characters.'); return; }
+  if (password !== confirm) { setMsg('reset-msg', 'error', 'Passwords do not match.'); return; }
 
   setLoading('reset-btn', true, 'Set New Password &rsaquo;');
+
+  // Grab the user's email from the current recovery session BEFORE calling
+  // updateUser — the session is invalidated immediately after the password
+  // change, so we need it in hand to sign in fresh afterwards.
+  let userEmail = null;
+  try {
+    const { data: sessionData } = await sb.auth.getSession();
+    userEmail = sessionData && sessionData.session && sessionData.session.user
+      ? sessionData.session.user.email
+      : null;
+  } catch(e) { console.warn('Could not get session email:', e.message); }
+
   const { error } = await sb.auth.updateUser({ password });
-  setLoading('reset-btn', false, 'Set New Password &rsaquo;');
 
   if (error) {
-    // Most likely cause of error here is an expired session token
-    const msg = error.message.toLowerCase().includes('expired') || error.message.toLowerCase().includes('invalid')
-      ? 'This reset link has expired. Please request a new one.'
-      : error.message;
-    setMsg('reset-msg', 'error', msg);
-
-    // If session is gone, send them back to request a new link
-    if (error.message.toLowerCase().includes('expired') || error.message.toLowerCase().includes('invalid')) {
-      setTimeout(() => {
-        showPanel('forgot');
-        setMsg('forgot-msg', 'error', 'Your reset link expired. Enter your email to request a fresh one.');
-      }, 2500);
-    }
+    setLoading('reset-btn', false, 'Set New Password &rsaquo;');
+    console.warn('updateUser error:', error.message);
+    setMsg('reset-msg', 'error',
+      'Could not update password \u2014 your reset session may have expired. Requesting a fresh link\u2026');
+    setTimeout(() => {
+      showPanel('forgot');
+      setMsg('forgot-msg', 'error', 'Your reset session expired. Enter your email to get a new link.');
+    }, 2500);
     return;
   }
 
-  // Success — sign them in and redirect
-  setMsg('reset-msg', 'success', '\u2713 Password updated! Taking you to KERNL\u2026');
-  await new Promise(r => setTimeout(r, 1200));
-  window.location.href = getAppUrl();
+  // Password updated. The recovery session is now gone — sign in fresh
+  // with the new password so the user lands in the app properly.
+  if (userEmail) {
+    const { error: signInError } = await sb.auth.signInWithPassword({ email: userEmail, password });
+    if (!signInError) {
+      setMsg('reset-msg', 'success', '\u2713 Password updated! Taking you to KERNL\u2026');
+      await new Promise(r => setTimeout(r, 900));
+      window.location.href = getAppUrl();
+      return;
+    }
+    console.warn('Post-reset sign-in failed:', signInError.message);
+  }
+
+  // Fallback — sign-in failed or no email available; send to sign-in page
+  setLoading('reset-btn', false, 'Set New Password &rsaquo;');
+  setMsg('reset-msg', 'success', '\u2713 Password updated! Please sign in with your new password.');
+  await new Promise(r => setTimeout(r, 1500));
+  showPanel('signin');
+  setMsg('signin-msg', 'success', '\u2713 Password updated successfully \u2014 sign in below.');
 }
 
-// ── Enter key support ─────────────────────────────────────────────────────────
+// ── Enter key ─────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   const activePanel = document.querySelector('.panel.active');
   if (!activePanel) return;
   switch (activePanel.id) {
-    case 'panel-signin':  handleSignIn();         break;
-    case 'panel-signup':  handleSignUp();         break;
-    case 'panel-forgot':  handleForgot();         break;
-    case 'panel-reset':   handleResetPassword();  break;
+    case 'panel-signin': handleSignIn();        break;
+    case 'panel-signup': handleSignUp();        break;
+    case 'panel-forgot': handleForgot();        break;
+    case 'panel-reset':  handleResetPassword(); break;
   }
 });
 
-// ── Hash fragment — check on load if coming from #signup anchor ───────────────
+// ── #signup anchor from homepage CTA ─────────────────────────────────────────
 if (window.location.hash === '#signup') {
   showPanel('signup');
   history.replaceState(null, '', window.location.pathname);
