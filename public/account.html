@@ -339,7 +339,7 @@ function renderLibrary(items) {
       <div class="book-author">by ${esc(author)}</div>
       ${synopsis ? `<div class="book-synopsis">${esc(synopsis)}</div>` : ''}
       <div class="book-meta">
-        <span class="book-chip ${voice}">${voice === 'female' ? '&#9792; Female' : '&#9794; Male'}</span>
+        <span class="book-chip female">&#9792; Female</span>
         <span class="book-date">${fmtDate(item.added_at)}</span>
       </div>`;
     card.addEventListener('click', function(e) {
