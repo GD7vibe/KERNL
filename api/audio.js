@@ -1,11 +1,8 @@
 // api/audio.js
-// Proxies audio files from Supabase Storage to the browser.
-// Solves CORS — browser fetches same-domain /api/audio,
-// server fetches from Supabase, streams back.
-// Handles GET and HEAD (audio elements send HEAD first).
-
-const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
+// Same-origin proxy for audio files in the public "audio" bucket (avoids CORS for Web Audio).
+// GET/HEAD /api/audio?file=<name>.mp3
+// The bucket is public, so no key is sent upstream.
+const K = require('../lib/kernl');
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return res.status(405).end();
@@ -13,28 +10,19 @@ module.exports = async (req, res) => {
   const { file } = req.query;
   if (!file) return res.status(400).end();
 
-  const filename = decodeURIComponent(file);
-  if (filename.includes('..') || filename.includes('/')) return res.status(400).end();
-
-  const supabaseUrl = `${SUPABASE_URL}/storage/v1/object/public/audio/${encodeURIComponent(filename)}`;
+  const filename = String(file);
+  if (!/^[a-z0-9_]+\.(mp3|wav)$/.test(filename)) return res.status(400).end();
 
   try {
-    const upstream = await fetch(supabaseUrl, {
-      method: req.method,
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-    });
-
+    const upstream = await fetch(K.publicAudioUrl(filename), { method: req.method });
     if (!upstream.ok) return res.status(upstream.status).end();
 
-    const contentType = upstream.headers.get('content-type') || 'audio/mpeg';
-    const contentLength = upstream.headers.get('content-length');
-
-    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg');
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    if (contentLength) res.setHeader('Content-Length', contentLength);
-
+    const len = upstream.headers.get('content-length');
+    if (len) res.setHeader('Content-Length', len);
     if (req.method === 'HEAD') return res.end();
 
     const reader = upstream.body.getReader();

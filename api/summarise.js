@@ -1,76 +1,5 @@
-const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
-
-// ── Audio key helper ──────────────────────────────────────────────────────────
-function makeAudioKey(title, author, voice) {
-  const safe = s => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
-  return `${safe(title)}__${safe(author)}__${voice}.mp3`;
-}
-
-// ── Generate and cache audio using xAI REST API ───────────────────────────────
-async function generateAndCacheAudio(title, author, plainText, voice = 'female') {
-  try {
-    const xaiVoice = voice === 'male' ? 'leo' : 'eve';
-    const filename = makeAudioKey(title, author, voice);
-    console.log('Pre-generating TTS:', filename);
-
-    const ttsRes = await fetch('https://api.x.ai/v1/tts', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.XAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ text: plainText, voice_id: xaiVoice, language: 'en' })
-    });
-
-    if (!ttsRes.ok) {
-      console.error('xAI TTS failed:', ttsRes.status, await ttsRes.text());
-      return false;
-    }
-
-    const buffer = await ttsRes.arrayBuffer();
-
-    const uploadRes = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'audio/mpeg',
-          'Cache-Control': '3600'
-        },
-        body: buffer
-      }
-    );
-
-    if (!uploadRes.ok) {
-      const upsertRes = await fetch(
-        `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
-        {
-          method: 'PUT',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'audio/mpeg',
-            'Cache-Control': '3600'
-          },
-          body: buffer
-        }
-      );
-      if (!upsertRes.ok) {
-        console.error('Supabase audio save failed:', await upsertRes.text());
-        return false;
-      }
-    }
-
-    console.log('Audio pre-cached:', filename);
-    return true;
-  } catch (e) {
-    console.error('Pre-generate audio error:', e.message);
-    return false;
-  }
-}
+const K = require('../lib/kernl');
+const SUPABASE_URL = K.SUPABASE_URL;
 
 // ── String helpers ────────────────────────────────────────────────────────────
 function norm(s) {
@@ -135,27 +64,13 @@ function getDistinctiveWord(title) {
 }
 
 async function supabaseGet(url) {
-  const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } });
-  const data = await res.json();
-  return data && data.length > 0 ? data : null;
+  const r = await K.sb(url.slice(SUPABASE_URL.length));
+  return r.ok && Array.isArray(r.data) && r.data.length > 0 ? r.data : null;
 }
 
 // ── Sync error logger ─────────────────────────────────────────────────────────
-async function logSyncError(title, author, voice, errorType, detail) {
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/sync_errors`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ title, author, voice: voice || null, error_type: errorType, detail, resolved: false })
-    });
-  } catch (e) {
-    console.warn('logSyncError failed:', e.message);
-  }
+function logSyncError(title, author, voice, errorType, detail) {
+  return K.logSyncError({ title, author }, voice, errorType, detail);
 }
 
 // ── Duplicate detection before insert ────────────────────────────────────────
@@ -182,25 +97,22 @@ async function checkForDuplicate(title, author, newKey) {
   }
 }
 
+// Returns the new row's id (or the existing row's id if a concurrent request saved the same book first).
 async function saveToSupabase(title, author, key, html, plain, words) {
-  // Check for near-duplicates before inserting
   await checkForDuplicate(title, author, key);
-
-  const res = await fetch(SUPABASE_URL+'/rest/v1/summaries', {
-    method: 'POST',
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ title, author, lookup_key: key, html, plain, words: JSON.stringify(words) })
+  const r = await K.sb('/rest/v1/summaries', {
+    method: 'POST', prefer: 'return=representation',
+    body: { title, author, lookup_key: key, html, plain, words: JSON.stringify(words) }
   });
-  if (!res.ok) { const err = await res.text(); console.error('Supabase insert failed:', err); }
+  if (r.ok && Array.isArray(r.data) && r.data[0]) return r.data[0].id;
+  console.error('Supabase insert failed:', r.status, JSON.stringify(r.data).slice(0, 200));
+  const again = await K.sb('/rest/v1/summaries?select=id&lookup_key=eq.' + encodeURIComponent(key) + '&limit=1');
+  return again.ok && again.data && again.data[0] ? again.data[0].id : null;
 }
 
 async function patchWordsById(id, words) {
-  const res = await fetch(SUPABASE_URL+'/rest/v1/summaries?id=eq.'+id, {
-    method: 'PATCH',
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ words: JSON.stringify(words) })
-  });
-  if (!res.ok) console.error('Supabase patch failed:', res.status);
+  const r = await K.sb('/rest/v1/summaries?id=eq.' + id, { method: 'PATCH', prefer: 'return=minimal', body: { words: JSON.stringify(words) } });
+  if (!r.ok) console.error('Supabase patch failed:', r.status);
 }
 
 async function generateWordsOnly(plain, title, author) {
@@ -332,51 +244,71 @@ function parseWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); c
 function stripWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); return wordsStart > -1 ? raw.slice(0, wordsStart).trim() : raw.trim(); }
 function htmlToPlain(html) { return html.replace(/<h2[^>]*>/gi, '\n\n').replace(/<\/h2>/gi, '\n\n').replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n{3,}/g, '\n\n').trim(); }
 
+function parseWords(row) {
+  try { return row.words ? JSON.parse(row.words) : []; } catch (e) { return []; }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (K.rateLimited('sum:' + K.clientIp(req), 40, 60 * 1000)) return res.status(429).json({ error: 'Too many requests' });
 
-  // ── Patch words mode ──────────────────────────────────────────────────────
-  if (req.body && req.body.patchWords) {
-    const { title, author } = req.body;
+  const body = req.body || {};
+  const ctx = await K.authenticate(req);
+
+  // ── Patch words mode (admin scripts only) ─────────────────────────────────
+  if (body.patchWords) {
+    if (!(ctx && ctx.admin)) return res.status(403).json({ error: 'Forbidden' });
     try {
-      const cached = await findCached(title, author || '');
+      const cached = await findCached(K.cleanText(body.title, 300), K.cleanText(body.author, 300));
       if (!cached) return res.status(404).json({ error: 'Book not found' });
-      let words = [];
-      try { words = cached.words ? JSON.parse(cached.words) : []; } catch(e) {}
-      if (!words || words.length === 0) {
-        words = await generateWordsOnly(cached.plain, cached.title, cached.author || author || '');
-      }
-      const pRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + cached.id, {
-        method: 'PATCH',
-        headers: { 'apikey': process.env.SUPABASE_SERVICE_KEY || SUPABASE_KEY, 'Authorization': 'Bearer ' + (process.env.SUPABASE_SERVICE_KEY || SUPABASE_KEY), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ words: JSON.stringify(words) })
-      });
-      return res.status(200).json({ ok: pRes.ok, status: pRes.status, wordCount: words.length });
-    } catch(e) { return res.status(500).json({ error: e.message }); }
+      let words = parseWords(cached);
+      if (!words || words.length === 0) words = await generateWordsOnly(cached.plain, cached.title, cached.author || body.author || '');
+      await patchWordsById(cached.id, words);
+      return res.status(200).json({ ok: true, wordCount: words.length });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
-  const { title, author, voice, skipAudio } = req.body;
+  const title = K.cleanText(body.title, 200);
+  const author = K.cleanText(body.author, 200);
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
   // ── Cache check ───────────────────────────────────────────────────────────
   try {
     const cached = await findCached(title, author);
     if (cached) {
-      let words = [];
-      try { words = cached.words ? JSON.parse(cached.words) : []; } catch(e) {}
+      const access = await K.authoriseRead(ctx, cached);
+      if (!access.ok) return K.fail(res, access);
+      let words = parseWords(cached);
       if (!words || words.length === 0) {
         try {
           words = await generateWordsOnly(cached.plain, cached.title, cached.author || author || '');
           if (words.length > 0 && cached.id) await patchWordsById(cached.id, words);
-        } catch(e) { words = []; }
+        } catch (e) { words = []; }
       }
-      return res.status(200).json({ html: cached.html, plain: cached.plain, words, source: 'cache' });
+      return res.status(200).json({ html: cached.html, plain: cached.plain, words, source: 'cache', quota: access.quota || null });
     }
-  } catch(e) { console.error('Cache lookup error:', e.message); }
+  } catch (e) {
+    console.error('Cache lookup error:', e.message);
+    // Fail closed: don't fall through to a paid generation on a lookup error.
+    return res.status(503).json({ error: 'Library temporarily unavailable. Please try again.' });
+  }
+
+  // ── Not cached: generating costs money, so it needs a signed-in user with allowance left ──
+  if (!ctx) return res.status(401).json({ code: 'auth_required', error: 'Please sign in to generate a new summary.' });
+  if (!ctx.admin) {
+    const profile = await K.getProfile(ctx.user.id);
+    const limit = K.limitFor(ctx.tier);
+    const used = profile ? (profile.downloads_used || 0) : 0;
+    if (used >= limit) {
+      return res.status(403).json({ code: 'limit', error: 'You have used all ' + limit + ' of your summaries.', quota: { used, limit, tier: ctx.tier } });
+    }
+    if (K.rateLimited('gensum:' + ctx.user.id, 10, 60 * 60 * 1000)) {
+      return res.status(429).json({ error: 'Too many new summaries this hour. Try again later.' });
+    }
+  }
 
   // ── Not cached — stream from Anthropic ───────────────────────────────────
   const prompt = buildPrompt(title, author);
-  const audioVoice = voice || 'female';
 
   try {
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -468,34 +400,34 @@ module.exports = async (req, res) => {
       } catch(e) { console.warn('Word top-up failed:', e.message); }
     }
 
-    await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => console.error('Supabase save failed:', e.message));
+    const savedId = await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => { console.error('Supabase save failed:', e.message); return null; });
 
     // ── Categories + synopsis ─────────────────────────────────────────────────
-    try {
-      const [categories, synopsis] = await Promise.all([
-        categoriseBook(title, author, plain),
-        generateSynopsis(title, author, plain)
-      ]);
-      const findRes = await fetch(SUPABASE_URL + '/rest/v1/summaries?lookup_key=eq.' + encodeURIComponent(saveKey) + '&select=id&limit=1', {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
-      });
-      const rows = await findRes.json();
-      if (rows && rows[0]) {
+    if (savedId) {
+      try {
+        const [categories, synopsis] = await Promise.all([
+          categoriseBook(title, author, plain),
+          generateSynopsis(title, author, plain)
+        ]);
         const patch = {};
         if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
         if (synopsis) patch.synopsis = synopsis;
         if (Object.keys(patch).length > 0) {
-          await fetch(SUPABASE_URL + '/rest/v1/summaries?id=eq.' + rows[0].id, {
-            method: 'PATCH',
-            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-            body: JSON.stringify(patch)
-          });
-          console.log('Categories + synopsis saved for:', title, categories, synopsis);
+          await K.sb('/rest/v1/summaries?id=eq.' + savedId, { method: 'PATCH', prefer: 'return=minimal', body: patch });
         }
-      }
-    } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
+      } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
+    }
 
-    res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated' }) + '\n\n');
+    // ── Charge the user's allowance (adds the book to their library) ──────────
+    let quota = null;
+    if (savedId) {
+      try {
+        const acc = await K.accessBook(ctx, savedId);
+        quota = acc.quota || null;
+      } catch (e) { console.warn('accessBook failed:', e.message); }
+    }
+
+    res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated', quota }) + '\n\n');
     res.end();
 
   } catch(err) {

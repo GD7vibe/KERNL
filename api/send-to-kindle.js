@@ -1,4 +1,5 @@
 const JSZip = require('jszip');
+const K = require('../lib/kernl');
 
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -76,12 +77,30 @@ ${html}
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { title, author, html, kindleEmail } = req.body;
-  if (!title || !html) return res.status(400).json({ error: 'Title and html are required' });
-  if (!kindleEmail || !kindleEmail.includes('@')) return res.status(400).json({ error: 'Valid Kindle email required' });
+  // Only Amazon's own Send-to-Kindle addresses. Without this the endpoint is an open email relay.
+  const body = req.body || {};
+  const kindleEmail = String(body.kindleEmail || '').trim().toLowerCase();
+  if (!/^[a-z0-9._%+\-]{1,64}@(free\.)?kindle\.com$/.test(kindleEmail)) {
+    return res.status(400).json({ error: 'Please enter your Kindle address (it ends in @kindle.com).' });
+  }
+  const reqTitle = K.cleanText(body.title, 300), reqAuthor = K.cleanText(body.author, 300);
+  if (!reqTitle) return res.status(400).json({ error: 'Title is required' });
 
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!RESEND_API_KEY) return res.status(500).json({ error: 'Resend not configured' });
+
+  const ctx = await K.authenticate(req);
+  const who = ctx && ctx.user ? ctx.user.id : K.clientIp(req);
+  if (!(ctx && ctx.admin) && K.rateLimited('kindle:' + who, 10, 60 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Too many sends. Try again later.' });
+  }
+
+  // The content comes from the library, never from the request body.
+  const book = await K.findBook(reqTitle, reqAuthor);
+  if (!book || !book.html) return res.status(404).json({ error: 'Summary not found' });
+  const access = await K.authoriseAudioRead(ctx, book); // guest book, or one in the user's library
+  if (!access.ok) return K.fail(res, access);
+  const title = book.title, author = book.author || '', html = book.html;
 
   try {
     // Build EPUB
