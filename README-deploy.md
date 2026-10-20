@@ -13,6 +13,11 @@ Authentication → **URL Configuration**: add `https://kernlbooks.com/app.html`,
 URLs to Redirect URLs.
 If anonymous sign-in is off or fails, the app falls back to the login page, so nothing breaks, guests just can't browse.
 
+## 0b. The Vercel key must be the real service-role key
+Supabase → Project Settings → API (or API Keys) → copy the **service_role** key (NOT the anon/public key).
+Vercel → Settings → Environment Variables → `SUPABASE_SERVICE_KEY` → paste it, all environments, then redeploy.
+The code now checks the key's own role and refuses a non-service-role key (and logs why in the Vercel function logs).
+
 ## 1. Before you push
 Vercel → Project → Settings → Environment Variables. Confirm **`SUPABASE_SERVICE_KEY` is set for Production AND Preview**
 (get-summary already used it, so Production almost certainly has it; Preview may not). Without it every API
