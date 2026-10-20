@@ -49,11 +49,12 @@ module.exports = async (req, res) => {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'KERNL <kindle@kernlbooks.com>',
+        from: 'KERNL Audio <audio@kernlbooks.com>',
+        reply_to: 'duffgaryduff@hotmail.com',
         to: [to],
         subject: book.title + ' — KERNL audio',
-        text: 'Your KERNL audio summary of "' + book.title + '"' + (book.author ? ' by ' + book.author : '') + ' is ready.\n\nListen or download: ' + hit.url + '\n\nKERNL — for the curious\nkernlbooks.com',
-        html: '<p>Your KERNL audio summary of <strong>' + esc(book.title) + '</strong>' + (book.author ? ' by ' + esc(book.author) : '') + ' is ready.</p><p><a href="' + esc(hit.url) + '">Listen or download the audio</a></p><p style="color:#888;font-size:12px">KERNL — for the curious<br>kernlbooks.com</p>'
+        text: 'Hi,\n\nYou asked KERNL to send you the audio summary of "' + book.title + '"' + (book.author ? ' by ' + book.author : '') + '.\n\nListen or download it here: ' + hit.url + '\n\nKERNL — for the curious\nkernlbooks.com',
+        html: '<p>Hi,</p><p>You asked KERNL to send you the audio summary of <strong>' + esc(book.title) + '</strong>' + (book.author ? ' by ' + esc(book.author) : '') + '.</p><p><a href="' + esc(hit.url) + '">Listen or download the audio</a></p><p style="color:#888;font-size:12px">KERNL — for the curious<br>kernlbooks.com</p>'
       })
     });
     const d = await r.json().catch(() => ({}));
