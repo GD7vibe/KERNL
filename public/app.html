@@ -248,8 +248,9 @@ html.dark .player-scrub-row.active .scrub-track{background:rgba(196,122,58,0.18)
     </div>
     <div class="user-bar-right">
       <span id="upgrade-btn-wrap"></span>
-      <a href="/account.html" class="user-nav-btn">My Library</a>
-      <button class="user-nav-btn" onclick="handleSignOut()">Sign Out</button>
+      <a href="/account.html" class="user-nav-btn" id="my-library-link">My Library</a>
+      <a href="/login.html" class="user-nav-btn" id="signin-link" style="display:none">Sign In</a>
+      <button class="user-nav-btn" id="signout-btn" onclick="handleSignOut()">Sign Out</button>
     </div>
   </div>
 

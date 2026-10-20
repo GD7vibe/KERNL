@@ -80,15 +80,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .rec-author{font-size:0.78rem;color:var(--muted);margin-bottom:6px}
 .rec-synopsis{font-size:0.8rem;color:var(--muted);line-height:1.5;font-style:italic}
 
-/* Journey */
-.journey-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.75rem;margin-bottom:1.5rem;box-shadow:0 2px 16px rgba(139,69,19,0.06)}
-.journey-title{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--ink);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border)}
-.journey-list{display:flex;flex-direction:column;gap:12px}
-.journey-item{padding:1rem 1.25rem;background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm)}
-.journey-item-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.journey-milestone{font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);font-weight:500}
-.journey-date{font-size:0.72rem;color:var(--muted)}
-.journey-text{font-size:0.85rem;line-height:1.65;color:var(--ink);font-style:italic}
 
 /* Library */
 .lib-card-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.75rem;margin-bottom:1.5rem;box-shadow:0 2px 16px rgba(139,69,19,0.06)}
@@ -144,7 +135,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 
   <div id="portrait-section"></div>
   <div id="recs-section"></div>
-  <div id="journey-section"></div>
 
   <div class="lib-card-wrap">
     <div class="card-title">My Downloaded Books</div>
@@ -187,7 +177,7 @@ function fmtDate(ts) { if (!ts) return ''; return new Date(ts).toLocaleDateStrin
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { window.location.href = '/login.html'; return; }
+  if (!session || session.user.is_anonymous) { window.location.href = '/login.html#signup'; return; }
   _session = session;
   document.getElementById('nav-email').textContent = session.user.email;
 
@@ -208,7 +198,7 @@ async function init() {
 function renderTierCard(profile) {
   const tier = profile ? profile.tier : 'free';
   const used = profile ? (profile.downloads_used || 0) : 0;
-  const limit = tier === 'pro' ? 200 : 20;
+  const limit = tier === 'pro' ? 200 : 24;
   const remaining = Math.max(0, limit - used);
   const pct = Math.min(100, (used / limit) * 100);
   const resetDate = profile && profile.downloads_reset ? fmtDate(profile.downloads_reset) : null;
@@ -239,7 +229,6 @@ async function loadPortraitAndRecs(library) {
   const bookCount = library.length;
   const portraitSection = document.getElementById('portrait-section');
   const recsSection = document.getElementById('recs-section');
-  const journeySection = document.getElementById('journey-section');
 
   if (bookCount < PORTRAIT_THRESHOLD) {
     const needed = PORTRAIT_THRESHOLD - bookCount;
@@ -250,7 +239,6 @@ async function loadPortraitAndRecs(library) {
         <div class="portrait-teaser-count">${bookCount} of ${PORTRAIT_THRESHOLD} books saved</div>
       </div>`;
     recsSection.innerHTML = '';
-    journeySection.innerHTML = '';
     return;
   }
 
@@ -268,7 +256,6 @@ async function loadPortraitAndRecs(library) {
 
     renderPortrait(data.portrait, data.bookCount);
     renderRecs(data.recommendations || []);
-    renderJourney(data.portraits || []);
 
   } catch(e) {
     portraitSection.innerHTML = `<div class="portrait-teaser"><div class="portrait-teaser-sub" style="color:var(--muted)">Could not load your portrait right now. Refresh to try again.</div></div>`;
@@ -322,26 +309,6 @@ function renderRecs(recs) {
             <div class="rec-title">${esc(r.title)}</div>
             <div class="rec-author">by ${esc(r.author)}</div>
             ${r.synopsis ? `<div class="rec-synopsis">${esc(r.synopsis)}</div>` : ''}
-          </div>`).join('')}
-      </div>
-    </div>`;
-}
-
-// ── Reading Journey ───────────────────────────────────────────────────────────
-function renderJourney(portraits) {
-  const section = document.getElementById('journey-section');
-  if (!portraits || portraits.length <= 1) { section.innerHTML = ''; return; }
-  section.innerHTML = `
-    <div class="journey-card">
-      <div class="journey-title">Your Reading Journey</div>
-      <div class="journey-list">
-        ${portraits.map((p, i) => `
-          <div class="journey-item">
-            <div class="journey-item-header">
-              <span class="journey-milestone">At ${p.book_count_at_generation} books</span>
-              <span class="journey-date">${fmtDate(p.generated_at)}</span>
-            </div>
-            <div class="journey-text">${esc(p.portrait)}</div>
           </div>`).join('')}
       </div>
     </div>`;
