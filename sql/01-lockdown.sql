@@ -23,6 +23,13 @@ from pg_trigger t join pg_class c on c.oid = t.tgrelid
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'auth' and c.relname = 'users' and not t.tgisinternal;
 
+-- Guest (anonymous) sign-ins also fire that trigger. Read the function bodies it calls: if they insert into
+-- public.profiles with a NOT NULL email column, anonymous sign-ins (email = null) will fail. Fix that first.
+select p.proname, pg_get_functiondef(p.oid) as definition
+from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
+join pg_proc p on p.oid = t.tgfoid
+where n.nspname = 'auth' and c.relname = 'users' and not t.tgisinternal;
+
 begin;
 
 -- ── 1. Drop every existing policy on the five tables, then recreate the minimal set ─────────────
@@ -60,7 +67,9 @@ create policy profiles_read_own on public.profiles for select to authenticated u
 -- user_library: read and remove your own rows. Rows are added by the server when you open a book.
 grant select, delete on public.user_library to authenticated;
 create policy user_library_read_own   on public.user_library for select to authenticated using (auth.uid() = user_id);
-create policy user_library_delete_own on public.user_library for delete to authenticated using (auth.uid() = user_id);
+-- Guests (anonymous sessions) cannot delete, otherwise removing a book would refund their 24-book allowance.
+create policy user_library_delete_own on public.user_library for delete to authenticated
+  using (auth.uid() = user_id and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false);
 
 -- audio_meta, sync_errors: server only (no grants, no policies).
 

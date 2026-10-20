@@ -90,6 +90,7 @@ module.exports = async (req, res) => {
   if (!RESEND_API_KEY) return res.status(500).json({ error: 'Resend not configured' });
 
   const ctx = await K.authenticate(req);
+  if (ctx && ctx.tier === 'guest') return res.status(403).json({ code: 'signup_required', error: 'Create a free account to send summaries to your Kindle.' });
   const who = ctx && ctx.user ? ctx.user.id : K.clientIp(req);
   if (!(ctx && ctx.admin) && K.rateLimited('kindle:' + who, 10, 60 * 60 * 1000)) {
     return res.status(429).json({ error: 'Too many sends. Try again later.' });

@@ -295,6 +295,9 @@ module.exports = async (req, res) => {
 
   // ── Not cached: generating costs money, so it needs a signed-in user with allowance left ──
   if (!ctx) return res.status(401).json({ code: 'auth_required', error: 'Please sign in to generate a new summary.' });
+  if (ctx.tier === 'guest') {
+    return res.status(403).json({ code: 'signup_required', error: 'That book is not in the library yet. Create a free account to request new summaries.' });
+  }
   if (!ctx.admin) {
     const profile = await K.getProfile(ctx.user.id);
     const limit = K.limitFor(ctx.tier);

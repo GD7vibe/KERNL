@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).map(b => ({ title: b.title, author: b.author, guest: K.isGuestBook(b) }));
+    }).map(b => ({ title: b.title, author: b.author }));
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
     return res.status(200).json(books);

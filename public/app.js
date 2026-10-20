@@ -124,6 +124,8 @@ function ungreyPlayBtn()           { _setPlayBtn(true); }
 let _sbClient = null;
 let _currentUser = null;
 let _userProfile = null;
+// guest = anonymous visitor (no email). Mirrors LIMITS in lib/kernl.js — the server is what enforces it.
+const LIMITS = { guest: 24, free: 24, pro: 200 };
 
 function getSB() {
   if (!_sbClient) _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -144,24 +146,45 @@ async function apiHeaders() {
 async function refreshProfile() {
   if (!_currentUser) return;
   try {
-    const { data } = await getSB().from('profiles').select('*').eq('id', _currentUser.id).single();
-    if (data) { _userProfile = data; renderUserBar(); }
+    const sb = getSB();
+    if (_currentUser.is_anonymous) {
+      // Guests have no profile to speak of: their count is simply the books the server has opened for them.
+      const { count } = await sb.from('user_library').select('id', { count: 'exact', head: true }).eq('user_id', _currentUser.id);
+      _userProfile = { tier: 'guest', downloads_used: count || 0 };
+    } else {
+      const { data } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
+      if (data) _userProfile = data;
+    }
+    renderUserBar();
   } catch (e) { console.warn('refreshProfile failed:', e.message); }
 }
 
 async function initAuth() {
   const sb = getSB();
   let session = null;
-  for (let attempt = 1; attempt <= 5; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     const { data } = await sb.auth.getSession();
     if (data && data.session) { session = data.session; break; }
-    if (attempt < 5) await new Promise(r => setTimeout(r, 600));
+    if (attempt < 3) await new Promise(r => setTimeout(r, 400));
+  }
+  // Nobody signed in: start a guest session (no email, no form). The server counts their 24 free books against it.
+  if (!session) {
+    try {
+      const { data, error } = await sb.auth.signInAnonymously();
+      if (!error && data && data.session) session = data.session;
+    } catch (e) { console.warn('Guest session failed:', e.message); }
   }
   if (!session) { window.location.href = '/login.html'; return; }
   _currentUser = session.user;
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
-  _userProfile = profile || { tier: 'free', downloads_used: 0, downloads_reset: null };
-  renderUserBar();
+  if (_currentUser.is_anonymous) {
+    _userProfile = { tier: 'guest', downloads_used: 0 };
+    renderUserBar();
+    refreshProfile();
+  } else {
+    const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
+    _userProfile = profile || { tier: 'free', downloads_used: 0, downloads_reset: null };
+    renderUserBar();
+  }
   loadLibrary();
   const params = new URLSearchParams(window.location.search);
   const autoTitle = params.get('title');
@@ -169,7 +192,6 @@ async function initAuth() {
   if (autoTitle && autoAuthor) {
     document.getElementById('book-input').value = autoTitle;
     document.getElementById('author-input').value = autoAuthor;
-    // Show confirmation step rather than auto-generating
     showConfirmation(autoTitle, autoAuthor, false);
   }
 }
@@ -177,26 +199,34 @@ async function initAuth() {
 function renderUserBar() {
   if (!_currentUser) return;
   const bar = document.getElementById('user-bar');
-  const tier = _userProfile.tier || 'free';
+  const guest = !!_currentUser.is_anonymous;
+  const tier = guest ? 'guest' : (_userProfile.tier || 'free');
   const used = _userProfile.downloads_used || 0;
-  const limit = tier === 'pro' ? 200 : 20;
+  const limit = LIMITS[tier] || LIMITS.free;
   const remaining = Math.max(0, limit - used);
   const pct = Math.min(100, (used / limit) * 100);
   const colour = pct >= 80 ? '#8B1A1A' : pct >= 50 ? '#c47a3a' : '#2d6a4f';
   bar.style.display = 'flex';
-  document.getElementById('user-email-display').textContent = _currentUser.email;
+  document.getElementById('user-email-display').textContent = guest ? '' : _currentUser.email;
   document.getElementById('user-usage-display').innerHTML =
-    `<span style="font-weight:600;color:${colour}">${remaining}</span> of ${limit} summaries remaining`;
+    `<span style="font-weight:600;color:${colour}">${remaining}</span> of ${limit} ${guest ? 'free books' : 'summaries'} remaining`;
   const badge = document.getElementById('user-tier-badge');
-  badge.textContent = tier === 'pro' ? '★ Pro' : 'Free';
-  badge.className = 'user-tier ' + tier;
-  document.getElementById('upgrade-btn-wrap').innerHTML = tier === 'free'
-    ? '<a href="/upgrade.html" class="user-nav-btn upgrade">Upgrade to Pro</a>' : '';
+  badge.textContent = tier === 'pro' ? '\u2605 Pro' : guest ? 'Guest' : 'Free';
+  badge.className = 'user-tier ' + (tier === 'pro' ? 'pro' : 'free');
+  document.getElementById('upgrade-btn-wrap').innerHTML = guest
+    ? '<a href="/login.html#signup" class="user-nav-btn upgrade">Create free account</a>'
+    : tier === 'free' ? '<a href="/upgrade.html" class="user-nav-btn upgrade">Upgrade to Pro</a>' : '';
+  const libLink = document.getElementById('my-library-link');
+  if (libLink) libLink.style.display = guest ? 'none' : '';
+  const signOut = document.getElementById('signout-btn');
+  if (signOut) signOut.style.display = guest ? 'none' : '';
+  const signIn = document.getElementById('signin-link');
+  if (signIn) signIn.style.display = guest ? '' : 'none';
   const bookInput   = document.getElementById('book-input');
   const authorInput = document.getElementById('author-input');
   const searchHint  = document.getElementById('search-hint');
-  if (tier === 'free') {
-    if (bookInput)   bookInput.placeholder   = 'Search the free library by title\u2026';
+  if (tier !== 'pro') {
+    if (bookInput)   bookInput.placeholder   = 'Search the library by title\u2026';
     if (authorInput) authorInput.placeholder = 'or search by author\u2026';
     if (searchHint)  searchHint.style.display = 'block';
   } else {
@@ -205,6 +235,9 @@ function renderUserBar() {
     if (searchHint)  searchHint.style.display = 'none';
   }
   const limitBar = document.getElementById('limit-bar');
+  limitBar.innerHTML = guest
+    ? 'You have used your ' + limit + ' free books. <a href="/login.html#signup">Create a free account</a> to keep your library, or <a href="/upgrade.html">upgrade to Pro</a> for ' + LIMITS.pro + ' summaries a year.'
+    : 'You have used all your summaries. <a href="/upgrade.html">Upgrade to Pro</a> for ' + LIMITS.pro + ' summaries per year.';
   if (remaining <= 0) limitBar.classList.add('show'); else limitBar.classList.remove('show');
 }
 
