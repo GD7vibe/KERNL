@@ -125,7 +125,7 @@ let _sbClient = null;
 let _currentUser = null;
 let _userProfile = null;
 // guest = anonymous visitor (no email). Mirrors LIMITS in lib/kernl.js — the server is what enforces it.
-const LIMITS = { guest: 24, free: 24, pro: 200 };
+const LIMITS = { guest: 12, free: 36, pro: 200 };
 
 function getSB() {
   if (!_sbClient) _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -167,7 +167,7 @@ async function initAuth() {
     if (data && data.session) { session = data.session; break; }
     if (attempt < 3) await new Promise(r => setTimeout(r, 400));
   }
-  // Nobody signed in: start a guest session (no email, no form). The server counts their 24 free books against it.
+  // Nobody signed in: start a guest session (no email, no form). The server counts their free books against it.
   if (!session) {
     try {
       const { data, error } = await sb.auth.signInAnonymously();
@@ -218,7 +218,7 @@ function renderUserBar() {
     ? '<a href="/login.html#signup" class="user-nav-btn upgrade">Create free account</a>'
     : tier === 'free' ? '<a href="/upgrade.html" class="user-nav-btn upgrade">Upgrade to Pro</a>' : '';
   const libLink = document.getElementById('my-library-link');
-  if (libLink) libLink.style.display = guest ? 'none' : '';
+  if (libLink) { libLink.style.display = ''; libLink.textContent = guest ? 'My Books' : 'My Library'; }
   const signOut = document.getElementById('signout-btn');
   if (signOut) signOut.style.display = guest ? 'none' : '';
   const signIn = document.getElementById('signin-link');

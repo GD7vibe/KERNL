@@ -11,7 +11,7 @@ const db = {
     { id: 1, title: 'Meditations', author: 'Marcus Aurelius', lookup_key: 'meditations||marcus aurelius||nospoilers', plain: STOIC, html: '<p>stoic</p>', words: '[]' },
     { id: 2, title: 'Dune', author: 'Frank Herbert', lookup_key: 'dune||frank herbert||nospoilers', plain: SPICE, html: '<p>spice</p>', words: '[]' }
   ],
-  user_library: [], profiles: [{ id: 'u1', tier: 'free', downloads_used: 0 }, { id: 'u2', tier: 'free', downloads_used: 24 }, { id: 'u3', tier: 'pro', downloads_used: 0 }],
+  user_library: [], profiles: [{ id: 'u1', tier: 'free', downloads_used: 0 }, { id: 'u2', tier: 'free', downloads_used: 36 }, { id: 'u3', tier: 'pro', downloads_used: 0 }],
   audio_meta: [], storage: new Set(), sync_errors: [], xai: 0, emails: 0
 };
 const users = { tokA: { id: 'u1', email: 'a@x.com' }, tokB: { id: 'u2', email: 'b@x.com' }, tokP: { id: 'u3', email: 'p@x.com' }, tokG: { id: 'u4', is_anonymous: true }, tokH: { id: 'u5', is_anonymous: true } };
@@ -84,13 +84,13 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(sum, { body: { patchWords: true, title: 'Dune' }, token: 'tokA' });
   assert.strictEqual(r.code, 403); console.log('ok patchWords admin-only');
 
-  // guests (anonymous sessions): any book, 24 max, no generation, no kindle
+  // guests (anonymous sessions): any book, 12 max, no generation, no kindle
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: 'tokG' });
-  assert.strictEqual(r.code, 200); assert.strictEqual(r.body.quota.tier, 'guest'); assert.strictEqual(r.body.quota.limit, 24); assert.strictEqual(r.body.quota.used, 1);
-  console.log('ok guest can open ANY library book, counted 1/24');
-  for (let i = 0; i < 24; i++) db.user_library.push({ user_id: 'u5', summary_id: 1000 + i });
+  assert.strictEqual(r.code, 200); assert.strictEqual(r.body.quota.tier, 'guest'); assert.strictEqual(r.body.quota.limit, 12); assert.strictEqual(r.body.quota.used, 1);
+  console.log('ok guest can open ANY library book, counted 1/12');
+  for (let i = 0; i < 12; i++) db.user_library.push({ user_id: 'u5', summary_id: 1000 + i });
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: 'tokH' });
-  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok guest stopped at 24');
+  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok guest stopped at 12');
   r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokG' });
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'signup_required'); console.log('ok guest cannot generate new summaries');
   r = await call(kindle, { body: { title: 'Dune', author: 'Frank Herbert', kindleEmail: 'me@kindle.com' }, token: 'tokG' });
