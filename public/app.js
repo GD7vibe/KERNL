@@ -1102,6 +1102,8 @@ async function emailAudio() {
 }
 let _waFile = null; // { title, file } once the MP3 has been fetched for sharing
 function _canShareFiles() {
+  // Phones and tablets only: the Mac/PC share menu has no WhatsApp, so desktops use download + WhatsApp Web instead.
+  if (!(navigator.maxTouchPoints > 1)) return false;
   try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'a.mp3', { type: 'audio/mpeg' })] })); } catch (e) { return false; }
 }
 async function whatsappAudio() {
