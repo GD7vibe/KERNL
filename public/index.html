@@ -199,7 +199,7 @@ html.dark .more-overlay{background:linear-gradient(to bottom,rgba(26,23,20,0) 0%
     <h1 class="hero-headline">Any book &mdash; 10 minutes &mdash; Read or Listen.</h1>
     <p class="hero-sub">KERNL helps you understand the message of any book in 1,500-word summaries with audio narration, vocabulary deep-dives, one-tap delivery to your Kindle, and a link to purchase the book if you want to eat every leaf on the tree.</p>
     <div class="hero-pills">
-      <span class="hero-pill"><span class="hero-pill-icon">&#127911;</span> Male &amp; Female voices</span>
+      <span class="hero-pill"><span class="hero-pill-icon">&#127911;</span> Natural AI voice</span>
       <span class="hero-pill"><span class="hero-pill-icon">&#128218;</span> <span id="count-pill">1,280+</span> books</span>
       <span class="hero-pill"><span class="hero-pill-icon">&#128235;</span> Send to Kindle</span>
       <span class="hero-pill"><span class="hero-pill-icon">&#128209;</span> Print-ready</span>
@@ -251,7 +251,6 @@ html.dark .more-overlay{background:linear-gradient(to bottom,rgba(26,23,20,0) 0%
         <div class="player-right">
           <div class="voice-toggle">
             <button class="pvb active" id="vbf" onclick="setVoice('female')">&#9792; Female</button>
-            <button class="pvb" id="vbm" onclick="setVoice('male')">&#9794; Male</button>
           </div>
           <div class="speed-group">
             <button class="spb active" data-rate="1" onclick="setSpeed(1)">1&times;</button>
@@ -306,7 +305,7 @@ html.dark .more-overlay{background:linear-gradient(to bottom,rgba(26,23,20,0) 0%
     </div>
     <div class="gate-perks">
       <span class="gate-perk">&#9989; 24 books free, no sign-up</span>
-      <span class="gate-perk">&#9989; Male &amp; Female voices</span>
+      <span class="gate-perk">&#9989; Natural AI voice</span>
       <span class="gate-perk">&#9989; Kindle delivery</span>
       <span class="gate-perk">&#9989; Personal library</span>
       <span class="gate-perk">&#127775; Pro: 200 summaries/year for &pound;20</span>
@@ -416,7 +415,7 @@ function safe(s) { return String(s).replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_'
 
 // ── Player ────────────────────────────────────────────────────────────────────
 let currentVoice = 'female'; let isPlaying = false; let audioEl = null; let playbackRate = 1; let streamingAudioContext = null; let streamingSources = []; let isStartingAudio = false;
-function setVoice(v) { const wasPlaying = isPlaying; if (wasPlaying) stopAudio(); currentVoice = v; document.getElementById('vbf').classList.toggle('active', v === 'female'); document.getElementById('vbm').classList.toggle('active', v === 'male'); document.getElementById('player-sub').textContent = (v === 'female' ? 'Female' : 'Male') + ' voice \u2014 press play'; if (wasPlaying) setTimeout(startTTS, 150); }
+function setVoice(v) { const wasPlaying = isPlaying; if (wasPlaying) stopAudio(); currentVoice = v; document.getElementById('vbf').classList.toggle('active', v === 'female'); document.getElementById('player-sub').textContent = (v === 'female' ? 'Female' : 'Male') + ' voice \u2014 press play'; if (wasPlaying) setTimeout(startTTS, 150); }
 function setSpeed(rate) { playbackRate = rate; document.querySelectorAll('.spb').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.rate) === rate)); if (audioEl) audioEl.playbackRate = rate; }
 function togglePlay() { if (isStartingAudio) return; if (isPlaying) { pauseAudio(); return; } if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; } if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; } startTTS(); }
 function pauseAudio() { if (audioEl && !audioEl.paused) audioEl.pause(); if (streamingAudioContext && streamingAudioContext.state === 'running') streamingAudioContext.suspend(); isPlaying = false; setPlayerState(false, 'Paused \u2014 press play to continue'); }

@@ -985,8 +985,7 @@ function togglePlay() {
 
 function setVoice(v) {
   currentVoice = v;
-  document.getElementById('vbf').classList.toggle('active', v === 'female');
-  document.getElementById('vbm').classList.toggle('active', v === 'male');
+  v = 'female'; currentVoice = v; // female voice only
   const wasPlaying = isPlaying;
   stopAudio();
   isPlaying = false;
@@ -1078,3 +1077,31 @@ document.addEventListener('click', e => { if (!e.target.closest('#book-input') &
 initDark();
 setVoice('female');
 initAuth();
+
+
+// ── Pro: save / email / WhatsApp the audio ───────────────────────────────────
+function updateAudioShareBtns() {
+  const pro = _userProfile && _userProfile.tier === 'pro';
+  document.querySelectorAll('.pro-audio').forEach(b => { b.style.display = pro ? '' : 'none'; });
+}
+async function _audioShare(action) {
+  if (!currentSummary) return null;
+  const res = await fetch('/api/share-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: currentSummary.title, author: currentSummary.author, action }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(data.error || 'Could not do that. Try again.'); return null; }
+  return data;
+}
+async function saveAudio() {
+  const d = await _audioShare('link');
+  if (d) { const a = document.createElement('a'); a.href = d.downloadUrl; a.download = d.name; document.body.appendChild(a); a.click(); a.remove(); }
+}
+async function emailAudio() {
+  const d = await _audioShare('email');
+  if (d && d.sent) alert('Sent to ' + d.to);
+}
+async function whatsappAudio() {
+  const d = await _audioShare('link');
+  if (!d) return;
+  const text = 'KERNL audio summary of "' + currentSummary.title + '": ' + d.url;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+}
