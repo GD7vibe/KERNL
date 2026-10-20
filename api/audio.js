@@ -21,6 +21,10 @@ module.exports = async (req, res) => {
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    if (req.query.dl) {
+      const nm = String(req.query.name || filename).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 100) || filename;
+      res.setHeader('Content-Disposition', 'attachment; filename="' + nm + '"');
+    }
     const len = upstream.headers.get('content-length');
     if (len) res.setHeader('Content-Length', len);
     if (req.method === 'HEAD') return res.end();
