@@ -1099,9 +1099,39 @@ async function emailAudio() {
   const d = await _audioShare('email');
   if (d && d.sent) alert('Sent to ' + d.to);
 }
+let _waFile = null; // { title, file } once the MP3 has been fetched for sharing
+function _canShareFiles() {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'a.mp3', { type: 'audio/mpeg' })] })); } catch (e) { return false; }
+}
 async function whatsappAudio() {
+  if (!currentSummary) return;
+  const btn = document.getElementById('wa-audio-btn');
+  const label = '\uD83D\uDCAC WhatsApp';
+  // Step 2 (phone): the file is ready, so this tap opens the share sheet.
+  if (_waFile && _waFile.title === currentSummary.title) {
+    const f = _waFile.file; _waFile = null; btn.textContent = label;
+    try { await navigator.share({ files: [f], title: currentSummary.title + ' \u2014 KERNL audio' }); }
+    catch (e) { if (e && e.name !== 'AbortError') alert('Sharing failed. Use Save audio instead, then attach the file in WhatsApp.'); }
+    return;
+  }
   const d = await _audioShare('link');
   if (!d) return;
-  const text = 'KERNL audio summary of "' + currentSummary.title + '": ' + d.url;
-  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+  if (!_canShareFiles()) {
+    // Desktop browsers can't attach files to WhatsApp: download it and open WhatsApp Web to attach by hand.
+    const a = document.createElement('a'); a.href = d.downloadUrl; a.download = d.name; document.body.appendChild(a); a.click(); a.remove();
+    window.open('https://web.whatsapp.com/', '_blank', 'noopener');
+    return;
+  }
+  // Step 1 (phone): fetch the MP3, then ask for a second tap (phones only allow sharing straight after a tap).
+  btn.textContent = 'Preparing\u2026'; btn.disabled = true;
+  try {
+    const r = await fetch(d.downloadUrl);
+    if (!r.ok) throw new Error('fetch failed');
+    const blob = await r.blob();
+    _waFile = { title: currentSummary.title, file: new File([blob], d.name, { type: blob.type || 'audio/mpeg' }) };
+    btn.textContent = 'Tap again to share';
+  } catch (e) {
+    btn.textContent = label; alert('Could not prepare the audio. Try again.');
+  }
+  btn.disabled = false;
 }
