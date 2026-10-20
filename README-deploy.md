@@ -4,7 +4,7 @@ Order matters. Code first, then the SQL. Test on `dev` (staging) before `main`.
 
 ## 0. Supabase dashboard (do this first, staging project first if you have one)
 Authentication → **Sign In / Providers**:
-- **Allow anonymous sign-ins**: ON (this is how guests get their 24 books with no email)
+- **Allow anonymous sign-ins**: ON (this is how guests get their 12 books with no email)
 - **Enable manual linking**: ON (lets a guest attach Google / email to the same account so their books carry over)
 - **Google**: ON. Create an OAuth client in Google Cloud Console (APIs & Services → Credentials → OAuth client ID → Web application).
   Authorised redirect URI = the callback URL shown on Supabase's Google provider page (`https://<project>.supabase.co/auth/v1/callback`).
@@ -27,7 +27,7 @@ route returns 500 "Server is not configured". Optional: `SUPABASE_URL` (defaults
 Nothing breaks if you deploy code before the SQL: the server just becomes stricter than the database.
 Test on the staging URL:
 - signed out, landing page demo (Meditations): text and play still work
-- open /app.html in a private window: you are a guest ("24 of 24 free books remaining"), no login screen
+- open /app.html in a private window: you are a guest ("12 of 12 free books remaining"), no login screen
 - open any library book as a guest: counter drops by 1; re-open: no change; a book that isn't in the library is refused with "create a free account"
 - guest → "Create free account" → Google: you land back in the app with the same books, now as a Free user
 - Account page and sign-out hidden for guests; Account redirects a guest to sign-up
@@ -52,10 +52,10 @@ Then retest sign-up, login, the library grid, Account page, remove-from-library.
 - app.js: sends the session token on every call, no longer writes `profiles` / `user_library`, single audio trigger
 
 ## Guest mode and tiers
-- Guest (anonymous session) = 24 books, any in the library, cached audio only, no new summaries, no Kindle.
-- Free account = **24** (was 20; it must not be lower than guest or a guest who signs up is instantly over the limit). Pro = 200.
+- Guest (anonymous session) = 12 books, any in the library, cached audio only, no new summaries, no Kindle.
+- Free account = **36** (must never be lower than guest or a guest who signs up is instantly over the limit). Pro = 200.
   Numbers live in `lib/kernl.js` (LIMITS), `public/app.js` and `public/account.html`. Change all three together.
-- A guest who clears browser data gets a fresh 24. That is the accepted trade-off of no-email access. There is also a per-IP daily
+- A guest who clears browser data gets a fresh 12. That is the accepted trade-off of no-email access. There is also a per-IP daily
   ceiling (150 new books) as a best-effort brake on scripts.
 - Reading Journey removed from the Account page (the API still returns the data; nothing displays it).
 - `library.html` now opens books in the app. `summary.html` is no longer linked from anywhere and can be deleted.

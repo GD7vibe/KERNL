@@ -152,6 +152,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const PORTRAIT_THRESHOLD = 10;
 
 let _session = null;
+let _guest = false;
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
 (function(){
@@ -177,12 +178,17 @@ function fmtDate(ts) { if (!ts) return ''; return new Date(ts).toLocaleDateStrin
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session || session.user.is_anonymous) { window.location.href = '/login.html#signup'; return; }
+  if (!session) { window.location.href = '/login.html'; return; }
   _session = session;
-  document.getElementById('nav-email').textContent = session.user.email;
+  _guest = !!session.user.is_anonymous;
+  document.getElementById('nav-email').textContent = _guest ? 'Guest' : session.user.email;
+  if (_guest) {
+    document.querySelectorAll('.nav-link.danger').forEach(b => b.style.display = 'none');
+    const t = document.querySelector('.lib-card-wrap .card-title'); if (t) t.textContent = 'My Books';
+  }
 
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
-  renderTierCard(profile);
+  let profile = null;
+  if (!_guest) ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single());
 
   const { data: library } = await sb
     .from('user_library')
@@ -190,15 +196,18 @@ async function init() {
     .eq('user_id', session.user.id)
     .order('added_at', { ascending: false });
 
+  if (_guest) profile = { tier: 'guest', downloads_used: (library || []).length };
+  renderTierCard(profile);
   renderLibrary(library || []);
-  loadPortraitAndRecs(library || []);
+  if (_guest) { document.getElementById('portrait-section').innerHTML = ''; document.getElementById('recs-section').innerHTML = ''; }
+  else loadPortraitAndRecs(library || []);
 }
 
 // ── Tier card ─────────────────────────────────────────────────────────────────
 function renderTierCard(profile) {
   const tier = profile ? profile.tier : 'free';
   const used = profile ? (profile.downloads_used || 0) : 0;
-  const limit = tier === 'pro' ? 200 : 24;
+  const limit = tier === 'pro' ? 200 : tier === 'guest' ? 12 : 36;
   const remaining = Math.max(0, limit - used);
   const pct = Math.min(100, (used / limit) * 100);
   const resetDate = profile && profile.downloads_reset ? fmtDate(profile.downloads_reset) : null;
@@ -208,10 +217,12 @@ function renderTierCard(profile) {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
       <div>
         <div style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.1em">Current Plan</div>
-        <span class="tier-badge ${tier}">${tier === 'pro' ? 'Pro &mdash; £20/year' : 'Free'}</span>
+        <span class="tier-badge ${tier === 'guest' ? 'free' : tier}">${tier === 'pro' ? 'Pro &mdash; £20/year' : tier === 'guest' ? 'Guest' : 'Free'}</span>
       </div>
       ${tier === 'free' ? '<a href="/upgrade.html" class="upgrade-btn">Upgrade to Pro &rsaquo;</a>' : ''}
+      ${tier === 'guest' ? '<a href="/login.html#signup" class="upgrade-btn">Create free account &rsaquo;</a>' : ''}
     </div>
+    ${tier === 'guest' ? '<div style="font-size:0.85rem;color:var(--muted);margin-top:0.9rem;line-height:1.5">You are browsing as a guest. These books are saved to this browser only. <strong>Create a free account to keep them on every device and get 36 books instead of 12.</strong></div>' : ''}
     <div class="usage-bar-wrap">
       <div class="usage-label"><span>Downloads used</span><strong>${used} / ${limit}</strong></div>
       <div class="usage-bar"><div class="usage-fill ${fillClass}" style="width:${pct}%"></div></div>
@@ -334,7 +345,7 @@ function renderLibrary(items) {
     card.dataset.author = author;
     card.dataset.id     = item.id;
     card.innerHTML = `
-      <button class="book-remove" title="Remove">&times;</button>
+      ${_guest ? '' : '<button class="book-remove" title="Remove">&times;</button>'}
       <div class="book-title">${esc(title)}</div>
       <div class="book-author">by ${esc(author)}</div>
       ${synopsis ? `<div class="book-synopsis">${esc(synopsis)}</div>` : ''}
@@ -346,7 +357,8 @@ function renderLibrary(items) {
       if (e.target.classList.contains('book-remove')) return;
       openBook(this.dataset.title, this.dataset.author);
     });
-    card.querySelector('.book-remove').addEventListener('click', function(e) {
+    const rm = card.querySelector('.book-remove');
+    if (rm) rm.addEventListener('click', function(e) {
       e.stopPropagation();
       removeFromLibrary(card.dataset.id);
     });
