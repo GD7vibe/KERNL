@@ -192,7 +192,7 @@ async function initAuth() {
   if (autoTitle && autoAuthor) {
     document.getElementById('book-input').value = autoTitle;
     document.getElementById('author-input').value = autoAuthor;
-    showConfirmation(autoTitle, autoAuthor, false);
+    _executeGenerate(autoTitle, autoAuthor); // opens the summary straight away
   }
 }
 
@@ -499,15 +499,16 @@ async function handleGenerate() {
   // 4. Check local cache — if found, it's verified, skip Open Library check
   const cached = getArchive().find(e => norm(e.title) === norm(title) && norm(e.author) === norm(author));
   if (cached) {
-    showConfirmation(title, author, true);
+    _executeGenerate(title, author);
     return;
   }
 
   // 5. Check Supabase library — if found there, it's a real book
   const inSupabase = _allBooks && _allBooks.some(b => norm(b.title) === norm(title));
 
-  // Show confirmation. isLibraryBook=true skips Open Library verification.
-  showConfirmation(title, author, inSupabase);
+  // Books already in the library open straight away. Only a brand-new book (which costs a generation) asks first.
+  if (inSupabase) { _executeGenerate(title, author); return; }
+  showConfirmation(title, author, false);
 }
 
 // ── The actual generation logic (was handleGenerate body) ─────────────────────
@@ -669,8 +670,7 @@ function loadLibraryBook(title, author) {
   document.getElementById('book-input').value = t;
   document.getElementById('author-input').value = a;
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  // Small delay so scroll completes before panel appears
-  setTimeout(() => showConfirmation(t, a, true), 300);
+  _executeGenerate(t, a);
 }
 
 // ── Player state ──────────────────────────────────────────────────────────────

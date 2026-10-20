@@ -181,6 +181,8 @@ var _pendingBook = null;
 
 function showConfirm(title, author) {
   _pendingBook = { title: title, author: author };
+  confirmOpen(); // open the summary straight away, no extra step
+  return;
 
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-author').textContent = 'by ' + author;
