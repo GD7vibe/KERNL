@@ -1,28 +1,25 @@
-const fetch = require('node-fetch');
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+// api/library-list.js
+// Public catalogue of every book in the library (titles and authors only, no summary text).
+// Pages through the table, so it is no longer capped at 1,000 rows.
+const K = require('../lib/kernl');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    if (!SUPABASE_URL) return res.status(500).json({ error: 'Missing SUPABASE_URL' });
-    if (!SUPABASE_KEY) return res.status(500).json({ error: 'Missing SUPABASE_SERVICE_KEY' });
-
-    const r = await fetch(
-      SUPABASE_URL + '/rest/v1/summaries?select=title,author,lookup_key&lookup_key=like.*nospoilers*&order=title.asc&limit=1000',
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } }
-    );
-    if (!r.ok) {
-      const txt = await r.text();
-      return res.status(500).json({ error: 'Supabase error ' + r.status, detail: txt.substring(0,200) });
+    const PAGE = 1000, MAX_PAGES = 50;
+    const rows = [];
+    for (let i = 0; i < MAX_PAGES; i++) {
+      const r = await K.sb('/rest/v1/summaries?select=title,author,lookup_key&lookup_key=like.*nospoilers*&order=title.asc,id.asc&limit=' + PAGE + '&offset=' + (i * PAGE));
+      if (!r.ok || !Array.isArray(r.data)) return res.status(500).json({ error: 'Could not load library' });
+      rows.push(...r.data);
+      if (r.data.length < PAGE) break;
     }
-    const data = await r.json();
 
     const seen = new Set();
-    const books = data.filter(b => {
+    const books = rows.filter(b => {
       const key = (b.title || '').toLowerCase().trim();
       if (seen.has(key)) return false;
       seen.add(key);
@@ -32,6 +29,6 @@ module.exports = async (req, res) => {
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
     return res.status(200).json(books);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Could not load library' });
   }
 };

@@ -124,25 +124,67 @@ function ungreyPlayBtn()           { _setPlayBtn(true); }
 let _sbClient = null;
 let _currentUser = null;
 let _userProfile = null;
+// guest = anonymous visitor (no email). Mirrors LIMITS in lib/kernl.js — the server is what enforces it.
+const LIMITS = { guest: 24, free: 24, pro: 200 };
 
 function getSB() {
   if (!_sbClient) _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   return _sbClient;
 }
 
+// Every API call carries the signed-in user's access token. The server decides what they may do.
+async function apiHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  try {
+    const { data } = await getSB().auth.getSession();
+    if (data && data.session) h.Authorization = 'Bearer ' + data.session.access_token;
+  } catch (e) { /* anonymous */ }
+  return h;
+}
+
+// Own profile is read-only from the browser; the server does all the counting.
+async function refreshProfile() {
+  if (!_currentUser) return;
+  try {
+    const sb = getSB();
+    if (_currentUser.is_anonymous) {
+      // Guests have no profile to speak of: their count is simply the books the server has opened for them.
+      const { count } = await sb.from('user_library').select('id', { count: 'exact', head: true }).eq('user_id', _currentUser.id);
+      _userProfile = { tier: 'guest', downloads_used: count || 0 };
+    } else {
+      const { data } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
+      if (data) _userProfile = data;
+    }
+    renderUserBar();
+  } catch (e) { console.warn('refreshProfile failed:', e.message); }
+}
+
 async function initAuth() {
   const sb = getSB();
   let session = null;
-  for (let attempt = 1; attempt <= 5; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     const { data } = await sb.auth.getSession();
     if (data && data.session) { session = data.session; break; }
-    if (attempt < 5) await new Promise(r => setTimeout(r, 600));
+    if (attempt < 3) await new Promise(r => setTimeout(r, 400));
+  }
+  // Nobody signed in: start a guest session (no email, no form). The server counts their 24 free books against it.
+  if (!session) {
+    try {
+      const { data, error } = await sb.auth.signInAnonymously();
+      if (!error && data && data.session) session = data.session;
+    } catch (e) { console.warn('Guest session failed:', e.message); }
   }
   if (!session) { window.location.href = '/login.html'; return; }
   _currentUser = session.user;
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
-  _userProfile = profile || { tier: 'free', downloads_used: 0, downloads_reset: null };
-  renderUserBar();
+  if (_currentUser.is_anonymous) {
+    _userProfile = { tier: 'guest', downloads_used: 0 };
+    renderUserBar();
+    refreshProfile();
+  } else {
+    const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
+    _userProfile = profile || { tier: 'free', downloads_used: 0, downloads_reset: null };
+    renderUserBar();
+  }
   loadLibrary();
   const params = new URLSearchParams(window.location.search);
   const autoTitle = params.get('title');
@@ -150,7 +192,6 @@ async function initAuth() {
   if (autoTitle && autoAuthor) {
     document.getElementById('book-input').value = autoTitle;
     document.getElementById('author-input').value = autoAuthor;
-    // Show confirmation step rather than auto-generating
     showConfirmation(autoTitle, autoAuthor, false);
   }
 }
@@ -158,26 +199,34 @@ async function initAuth() {
 function renderUserBar() {
   if (!_currentUser) return;
   const bar = document.getElementById('user-bar');
-  const tier = _userProfile.tier || 'free';
+  const guest = !!_currentUser.is_anonymous;
+  const tier = guest ? 'guest' : (_userProfile.tier || 'free');
   const used = _userProfile.downloads_used || 0;
-  const limit = tier === 'pro' ? 200 : 20;
+  const limit = LIMITS[tier] || LIMITS.free;
   const remaining = Math.max(0, limit - used);
   const pct = Math.min(100, (used / limit) * 100);
   const colour = pct >= 80 ? '#8B1A1A' : pct >= 50 ? '#c47a3a' : '#2d6a4f';
   bar.style.display = 'flex';
-  document.getElementById('user-email-display').textContent = _currentUser.email;
+  document.getElementById('user-email-display').textContent = guest ? '' : _currentUser.email;
   document.getElementById('user-usage-display').innerHTML =
-    `<span style="font-weight:600;color:${colour}">${remaining}</span> of ${limit} summaries remaining`;
+    `<span style="font-weight:600;color:${colour}">${remaining}</span> of ${limit} ${guest ? 'free books' : 'summaries'} remaining`;
   const badge = document.getElementById('user-tier-badge');
-  badge.textContent = tier === 'pro' ? '★ Pro' : 'Free';
-  badge.className = 'user-tier ' + tier;
-  document.getElementById('upgrade-btn-wrap').innerHTML = tier === 'free'
-    ? '<a href="/upgrade.html" class="user-nav-btn upgrade">Upgrade to Pro</a>' : '';
+  badge.textContent = tier === 'pro' ? '\u2605 Pro' : guest ? 'Guest' : 'Free';
+  badge.className = 'user-tier ' + (tier === 'pro' ? 'pro' : 'free');
+  document.getElementById('upgrade-btn-wrap').innerHTML = guest
+    ? '<a href="/login.html#signup" class="user-nav-btn upgrade">Create free account</a>'
+    : tier === 'free' ? '<a href="/upgrade.html" class="user-nav-btn upgrade">Upgrade to Pro</a>' : '';
+  const libLink = document.getElementById('my-library-link');
+  if (libLink) libLink.style.display = guest ? 'none' : '';
+  const signOut = document.getElementById('signout-btn');
+  if (signOut) signOut.style.display = guest ? 'none' : '';
+  const signIn = document.getElementById('signin-link');
+  if (signIn) signIn.style.display = guest ? '' : 'none';
   const bookInput   = document.getElementById('book-input');
   const authorInput = document.getElementById('author-input');
   const searchHint  = document.getElementById('search-hint');
-  if (tier === 'free') {
-    if (bookInput)   bookInput.placeholder   = 'Search the free library by title\u2026';
+  if (tier !== 'pro') {
+    if (bookInput)   bookInput.placeholder   = 'Search the library by title\u2026';
     if (authorInput) authorInput.placeholder = 'or search by author\u2026';
     if (searchHint)  searchHint.style.display = 'block';
   } else {
@@ -186,67 +235,30 @@ function renderUserBar() {
     if (searchHint)  searchHint.style.display = 'none';
   }
   const limitBar = document.getElementById('limit-bar');
+  limitBar.innerHTML = guest
+    ? 'You have used your ' + limit + ' free books. <a href="/login.html#signup">Create a free account</a> to keep your library, or <a href="/upgrade.html">upgrade to Pro</a> for ' + LIMITS.pro + ' summaries a year.'
+    : 'You have used all your summaries. <a href="/upgrade.html">Upgrade to Pro</a> for ' + LIMITS.pro + ' summaries per year.';
   if (remaining <= 0) limitBar.classList.add('show'); else limitBar.classList.remove('show');
 }
 
 async function handleSignOut() { await getSB().auth.signOut(); window.location.href = '/login.html'; }
 
-async function saveToLibrary() {
-  if (!currentSummary || !_currentUser) return;
-  const btn  = document.getElementById('save-library-btn');
-  const tier  = _userProfile.tier || 'free';
-  const limit = tier === 'pro' ? 200 : 20;
-  const used  = _userProfile.downloads_used || 0;
-  if (used >= limit) { setError('Download limit reached. Upgrade to Pro for 200 books per year.'); return; }
-  btn.disabled = true; btn.textContent = 'Saving\u2026';
-  try {
-    const sb = getSB();
-    const { data: rows } = await sb.from('summaries').select('id').ilike('title', currentSummary.title).limit(1);
-    if (!rows || !rows.length) throw new Error('Book not found in library');
-    const summaryId = rows[0].id;
-    const { error: insertErr } = await sb.from('user_library').upsert({
-      user_id: _currentUser.id, summary_id: summaryId, voice: currentVoice, language: 'en'
-    }, { onConflict: 'user_id,summary_id,voice,language', ignoreDuplicates: true });
-    if (insertErr) throw new Error(insertErr.message);
-    const newUsed = used + 1;
-    await sb.from('profiles').update({ downloads_used: newUsed }).eq('id', _currentUser.id);
-    _userProfile.downloads_used = newUsed; renderUserBar();
-    btn.textContent = '\u2713 Saved to My Library'; btn.classList.add('saved'); btn.disabled = false;
-  } catch(e) { btn.textContent = '+ Save to My Library'; btn.disabled = false; setError('Could not save: ' + e.message); }
-}
-
-async function autoSaveToLibrary(title, author) {
-  if (!_currentUser || !_userProfile) return;
-  const tier  = _userProfile.tier || 'free';
-  const limit = tier === 'pro' ? 200 : 20;
-  const used  = _userProfile.downloads_used || 0;
-  if (used >= limit) return;
-  try {
-    const sb = getSB();
-    const { data: rows } = await sb.from('summaries').select('id').ilike('title', title).limit(1);
-    if (!rows || !rows.length) return;
-    const summaryId = rows[0].id;
-    const { data: existing } = await sb.from('user_library').select('id')
-      .eq('user_id', _currentUser.id).eq('summary_id', summaryId)
-      .eq('voice', currentVoice).eq('language', 'en').limit(1);
-    if (existing && existing.length > 0) return;
-    const { error: insertErr } = await sb.from('user_library').insert({
-      user_id: _currentUser.id, summary_id: summaryId, voice: currentVoice, language: 'en'
-    });
-    if (insertErr) return;
-    const newUsed = used + 1;
-    await sb.from('profiles').update({ downloads_used: newUsed }).eq('id', _currentUser.id);
-    _userProfile.downloads_used = newUsed; renderUserBar();
-  } catch(e) { console.warn('Auto-save to library failed:', e.message); }
-}
+// Library membership and the usage counter are now handled by the server when a summary is
+// opened (api/summarise and api/get-summary). The browser only refreshes what it displays.
+async function saveToLibrary() { await refreshProfile(); }
+async function autoSaveToLibrary() { await refreshProfile(); }
 
 // ── Audio generation helper — fire-and-forget, safe to call multiple times ────
-function triggerAudioGeneration(title, author, plain, voice) {
-  if (!title || !plain) return;
-  fetch('/api/generate-audio', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, author, plain, voice: voice || currentVoice })
-  }).catch(e => console.warn('generate-audio failed:', e.message));
+// Fire-and-forget. The server decides who may generate, and never regenerates a file that exists,
+// so this is safe to call more than once. The text comes from the library, not from here.
+async function triggerAudioGeneration(title, author, plain, voice) {
+  if (!title) return;
+  try {
+    fetch('/api/generate-audio', {
+      method: 'POST', headers: await apiHeaders(),
+      body: JSON.stringify({ title, author, voice: voice || currentVoice })
+    }).catch(e => console.warn('generate-audio failed:', e.message));
+  } catch (e) { console.warn('generate-audio failed:', e.message); }
 }
 
 async function checkAudioAvailability() {
@@ -255,7 +267,7 @@ async function checkAudioAvailability() {
   if (tier === 'pro') {
     try {
       const cacheRes = await fetch('/api/tts', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: await apiHeaders(),
         body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author, checkOnly: true })
       });
       if (cacheRes.ok) {
@@ -272,7 +284,7 @@ async function checkAudioAvailability() {
   }
   try {
     const res = await fetch('/api/tts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: await apiHeaders(),
       body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author, checkOnly: true })
     });
     if (res.ok) {
@@ -508,7 +520,7 @@ async function _executeGenerate(title, author) {
       let words = cached.words || [];
       if (!words.length) {
         try {
-          const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || ''));
+          const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || ''), { headers: await apiHeaders() });
           if (r.ok) { const d = await r.json(); if (d.words) { try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {} } }
         } catch(e) {}
       }
@@ -524,10 +536,14 @@ async function _executeGenerate(title, author) {
 
   try {
     const res = await fetch('/api/summarise', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: await apiHeaders(),
       body: JSON.stringify({ title, author })
     });
-    if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Error ' + res.status); }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.code === 'limit') { await refreshProfile(); }
+      throw new Error(data.error || 'Error ' + res.status);
+    }
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const data = await res.json();
@@ -539,8 +555,6 @@ async function _executeGenerate(title, author) {
     }
     const reader = res.body.getReader(); const decoder = new TextDecoder();
     let buffer = ''; let streamingStarted = false; let finalData = null; let lastHtml = '';
-    let audioTriggered = false;
-    const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -553,14 +567,7 @@ async function _executeGenerate(title, author) {
           try {
             const msg = JSON.parse(line.slice(6).trim());
             if (msg.error) throw new Error(msg.error);
-            if (msg.done) {
-              finalData = msg;
-              if (!audioTriggered && tier === 'pro') {
-                audioTriggered = true;
-                triggerAudioGeneration(title, author, msg.plain, currentVoice);
-              }
-              continue;
-            }
+            if (msg.done) { finalData = msg; continue; }
             if (msg.chunk) {
               lastHtml = msg.chunk;
               if (!streamingStarted) {
@@ -579,9 +586,6 @@ async function _executeGenerate(title, author) {
     if (finalData) {
       saveEntry({ title, author, html: finalData.html, plain: finalData.plain, words: finalData.words || [], savedAt: Date.now() });
       displaySummary(title, author, finalData.html, finalData.plain, finalData.words || [], false);
-      if (!audioTriggered && tier === 'pro') {
-        triggerAudioGeneration(title, author, finalData.plain, currentVoice);
-      }
     } else if (streamingStarted && lastHtml) {
       const plainText = lastHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
       saveEntry({ title, author, html: lastHtml, plain: plainText, words: [], savedAt: Date.now() });
@@ -791,7 +795,7 @@ async function checkAudioCache() {
   if (!currentSummary) return null;
   try {
     const res = await fetch('/api/tts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: await apiHeaders(),
       body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
     });
     if (res.ok) { const data = await res.json(); return data.url || null; }
@@ -826,7 +830,7 @@ async function startTTS() {
       document.getElementById('player-sub').textContent = 'Audio preparing\u2026 ' + elapsed + 's';
       try {
         const res = await fetch('/api/tts', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: await apiHeaders(),
           body: JSON.stringify({ voice: pollVoice, title: pollTitle, author: pollAuthor })
         });
         if (res.ok) {
@@ -890,10 +894,17 @@ async function startTTS() {
   };
   try {
     const res = await fetch('/api/tts-stream', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: currentSummary.plain, voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
+      method: 'POST', headers: await apiHeaders(),
+      body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
     });
     if (!res.ok) throw new Error('Stream failed: ' + res.status);
+    if ((res.headers.get('content-type') || '').includes('application/json')) {
+      const j = await res.json();
+      if (audioContext) { try { audioContext.close(); } catch (ex) {} }
+      streamingAudioContext = null; streamingSources = [];
+      if (j.url) { setAudioState('cached'); playSingleAudio(j.url, null); return; }
+      throw new Error('No audio');
+    }
     const reader  = res.body.getReader();
     const decoder = new TextDecoder();
     let sseBuffer = '';
@@ -987,7 +998,7 @@ function setVoice(v) {
 
 // ── Kindle / Print ────────────────────────────────────────────────────────────
 function showKindleModal() { if (!currentSummary) return; const existing = document.getElementById('kindle-modal'); if (existing) existing.remove(); const modal = document.createElement('div'); modal.id = 'kindle-modal'; modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem'; modal.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)"><h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3><p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p><input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between"><button onclick="downloadEpub()" style="height:38px;padding:0 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;display:flex;align-items:center;gap:6px">\uD83D\uDCDA Download EPUB</button><div style="display:flex;gap:10px"><button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button><button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button></div></div><div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div></div>'; document.body.appendChild(modal); setTimeout(() => document.getElementById('kindle-email-input').focus(), 100); }
-async function sendToKindle() { const email = document.getElementById('kindle-email-input').value.trim(); const status = document.getElementById('kindle-status'); const btn = document.getElementById('kindle-send-btn'); if (!email || !email.includes('@')) { status.style.display='block'; status.style.color='var(--error-fg)'; status.textContent='Please enter a valid Kindle email address.'; return; } btn.disabled=true; btn.textContent='Sending\u2026'; status.style.display='block'; status.style.color='var(--muted)'; status.textContent='Generating EPUB and sending\u2026'; try { const res = await fetch('/api/send-to-kindle', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ title:currentSummary.title, author:currentSummary.author, html:currentSummary.html, kindleEmail:email }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error||'Send failed'); status.style.color='var(--success-fg)'; status.textContent='\u2713 Sent! Check your Kindle in a few minutes.'; btn.textContent='Sent \u2713'; setTimeout(() => { const m=document.getElementById('kindle-modal'); if(m) m.remove(); }, 3000); } catch(err) { status.style.color='var(--error-fg)'; status.textContent='Error: '+err.message; btn.disabled=false; btn.textContent='Send \u2192'; } }
+async function sendToKindle() { const email = document.getElementById('kindle-email-input').value.trim(); const status = document.getElementById('kindle-status'); const btn = document.getElementById('kindle-send-btn'); if (!email || !email.includes('@')) { status.style.display='block'; status.style.color='var(--error-fg)'; status.textContent='Please enter a valid Kindle email address.'; return; } btn.disabled=true; btn.textContent='Sending\u2026'; status.style.display='block'; status.style.color='var(--muted)'; status.textContent='Generating EPUB and sending\u2026'; try { const res = await fetch('/api/send-to-kindle', { method:'POST', headers: await apiHeaders(), body:JSON.stringify({ title:currentSummary.title, author:currentSummary.author, kindleEmail:email }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error||'Send failed'); status.style.color='var(--success-fg)'; status.textContent='\u2713 Sent! Check your Kindle in a few minutes.'; btn.textContent='Sent \u2713'; setTimeout(() => { const m=document.getElementById('kindle-modal'); if(m) m.remove(); }, 3000); } catch(err) { status.style.color='var(--error-fg)'; status.textContent='Error: '+err.message; btn.disabled=false; btn.textContent='Send \u2192'; } }
 function downloadEpub() { if (!currentSummary) return; if (typeof JSZip === 'undefined') { alert('Please wait a moment and try again.'); return; } const id='kernl-'+Date.now(); const t=esc(currentSummary.title), a=esc(currentSummary.author); const contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' \u2014 KERNL Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>'; const opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' \u2014 KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>'; const ncx='<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="'+id+'"/></head><docTitle><text>'+t+'</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>'; const container='<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'; const zip=new JSZip(); (async()=>{ zip.file('mimetype','application/epub+zip'); zip.folder('META-INF').file('container.xml',container); const oebps=zip.folder('OEBPS'); oebps.file('content.opf',opf); oebps.file('toc.ncx',ncx); oebps.file('content.html',contentHtml); const blob=await zip.generateAsync({type:'blob',mimeType:'application/epub+zip'}); triggerDownload(blob,safe(currentSummary.title)+'_KERNL.epub'); })(); }
 function printSummary() { if (!currentSummary) return; const meganGrid=document.getElementById('megan-words-grid'); const meganOpen=meganGrid&&meganGrid.classList.contains('open'); const words=currentSummary.words||[]; let meganSection=''; if (meganOpen&&words.length) { const wordRows=words.map(w=>`<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">${esc(w.word)}</td><td style="padding:5pt 0;color:#444;line-height:1.5">${esc(w.definition)}</td></tr>`).join(''); meganSection=`<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`; } const w=window.open('','_blank'); if (!w) { alert('Please allow popups for kernlbooks.com to use Print.'); return; } w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' \u2014 KERNL</title><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}.print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em}.print-header-left{flex:1}.qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em}#qr-code{margin-bottom:4pt}<\/style><\/head><body><div class="print-header"><div class="print-header-left"><h1>'+esc(currentSummary.title)+'<\/h1><div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Summary<\/div><\/div><div class="qr-block"><div id="qr-code"><\/div>Scan to buy this book<\/div><\/div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL \u2014 for the curious<\/div><script>new QRCode(document.getElementById("qr-code"),{text:"'+makeAmazonUrl(currentSummary.title,currentSummary.author)+'",width:100,height:100,colorDark:"#000000",colorLight:"#ffffff"});<\/script><\/body><\/html>'); w.document.close(); setTimeout(()=>w.print(),500); }
 function triggerDownload(blob,filename) { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); },1000); }

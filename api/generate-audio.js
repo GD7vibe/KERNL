@@ -1,87 +1,82 @@
 // api/generate-audio.js
-// Called by frontend after summary is done
-// Generates xAI TTS audio and saves to Supabase Storage
-// Returns {ok: true} when audio is ready — frontend unlocks play button
+// Generates xAI TTS audio for a library book and stores it in Supabase Storage.
+// POST { title, author, voice }  ->  { ok:true, filename, cached? }
+//
+// The text always comes from the library row, never from the browser, and an existing
+// fresh file is never regenerated, so repeat or concurrent calls cost nothing.
+const K = require('../lib/kernl');
 
-const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
+const MAX_CHARS = 120000;
 
-function makeAudioKey(title, author, voice) {
-  const safe = s => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
-  return `${safe(title)}__${safe(author)}__${voice}.mp3`;
+async function generate(book, voice, filename) {
+  const r = await fetch('https://api.x.ai/v1/tts', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + process.env.XAI_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: book.plain.slice(0, MAX_CHARS), voice_id: voice === 'male' ? 'leo' : 'eve', language: 'en' })
+  });
+  if (!r.ok) {
+    console.error('[generate-audio] xAI failed:', r.status, (await r.text()).slice(0, 200));
+    const e = new Error('xAI TTS failed'); e.status = 502; throw e;
+  }
+  const buffer = Buffer.from(await r.arrayBuffer());
+  if (!buffer.length) { const e = new Error('xAI returned empty audio'); e.status = 502; throw e; }
+  if (!(await K.uploadAudio(filename, buffer))) { const e = new Error('Upload failed'); e.status = 502; throw e; }
+  await K.saveAudioMeta(book, voice, filename, book.plain);
 }
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!process.env.XAI_API_KEY) return res.status(500).json({ ok: false, error: 'Server is not configured' });
 
-  const { title, author, plain, voice } = req.body;
-  if (!plain) return res.status(400).json({ error: 'plain text required' });
-
-  const xaiVoice = voice === 'male' ? 'leo' : 'eve';
-  const filename = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
+  const body = req.body || {};
+  const voice = K.normVoice(body.voice);
+  const title = K.cleanText(body.title, 300);
+  const author = K.cleanText(body.author, 300);
+  if (!title) return res.status(400).json({ ok: false, error: 'title required' });
 
   try {
-    console.log('Generating audio:', filename);
+    const ctx = await K.authenticate(req);
+    const book = await K.findBook(title, author);
+    if (!book || !book.plain) return res.status(404).json({ ok: false, error: 'Summary not found' });
 
-    const ttsRes = await fetch('https://api.x.ai/v1/tts', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.XAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ text: plain, voice_id: xaiVoice, language: 'en' })
-    });
+    const access = await K.authoriseAudioRead(ctx, book);
+    if (!access.ok) return K.fail(res, access);
 
-    if (!ttsRes.ok) {
-      const err = await ttsRes.text();
-      console.error('xAI failed:', ttsRes.status, err);
-      return res.status(502).json({ ok: false, error: 'xAI TTS failed' });
-    }
+    const keys = K.audioKeyCandidates(book, title, author, voice);
+    const filename = keys[0];
 
-    const buffer = await ttsRes.arrayBuffer();
-
-    // Try POST first, PUT if file exists
-    let uploadRes = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'audio/mpeg',
-          'Cache-Control': '3600'
-        },
-        body: buffer
+    // Already generated and still matching the current text? Nothing to do.
+    const hit = await K.findCachedAudio(keys);
+    if (hit) {
+      const st = await K.audioStatus(hit.filename, book.plain);
+      if (st.state !== 'stale') {
+        if (st.state === 'unknown') await K.saveAudioMeta(book, voice, hit.filename, book.plain);
+        return res.status(200).json({ ok: true, filename: hit.filename, cached: true });
       }
-    );
-
-    if (!uploadRes.ok) {
-      uploadRes = await fetch(
-        `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
-        {
-          method: 'PUT',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'audio/mpeg',
-            'Cache-Control': '3600'
-          },
-          body: buffer
-        }
-      );
     }
 
-    if (!uploadRes.ok) {
-      const err = await uploadRes.text();
-      console.error('Supabase upload failed:', err);
-      return res.status(502).json({ ok: false, error: 'Upload failed' });
+    if (!K.canGenerateAudio(ctx)) {
+      return res.status(403).json({ ok: false, code: 'pro_required', error: 'Audio generation is a Pro feature.' });
     }
 
-    console.log('Audio saved:', filename);
+    // Someone on this instance is already generating it: wait for that instead of paying twice.
+    const pending = K.inflight.get(filename);
+    if (pending) {
+      await pending;
+      return res.status(200).json({ ok: true, filename, cached: true });
+    }
+
+    const who = ctx && ctx.user ? ctx.user.id : K.clientIp(req);
+    if (!(ctx && ctx.admin) && K.rateLimited('gen:' + who, 12, 60 * 60 * 1000)) {
+      return res.status(429).json({ ok: false, error: 'Too many audio requests. Try again later.' });
+    }
+
+    const job = generate(book, voice, filename);
+    K.inflight.set(filename, job);
+    await job;
     return res.status(200).json({ ok: true, filename });
-
   } catch (e) {
-    console.error('generate-audio error:', e.message);
-    return res.status(500).json({ ok: false, error: e.message });
+    console.error('[generate-audio] error:', e.message);
+    return res.status(e.status || 500).json({ ok: false, error: e.message });
   }
 };

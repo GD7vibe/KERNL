@@ -228,9 +228,8 @@ function confirmOpen() {
   var author = _pendingBook.author;
   var voice  = voiceSelections[title] || 'female';
   closeConfirm();
-  window.location.href = '/summary.html?title=' + encodeURIComponent(title) +
-    '&author=' + encodeURIComponent(author) +
-    '&voice=' + voice;
+  window.location.href = '/app.html?title=' + encodeURIComponent(title) +
+    '&author=' + encodeURIComponent(author);
 }
 
 // Keyboard: Escape closes, Enter confirms

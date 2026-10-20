@@ -1,123 +1,90 @@
 // api/tts-stream.js
-// Chrome path: WebSocket to xAI, stream MP3 chunks progressively to browser
-// Browser plays via Web Audio API as chunks arrive (~1s to first audio)
-// After streaming, saves complete MP3 to Supabase for future cache hits
-// Also writes audio_meta row so hash integrity can be verified on future plays
+// Chrome path: WebSocket to xAI, MP3 chunks streamed to the browser as SSE while they are generated.
+// The finished MP3 is saved to Storage with its audio_meta hash so every later play is a cache hit.
+// POST { title, author, voice }
+//   -> SSE  data:{mp3:<base64>} ... data:{done:true}
+//   -> or JSON { cached:true, url } if the audio already exists (client should just play the URL)
+//
+// The text comes from the library row, never the browser, so a caller cannot make us
+// pay to narrate arbitrary text or overwrite a book's audio with something else.
 const WebSocket = require('ws');
-const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
+const K = require('../lib/kernl');
 
-function makeAudioKey(title, author, voice) {
-  const safe = s => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
-  return `${safe(title)}__${safe(author)}__${voice}.mp3`;
-}
-
-// Simple FNV-32 hash — must match implementation in tts.js
-function fnv32(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = (h * 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
-}
-
-function plainHash(plain) {
-  return fnv32(String(plain || '').replace(/\s+/g, ' ').trim());
-}
-
-// Derive voice metadata from voice param
-// All current xAI voices are British English
-function getVoiceMeta(voice) {
-  return {
-    voice_gender:   voice === 'male' ? 'male' : 'female',
-    voice_accent:   'british',
-    voice_language: 'en'
-  };
-}
-
-async function saveAudioToStorage(filename, buffer) {
-  try {
-    let res = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
-      { method: 'POST', headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'audio/mpeg', 'Cache-Control': '3600' }, body: buffer }
-    );
-    if (!res.ok) {
-      res = await fetch(
-        `${SUPABASE_URL}/storage/v1/object/audio/${encodeURIComponent(filename)}`,
-        { method: 'PUT', headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'audio/mpeg', 'Cache-Control': '3600' }, body: buffer }
-      );
-    }
-    if (res.ok) console.log('[tts-stream] Saved to Supabase:', filename);
-    else console.error('[tts-stream] Supabase save failed:', res.status);
-    return res.ok;
-  } catch (e) {
-    console.error('[tts-stream] Supabase save error:', e.message);
-    return false;
-  }
-}
-
-async function saveAudioMeta(title, author, voice, audioKey, plain) {
-  try {
-    const hash = plainHash(plain);
-    const voiceMeta = getVoiceMeta(voice);
-    // Upsert — if a row already exists for this audio_key, update the hash
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/audio_meta`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates,return=minimal'
-      },
-      body: JSON.stringify({
-        title,
-        author,
-        voice,
-        audio_key:      audioKey,
-        plain_hash:     hash,
-        voice_gender:   voiceMeta.voice_gender,
-        voice_accent:   voiceMeta.voice_accent,
-        voice_language: voiceMeta.voice_language
-      })
-    });
-    if (res.ok) console.log('[tts-stream] audio_meta saved for:', audioKey, '| hash:', hash);
-    else console.error('[tts-stream] audio_meta save failed:', res.status, await res.text());
-  } catch (e) {
-    console.error('[tts-stream] audio_meta save error:', e.message);
-  }
-}
+const MAX_CHARS = 120000;
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { text, voice, title, author } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text required' });
-  const xaiVoice = voice === 'male' ? 'leo' : 'eve';
-  const filename = makeAudioKey(title || 'unknown', author || 'unknown', voice || 'female');
-  console.log('[tts-stream] Starting WebSocket stream for:', filename);
+  if (!process.env.XAI_API_KEY) return res.status(500).json({ error: 'Server is not configured' });
 
-  // SSE headers — stream MP3 chunks as base64 events to frontend
+  const body = req.body || {};
+  const voice = K.normVoice(body.voice);
+  const title = K.cleanText(body.title, 300);
+  const author = K.cleanText(body.author, 300);
+  if (!title) return res.status(400).json({ error: 'title required' });
+
+  let book, filename, keys;
+  try {
+    const ctx = await K.authenticate(req);
+    book = await K.findBook(title, author);
+    if (!book || !book.plain) return res.status(404).json({ error: 'Summary not found' });
+
+    const access = await K.authoriseAudioRead(ctx, book);
+    if (!access.ok) return K.fail(res, access);
+
+    keys = K.audioKeyCandidates(book, title, author, voice);
+    filename = keys[0];
+
+    const hit = await K.findCachedAudio(keys);
+    if (hit) {
+      const st = await K.audioStatus(hit.filename, book.plain);
+      if (st.state !== 'stale') return res.status(200).json({ cached: true, url: hit.url });
+    }
+
+    // Cache miss from here on. Generating new audio costs money: Pro and admin only.
+    // (Checked after the in-flight wait below so a free user can still pick up a file a Pro user just made.)
+    const pending0 = K.inflight.get(filename);
+    if (!pending0 && !K.canGenerateAudio(ctx)) {
+      return res.status(403).json({ code: 'pro_required', error: 'Audio generation is a Pro feature.' });
+    }
+
+    // A generate-audio call for the same file is already running on this instance: wait, then serve it.
+    const pending = K.inflight.get(filename);
+    if (pending) {
+      try { await pending; } catch (e) { /* fall through to stream it ourselves */ }
+      const again = await K.findCachedAudio(keys);
+      if (again) return res.status(200).json({ cached: true, url: again.url });
+      if (!K.canGenerateAudio(ctx)) return res.status(403).json({ code: 'pro_required', error: 'Audio generation is a Pro feature.' });
+    }
+
+    const who = ctx && ctx.user ? ctx.user.id : K.clientIp(req);
+    if (!(ctx && ctx.admin) && K.rateLimited('gen:' + who, 12, 60 * 60 * 1000)) {
+      return res.status(429).json({ error: 'Too many audio requests. Try again later.' });
+    }
+  } catch (e) {
+    console.error('[tts-stream] setup failed:', e.message);
+    return res.status(e.status || 500).json({ error: e.message });
+  }
+
+  const text = book.plain.slice(0, MAX_CHARS);
+  console.log('[tts-stream] streaming:', filename, 'chars:', text.length);
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  const wsUrl = `wss://api.x.ai/v1/tts?language=en&voice=${xaiVoice}&codec=mp3&sample_rate=24000`;
+  const wsUrl = 'wss://api.x.ai/v1/tts?language=en&voice=' + (voice === 'male' ? 'leo' : 'eve') + '&codec=mp3&sample_rate=24000';
   const allChunks = [];
   let browserConnected = true;
+  res.on('close', () => { browserConnected = false; });
 
-  res.on('close', () => {
-    browserConnected = false;
-    console.log('[tts-stream] Browser disconnected — continuing for cache');
-  });
+  const job = new Promise((resolve) => {
+    let finished = false;
+    const finish = () => { if (!finished) { finished = true; resolve(); } };
 
-  return new Promise((resolve) => {
-    const ws = new WebSocket(wsUrl, {
-      headers: { 'Authorization': `Bearer ${process.env.XAI_API_KEY}` }
-    });
+    const ws = new WebSocket(wsUrl, { headers: { Authorization: 'Bearer ' + process.env.XAI_API_KEY } });
 
     ws.on('open', () => {
-      console.log('[tts-stream] WS open, sending text length:', text.length);
       ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
       ws.send(JSON.stringify({ type: 'text.done' }));
     });
@@ -127,49 +94,42 @@ module.exports = async (req, res) => {
         const event = JSON.parse(data.toString());
 
         if (event.type === 'audio.delta' && event.delta) {
-          const chunk = Buffer.from(event.delta, 'base64');
-          allChunks.push(chunk);
+          allChunks.push(Buffer.from(event.delta, 'base64'));
           if (browserConnected) {
-            try {
-              res.write(`data: ${JSON.stringify({ mp3: event.delta })}\n\n`);
-            } catch (e) { browserConnected = false; }
+            try { res.write('data: ' + JSON.stringify({ mp3: event.delta }) + '\n\n'); } catch (e) { browserConnected = false; }
           }
         }
 
         if (event.type === 'audio.done') {
-          console.log('[tts-stream] Audio done, chunks:', allChunks.length);
           if (browserConnected) {
-            try {
-              res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-              res.end();
-            } catch (e) {}
+            try { res.write('data: ' + JSON.stringify({ done: true }) + '\n\n'); res.end(); } catch (e) { /* closed */ }
           }
-          ws.close();
-
-          // Save audio to Supabase Storage, then write audio_meta row
-          if (allChunks.length > 0) {
-            const saved = await saveAudioToStorage(filename, Buffer.concat(allChunks));
-            if (saved) {
-              await saveAudioMeta(title || 'unknown', author || 'unknown', voice || 'female', filename, text);
-            }
+          try { ws.close(); } catch (e) { /* already closed */ }
+          if (allChunks.length > 0 && await K.uploadAudio(filename, Buffer.concat(allChunks))) {
+            await K.saveAudioMeta(book, voice, filename, book.plain);
           }
-          resolve();
+          finish();
         }
 
         if (event.type === 'error') {
           console.error('[tts-stream] xAI error:', event.message);
-          if (!res.headersSent) res.status(500).end();
-          resolve();
+          if (!res.headersSent) res.status(502).json({ error: 'TTS provider error' });
+          else if (browserConnected) { try { res.end(); } catch (e) { /* closed */ } }
+          finish();
         }
       } catch (e) { console.warn('[tts-stream] parse error:', e.message); }
     });
 
     ws.on('error', (err) => {
       console.error('[tts-stream] WS error:', err.message);
-      if (!res.headersSent) res.status(502).end();
-      resolve();
+      if (!res.headersSent) res.status(502).json({ error: 'TTS provider unreachable' });
+      else if (browserConnected) { try { res.end(); } catch (e) { /* closed */ } }
+      finish();
     });
 
-    ws.on('close', resolve);
+    ws.on('close', finish);
   });
+
+  K.inflight.set(filename, job);
+  return job;
 };
