@@ -46,13 +46,16 @@ module.exports = async (req, res) => {
     const filename = keys[0];
 
     // Already generated and still matching the current text? Nothing to do.
-    const hit = await K.findCachedAudio(keys);
+    const hit = body.regenerate && K.canGenerateAudio(ctx) ? null : await K.findCachedAudio(keys);
     if (hit) {
       const st = await K.audioStatus(hit.filename, book.plain);
       if (st.state !== 'stale') {
-        if (st.state === 'unknown') await K.saveAudioMeta(book, voice, hit.filename, book.plain);
         return res.status(200).json({ ok: true, filename: hit.filename, cached: true });
       }
+    }
+
+    if (K.isIncomplete(book.plain, book.html)) {
+      return res.status(422).json({ ok: false, code: 'incomplete_text', error: 'This summary looks incomplete, so no audio was made.' });
     }
 
     if (!K.canGenerateAudio(ctx)) {

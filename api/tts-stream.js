@@ -40,6 +40,10 @@ module.exports = async (req, res) => {
       if (st.state !== 'stale') return res.status(200).json({ cached: true, url: hit.url });
     }
 
+    if (K.isIncomplete(book.plain, book.html)) {
+      return res.status(422).json({ code: 'incomplete_text', error: 'This summary looks incomplete, so no audio was made. It needs regenerating first.' });
+    }
+
     // Cache miss from here on. Generating new audio costs money: Pro and admin only.
     // (Checked after the in-flight wait below so a free user can still pick up a file a Pro user just made.)
     const pending0 = K.inflight.get(filename);
