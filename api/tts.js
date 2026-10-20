@@ -35,10 +35,8 @@ module.exports = async (req, res) => {
         'Audio hash ' + status.meta.plain_hash + ' does not match current summary hash ' + K.plainHash(book.plain) + '. Key: ' + hit.filename);
       return res.status(200).json({ cached: false, reason: 'hash_mismatch' });
     }
-    if (status.state === 'unknown') {
-      // Legacy file with no audio_meta row. Serve it and record the hash now so it is verified from here on.
-      await K.saveAudioMeta(book, voice, hit.filename, book.plain);
-    }
+    // 'unknown' = legacy file with no audio_meta row. Served as before, but never stamped with the current
+    // text's hash: that would "verify" audio that may have been made from an older or cut-short text.
     return res.status(200).json({ url: hit.url, source: 'cache' });
   } catch (e) {
     console.warn('[tts] failed:', e.message);

@@ -317,7 +317,7 @@ module.exports = async (req, res) => {
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, stream: true, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 5000, stream: true, messages: [{ role: 'user', content: prompt }] })
     });
 
     if (!anthropicRes.ok) {
@@ -334,6 +334,7 @@ module.exports = async (req, res) => {
     const decoder = new TextDecoder();
     let fullText = '';
     let genreStripped = false;
+    let stopReason = null;
     let buffer = '';
 
     while (true) {
@@ -348,6 +349,7 @@ module.exports = async (req, res) => {
         if (data === '[DONE]') continue;
         try {
           const parsed = JSON.parse(data);
+          if (parsed.type === 'message_delta' && parsed.delta && parsed.delta.stop_reason) stopReason = parsed.delta.stop_reason;
           if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
             const chunk = parsed.delta.text;
             fullText += chunk;
@@ -401,6 +403,14 @@ module.exports = async (req, res) => {
           console.log(`Topped up to ${words.length} words`);
         }
       } catch(e) { console.warn('Word top-up failed:', e.message); }
+    }
+
+    // Never save (or narrate, or charge for) a summary that was cut short.
+    const problems = K.summaryProblems(plain, html);
+    if (stopReason !== 'end_turn' || problems.includes('too_short') || problems.includes('abrupt_end')) {
+      console.error('[summarise] incomplete summary NOT saved:', title, 'stop_reason=' + stopReason, problems.join(','));
+      res.write('data: ' + JSON.stringify({ error: 'The summary was cut short, so it was not saved. Please try again.' }) + '\n\n');
+      return res.end();
     }
 
     const savedId = await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => { console.error('Supabase save failed:', e.message); return null; });

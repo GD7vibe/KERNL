@@ -1,3 +1,4 @@
+const STOIC = 'Stoic text. '.repeat(400).trim(), SPICE = 'Spice text. '.repeat(400).trim();
 // Mocked-fetch tests: no network, no real Supabase/xAI.
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const SERVICE = b64({alg:'HS256'}) + '.' + b64({role:'service_role'}) + '.sig';
@@ -7,8 +8,8 @@ const assert = require('assert');
 
 const db = {
   summaries: [
-    { id: 1, title: 'Meditations', author: 'Marcus Aurelius', lookup_key: 'meditations||marcus aurelius||nospoilers', plain: 'stoic text', html: '<p>stoic</p>', words: '[]' },
-    { id: 2, title: 'Dune', author: 'Frank Herbert', lookup_key: 'dune||frank herbert||nospoilers', plain: 'spice text', html: '<p>spice</p>', words: '[]' }
+    { id: 1, title: 'Meditations', author: 'Marcus Aurelius', lookup_key: 'meditations||marcus aurelius||nospoilers', plain: STOIC, html: '<p>stoic</p>', words: '[]' },
+    { id: 2, title: 'Dune', author: 'Frank Herbert', lookup_key: 'dune||frank herbert||nospoilers', plain: SPICE, html: '<p>spice</p>', words: '[]' }
   ],
   user_library: [], profiles: [{ id: 'u1', tier: 'free', downloads_used: 0 }, { id: 'u2', tier: 'free', downloads_used: 24 }, { id: 'u3', tier: 'pro', downloads_used: 0 }],
   audio_meta: [], storage: new Set(), sync_errors: [], xai: 0, emails: 0
@@ -53,7 +54,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   let r;
 
   r = await call(gs, { method: 'GET', query: { title: 'Meditations', author: 'Marcus Aurelius' } });
-  assert.strictEqual(r.code, 200); assert.strictEqual(r.body.plain, 'stoic text'); console.log('ok anon guest read');
+  assert.strictEqual(r.code, 200); assert.strictEqual(r.body.plain, STOIC); console.log('ok anon guest read');
 
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' } });
   assert.strictEqual(r.code, 401); assert.strictEqual(r.body.code, 'auth_required'); console.log('ok anon non-guest blocked');
@@ -114,7 +115,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(g1.code, 200); assert.strictEqual(g2.code, 200);
   assert.strictEqual(db.xai, 1, 'xAI called ' + db.xai + ' times'); console.log('ok concurrent generate = 1 xAI call');
   assert.strictEqual(db.audio_meta.length, 1);
-  assert.strictEqual(db.audio_meta[0].plain_hash, require('../lib/kernl').plainHash('stoic text')); console.log('ok audio_meta written from DB text, client plain ignored');
+  assert.strictEqual(db.audio_meta[0].plain_hash, require('../lib/kernl').plainHash(STOIC)); console.log('ok audio_meta written from DB text, client plain ignored');
 
   r = await call(gen, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.cached, true); assert.strictEqual(db.xai, 1); console.log('ok repeat generate is free');
@@ -122,7 +123,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(tts, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.source, 'cache'); console.log('ok tts hit');
 
-  db.summaries[0].plain = 'edited text';
+  db.summaries[0].plain = STOIC + ' Edited ending.';
   r = await call(tts, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.reason, 'hash_mismatch'); console.log('ok tts stale detected');
 
