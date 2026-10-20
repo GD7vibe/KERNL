@@ -202,6 +202,7 @@ function renderUserBar() {
   const guest = !!_currentUser.is_anonymous;
   const tier = guest ? 'guest' : (_userProfile.tier || 'free');
   const used = _userProfile.downloads_used || 0;
+  updateAudioShareBtns();
   const limit = LIMITS[tier] || LIMITS.free;
   const remaining = Math.max(0, limit - used);
   const pct = Math.min(100, (used / limit) * 100);
