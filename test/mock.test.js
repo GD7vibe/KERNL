@@ -1,5 +1,7 @@
 // Mocked-fetch tests: no network, no real Supabase/xAI.
-process.env.SUPABASE_SERVICE_KEY = 'SERVICE';
+const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+const SERVICE = b64({alg:'HS256'}) + '.' + b64({role:'service_role'}) + '.sig';
+process.env.SUPABASE_SERVICE_KEY = SERVICE;
 process.env.XAI_API_KEY = 'x'; process.env.RESEND_API_KEY = 'r';
 const assert = require('assert');
 
@@ -66,7 +68,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: 'tokB' });
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok limit enforced');
 
-  r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: 'SERVICE' });
+  r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: SERVICE });
   assert.strictEqual(r.code, 200); console.log('ok admin bypass');
 
   // summarise: cache path + gating + admin-only patchWords
@@ -136,6 +138,16 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(r.code, 401); console.log('ok kindle non-guest anon blocked');
   r = await call(kindle, { body: { title: 'Meditations', author: 'Marcus Aurelius', kindleEmail: 'me@kindle.com' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(db.emails, 1); console.log('ok kindle guest send');
+
+  // a service key that is really the public anon key must be refused everywhere
+  const anon = b64({alg:'HS256'}) + '.' + b64({role:'anon'}) + '.sig';
+  delete require.cache[require.resolve('../lib/kernl')];
+  process.env.SUPABASE_SERVICE_KEY = anon;
+  const K2 = require('../lib/kernl');
+  const ctxAnonAsAdmin = await K2.authenticate({ headers: { authorization: 'Bearer ' + anon } });
+  assert.ok(!ctxAnonAsAdmin || !ctxAnonAsAdmin.admin, 'anon key must not become admin');
+  await assert.rejects(() => K2.sb('/rest/v1/summaries'), /not a service-role key/);
+  console.log('ok wrong (anon) key as SUPABASE_SERVICE_KEY is refused, no admin bypass');
 
   console.log('\nALL PASSED');
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
