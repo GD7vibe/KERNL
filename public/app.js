@@ -7,7 +7,6 @@ const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 // guest = anonymous visitor (no email). Mirrors LIMITS in lib/kernl.js; the server is what enforces it.
 const LIMITS = { guest: 12, free: 36, pro: 200 };
-const PAGE_SIZE = 48;
 const CATEGORIES = [
   'Business & Entrepreneurship', 'Personal Development', 'Psychology', 'History',
   'Science & Technology', 'Politics & Society', 'Philosophy', 'Biography & Memoir',
@@ -25,9 +24,6 @@ let _currentUser = null;
 let _userProfile = null;
 let currentSummary = null;     // { title, author, html, plain, words }
 let _allBooks = [];            // catalogue: { title, author, synopsis, categories, _cats, _s }
-let _view = [];                // books currently matching the search and category
-let _shown = PAGE_SIZE;
-let _activeCategory = 'All';
 let _opening = false;
 let _readerOpen = false;
 
@@ -161,15 +157,19 @@ function renderUser() {
 
   // Pro-only buttons
   document.querySelectorAll('.pro-audio').forEach(b => { b.hidden = !isPro(); });
-  $('pro-add').hidden = !isPro();
 
-  // Usage meter
-  const meter = $('meter');
-  meter.hidden = false;
-  $('meter-text').innerHTML = '<b>' + remaining + '</b> of ' + limit + ' ' + (guest ? 'free books' : 'summaries') + ' left';
-  const fill = $('meter-fill');
-  fill.style.width = pct + '%';
-  fill.style.background = pct >= 90 ? 'var(--err)' : pct >= 60 ? 'var(--warn)' : 'var(--ok)';
+  // Usage card
+  $('meter').hidden = false;
+  $('meter-label').textContent = remaining <= 0 ? (guest ? 'Free books used' : 'Summaries used') : (guest ? 'Free books left' : 'Summaries left');
+  $('meter-num').textContent = String(remaining);
+  $('meter-of').textContent = 'of ' + limit;
+  $('meter-fill').style.width = (100 - pct) + '%';
+  $('pro-add-wrap').hidden = !isPro();
+  if (!$('hero-art').firstChild) {
+    const keys = SCENES.DISPLAY, k = keys[new Date().getDate() % keys.length];
+    $('hero-art').style.setProperty('--g', SCENES.byKey(k).bg);
+    $('hero-art').innerHTML = SCENES.svg(k);
+  }
 
   // Limit note
   const note = $('limit-note');
@@ -194,15 +194,12 @@ function renderUser() {
   $('menu-signin').hidden = !guest;
   $('menu-upgrade').hidden = !(t === 'free');
   $('menu-signout').hidden = guest;
-  $('nav-books-label').textContent = guest ? 'My Books' : 'My Library';
-  updateSearchPlaceholder();
 }
 
 async function handleSignOut() { await getSB().auth.signOut(); window.location.href = '/login.html'; }
 
-// ── Library: load, search, filter, render ─────────────────────────────────────
+// ── Library: load, shelves, search ────────────────────────────────────────────
 async function loadLibrary() {
-  showSkeleton();
   try {
     let all = [], offset = 0;
     while (true) {
@@ -221,126 +218,194 @@ async function loadLibrary() {
       let cats = [];
       try { cats = JSON.parse(b.categories || '[]'); } catch (e) { cats = []; }
       b._cats = Array.isArray(cats) ? cats : [];
+      b._g = SCENES.groupFor(b._cats);
       b._t = fold(b.title);
       b._a = fold(b.author);
     });
     _allBooks = all;
-    buildChips();
-    updateSearchPlaceholder();
-    applyFilter();
+    renderGenres();
   } catch (e) {
     console.warn('loadLibrary failed:', e.message);
-    $('lib-grid').innerHTML = '<div class="empty"><h3>Could not load the library</h3><p>Check your connection, then <a href="" onclick="location.reload();return false">try again</a>.</p></div>';
+    $('genres').className = 'genres';
+    $('genres').innerHTML = '<div class="empty" style="grid-column:1/-1"><b>Could not load the library</b>Check your connection, then <a href="" onclick="location.reload();return false">try again</a>.</div>';
   }
 }
 
-function showSkeleton() {
-  $('lib-grid').innerHTML = '<div class="books skel-grid" aria-hidden="true">' + '<div class="skeleton"></div>'.repeat(12) + '</div>';
+function groupOfTitle(title) {
+  const b = findInLibrary(title);
+  if (b) return b._g;
+  const keys = SCENES.DISPLAY;
+  let h = 0; const s = String(title || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return keys[h % keys.length];
 }
-
-function updateSearchPlaceholder() {
-  const input = $('search-input');
-  if (!input) return;
-  const n = _allBooks.length;
-  input.placeholder = n ? 'Search ' + n.toLocaleString() + ' books by title or author' : 'Search by title or author';
-}
-
-function buildChips() {
-  const row = $('chips');
-  const counts = {};
-  _allBooks.forEach(b => b._cats.forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
-  let html = '<button class="chip' + (_activeCategory === 'All' ? ' active' : '') + '" data-cat="All" type="button">All <span class="n">' + _allBooks.length.toLocaleString() + '</span></button>';
-  CATEGORIES.forEach(cat => {
-    if (counts[cat]) html += '<button class="chip' + (_activeCategory === cat ? ' active' : '') + '" data-cat="' + esc(cat) + '" type="button">' + esc(cat) + ' <span class="n">' + counts[cat] + '</span></button>';
-  });
-  row.innerHTML = html;
-}
-
-function applyFilter() {
-  const q = fold($('search-input').value);
-  $('search-clear').hidden = !$('search-input').value;
-  let list = _allBooks;
-  if (_activeCategory !== 'All') list = list.filter(b => b._cats.includes(_activeCategory));
-  if (q) {
-    const scored = [];
-    list.forEach(b => {
-      let s = -1;
-      if (b._t.startsWith(q)) s = 0;
-      else if (b._t.includes(q)) s = 1;
-      else if (b._a.includes(q)) s = 2;
-      if (s >= 0) scored.push([s, b]);
-    });
-    scored.sort((x, y) => x[0] - y[0]); // stable: ties keep alphabetical order
-    list = scored.map(x => x[1]);
-  }
-  _view = list;
-  _shown = PAGE_SIZE;
-  renderLibrary();
-}
-
-function renderLibrary() {
-  const q = $('search-input').value.trim();
-  const title = q ? 'Results' : _activeCategory === 'All' ? 'The library' : _activeCategory;
-  $('lib-title').textContent = title;
-  $('lib-count').textContent = _view.length.toLocaleString() + (_view.length === 1 ? ' book' : ' books');
-
-  const grid = $('lib-grid');
-  if (!_view.length) {
-    grid.innerHTML = q
-      ? '<div class="empty"><h3>Nothing matches “' + esc(q) + '”</h3><p>' +
-        (isPro()
-          ? 'It is not in the library yet, but you can have it written.</p><div style="margin-top:16px"><button class="btn primary" id="empty-add" type="button">Summarise “' + esc(q) + '”</button></div>'
-          : 'Try another title or author. Pro members can have a summary written for any book.</p>')
-      : '<div class="empty"><h3>No books here yet</h3></div>';
-    $('lib-more').hidden = true;
-    return;
-  }
-  const slice = _view.slice(0, _shown);
-  grid.innerHTML = '<div class="books">' + slice.map((b, i) => {
-    const syn = b.synopsis ? '<span class="book-by">' + esc(b.synopsis) + '</span>' : '';
-    return '<button class="book" type="button" data-i="' + i + '" aria-label="' + esc(b.title + (b.author ? ', by ' + b.author : '')) + '">' +
-      '<span class="cover" style="' + KUI.coverStyle(b.title) + '"><span class="cover-title">' + esc(b.title) + '</span><span class="cover-author">' + esc(b.author || '') + '</span></span>' +
-      '<span class="book-meta">' + syn + '</span></button>';
-  }).join('') + '</div>';
-
-  const left = _view.length - slice.length;
-  $('lib-more').hidden = left <= 0;
-  if (left > 0) $('lib-more-btn').textContent = 'Show more (' + left.toLocaleString() + ' left)';
-}
-
 function findInLibrary(title) {
   const t = norm(title);
   return _allBooks.find(b => norm(b.title) === t) || null;
 }
 
+function renderGenres() {
+  const counts = {};
+  _allBooks.forEach(b => { counts[b._g] = (counts[b._g] || 0) + 1; });
+  const box = $('genres');
+  box.className = 'genres';
+  box.innerHTML = SCENES.DISPLAY.filter(k => counts[k]).map(k => {
+    const g = SCENES.byKey(k);
+    return '<button class="gcard" type="button" data-g="' + k + '" style="--g:' + g.bg + '">' +
+      '<span class="art">' + SCENES.svg(k) + '</span>' +
+      '<span class="ct">' + counts[k].toLocaleString() + (counts[k] === 1 ? ' book' : ' books') + '</span>' +
+      '<span class="nm">' + esc(g.name) + '</span></button>';
+  }).join('');
+}
+
+// Shelf layer: one genre's books. A book's one-line synopsis opens as it scrolls to the middle of the screen.
+let _shelfBooks = [], _shelfShown = 0, _shelfKey = '', _rowObs = null, _moreObs = null;
+const SHELF_PAGE = 60;
+
+function openShelf(key) {
+  const g = SCENES.byKey(key);
+  _shelfKey = key;
+  _shelfBooks = _allBooks.filter(b => b._g === key);
+  _shelfShown = 0;
+  const layer = $('genre');
+  layer.style.setProperty('--g', g.bg);
+  $('genre-art').innerHTML = SCENES.svg(key) + '<h2>' + esc(g.name) + '</h2>';
+  $('genre-list').innerHTML = '';
+  layer.scrollTop = 0;
+  layer.hidden = false;
+  layer.classList.remove('closing');
+  layer.classList.add('opening');
+  setupRowObserver(layer);
+  appendShelfRows();
+  _genreOpen = true;
+  pushLayer('genre');
+}
+function appendShelfRows() {
+  const list = $('genre-list');
+  const old = list.querySelector('.more-sentinel'); if (old) old.remove();
+  const g = SCENES.byKey(_shelfKey);
+  const slice = _shelfBooks.slice(_shelfShown, _shelfShown + SHELF_PAGE);
+  const frag = document.createDocumentFragment();
+  slice.forEach((b, i) => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'brow'; el.dataset.i = String(_shelfShown + i);
+    el.style.setProperty('--g', g.bg);
+    el.innerHTML = '<div class="hd"><span class="tile">' + SCENES.svg(_shelfKey, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(b.title) + '</div><div class="au">' + esc(b.author || '') + '</div></span></div>' +
+      '<div class="syn"><div><p>' + esc(b.synopsis || '') + '</p></div></div>';
+    frag.appendChild(el);
+    if (_rowObs) _rowObs.observe(el.querySelector('.hd'));
+  });
+  list.appendChild(frag);
+  _shelfShown += slice.length;
+  if (_shelfShown < _shelfBooks.length) {
+    const s = document.createElement('div'); s.className = 'more-sentinel';
+    list.appendChild(s);
+    if (_moreObs) _moreObs.disconnect();
+    _moreObs = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { _moreObs.disconnect(); appendShelfRows(); } }, { root: $('genre'), rootMargin: '600px 0px' });
+    _moreObs.observe(s);
+  }
+}
+function setupRowObserver(root) {
+  if (_rowObs) _rowObs.disconnect();
+  // A thin band across the middle of the screen: the book whose title row sits in it is the open one.
+  _rowObs = new IntersectionObserver(entries => {
+    entries.forEach(e => { const row = e.target.parentElement; if (row) row.classList.toggle('on', e.isIntersecting); });
+  }, { root: root, rootMargin: '-44% 0px -46% 0px', threshold: 0 });
+}
+
+function hideLayer(id, after) {
+  const el = $(id);
+  if (el.hidden) return;
+  el.classList.remove('opening');
+  el.classList.add('closing');
+  setTimeout(() => { el.hidden = true; el.classList.remove('closing'); if (after) after(); }, 230);
+}
+let _genreOpen = false;
+function hideShelf() {
+  if (!_genreOpen) return;
+  _genreOpen = false;
+  if (_rowObs) _rowObs.disconnect();
+  if (_moreObs) _moreObs.disconnect();
+  hideLayer('genre');
+}
+
+// History: every layer that opens adds one entry, so the phone's Back gesture closes the top layer.
+const _stack = [];
+function pushLayer(name) { _stack.push(name); history.pushState({ kl: name }, '', window.location.href); }
+function closeTop() { if (_stack.length) history.back(); }
+window.addEventListener('popstate', () => {
+  const top = _stack.pop();
+  if (top === 'reader') hideReader();
+  else if (top === 'genre') hideShelf();
+});
+
+// Search: a full-screen pop-up, so the home screen stays clear.
+let _searchOpen = false;
+function openSearch() {
+  _searchOpen = true;
+  $('search').hidden = false;
+  $('search').classList.remove('closing');
+  $('search').classList.add('opening');
+  document.body.style.overflow = 'hidden';
+  renderSearch();
+  setTimeout(() => $('search-input').focus(), 60);
+}
+function closeSearch() {
+  if (!_searchOpen) return;
+  _searchOpen = false;
+  document.body.style.overflow = _readerOpen || _genreOpen ? 'hidden' : '';
+  hideLayer('search');
+}
+function renderSearch() {
+  const raw = $('search-input').value, q = fold(raw);
+  const out = $('search-results');
+  if (!q) { out.innerHTML = '<p class="s-hint">' + (_allBooks.length ? _allBooks.length.toLocaleString() + ' books. Type a title or an author.' : 'Loading the library…') + '</p>'; return; }
+  const scored = [];
+  _allBooks.forEach((b, i) => {
+    let s = -1;
+    if (b._t.startsWith(q)) s = 0; else if (b._t.includes(q)) s = 1; else if (b._a.includes(q)) s = 2;
+    if (s >= 0) scored.push([s, i]);
+  });
+  scored.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const top = scored.slice(0, 40).map(x => _allBooks[x[1]]);
+  _searchHits = top;
+  if (!top.length) {
+    out.innerHTML = '<div class="empty"><b>Nothing matches “' + esc(raw.trim()) + '”</b>' +
+      (isPro() ? 'It is not in the library yet, but you can have it written.<div style="margin-top:16px"><button class="btn primary" id="empty-add" type="button">Summarise “' + esc(raw.trim()) + '”</button></div>' : 'Try another title or author. Pro members can have a summary written for any book.') + '</div>';
+    return;
+  }
+  out.innerHTML = top.map((b, i) => {
+    const g = SCENES.byKey(b._g);
+    return '<button class="brow" type="button" data-s="' + i + '" style="--g:' + g.bg + '"><div class="hd"><span class="tile">' + SCENES.svg(b._g, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(b.title) + '</div><div class="au">' + esc(b.author || '') + '</div></span></div></button>';
+  }).join('') + (scored.length > 40 ? '<p class="s-hint">Showing 40 of ' + scored.length + '. Keep typing to narrow it down.</p>' : '');
+}
+let _searchHits = [];
+
 function wireLibrary() {
-  const input = $('search-input');
+  $('search-btn').addEventListener('click', openSearch);
+  $('search-close').addEventListener('click', closeSearch);
   let timer = null;
-  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(applyFilter, 90); $('search-clear').hidden = !input.value; });
-  input.addEventListener('keydown', e => {
+  $('search-input').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(renderSearch, 80); });
+  $('search-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      input.blur();
-      if (_view.length) { const b = _view[0]; openSummary(b.title, b.author || ''); }
-      else if (isPro() && input.value.trim()) openNewBookModal(input.value.trim());
+      const b = _searchHits[0];
+      if (b && fold($('search-input').value)) { closeSearch(); openSummary(b.title, b.author || ''); }
+      else if (isPro() && $('search-input').value.trim()) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
     }
-    if (e.key === 'Escape' && input.value) { input.value = ''; applyFilter(); }
   });
-  $('search-clear').addEventListener('click', () => { input.value = ''; applyFilter(); input.focus(); });
-  $('chips').addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    _activeCategory = chip.dataset.cat;
-    document.querySelectorAll('#chips .chip').forEach(c => c.classList.toggle('active', c === chip));
-    applyFilter();
+  $('search-results').addEventListener('click', e => {
+    const row = e.target.closest('[data-s]');
+    if (row) { const b = _searchHits[Number(row.dataset.s)]; if (b) { closeSearch(); openSummary(b.title, b.author || ''); } return; }
+    if (e.target.closest('#empty-add')) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
   });
-  $('lib-grid').addEventListener('click', e => {
-    const tile = e.target.closest('.book');
-    if (tile) { const b = _view[Number(tile.dataset.i)]; if (b) openSummary(b.title, b.author || ''); return; }
-    if (e.target.closest('#empty-add')) openNewBookModal(input.value.trim());
+  $('genres').addEventListener('click', e => { const c = e.target.closest('.gcard'); if (c) openShelf(c.dataset.g); });
+  $('genre-list').addEventListener('click', e => {
+    const r = e.target.closest('.brow'); if (!r) return;
+    const b = _shelfBooks[Number(r.dataset.i)]; if (b) openSummary(b.title, b.author || '');
   });
-  $('lib-more-btn').addEventListener('click', () => { _shown += PAGE_SIZE; renderLibrary(); });
-  $('pro-add').addEventListener('click', () => openNewBookModal(input.value.trim()));
+  $('genre-close').addEventListener('click', closeTop);
+  $('pro-add').addEventListener('click', () => openNewBookModal(''));
 }
 
 // ── Opening a summary ─────────────────────────────────────────────────────────
@@ -414,12 +479,12 @@ function showSummary(title, author, html, plain, words, opts) {
   const clean = sanitizeHtml(stripGenreLine(html));
   currentSummary = { title, author, html: clean, plain: plain || '', words: words || [] };
 
+  const key = groupOfTitle(title);
+  const g = SCENES.byKey(key);
+  $('reader').style.setProperty('--g', g.bg);
+  $('r-cover').innerHTML = SCENES.svg(key);
   $('s-title').textContent = title;
   $('s-author').textContent = author ? 'by ' + author : '';
-  $('reader-bar-title').textContent = title;
-  $('r-cover').style.cssText = KUI.coverStyle(title);
-  $('r-cover-title').textContent = title;
-  $('r-cover-author').textContent = author || '';
   $('summary-body').innerHTML = clean;
   $('buy-btn').href = makeAmazonUrl(title, author);
   $('player-title').textContent = title;
@@ -428,7 +493,7 @@ function showSummary(title, author, html, plain, words, opts) {
 
   if (opts.streaming) {
     $('s-words').textContent = 'Writing…';
-    $('s-time').hidden = true;
+    $('s-time').textContent = '';
     $('words').hidden = true;
     setAudioState('generating');
     $('player-sub').textContent = 'Writing your summary…';
@@ -436,7 +501,6 @@ function showSummary(title, author, html, plain, words, opts) {
     const n = countWords(plain);
     $('s-words').textContent = n.toLocaleString() + ' words';
     $('s-time').textContent = Math.max(1, Math.round(n / 220)) + ' min read';
-    $('s-time').hidden = false;
     renderWords(words);
     $('player-sub').textContent = 'Checking audio…';
     setAudioState('idle');
@@ -458,13 +522,15 @@ function renderWords(words) {
 function openReader() {
   const r = $('reader');
   r.hidden = false;
+  r.classList.remove('closing');
+  r.classList.add('opening');
   r.scrollTop = 0;
-  r.classList.remove('scrolled');
+  $('r-cover').style.transform = '';
+  $('r-art').style.opacity = '';
+  $('player').hidden = false;
   document.body.style.overflow = 'hidden';
   _readerOpen = true;
-  // One history entry, so the phone's Back gesture closes the reader instead of leaving the site.
-  history.pushState({ kernlReader: 1 }, '', window.location.href);
-  $('reader-close').focus({ preventScroll: true });
+  pushLayer('reader');
 }
 
 function hideReader() {
@@ -472,20 +538,32 @@ function hideReader() {
   _readerOpen = false;
   stopAudio();
   setAudioState('idle');
-  $('reader').hidden = true;
-  document.body.style.overflow = '';
-  currentSummary = null;
-  _waFile = null;
+  $('player').hidden = true;
+  document.body.style.overflow = _genreOpen ? 'hidden' : '';
+  hideLayer('reader', () => { currentSummary = null; _waFile = null; });
 }
 
-function closeReader() {
-  if (!_readerOpen) return;
-  if (history.state && history.state.kernlReader) history.back(); // popstate then hides it
-  else hideReader();
+function closeReader() { if (_readerOpen) closeTop(); }
+
+// The cover shrinks and fades as the summary slides up over it.
+function onReaderScroll() {
+  const r = $('reader');
+  const h = $('r-art').offsetHeight || 300;
+  const p = Math.max(0, Math.min(1, r.scrollTop / (h * 0.75)));
+  $('r-cover').style.transform = 'translateY(' + (-p * 24) + 'px) scale(' + (1 - 0.18 * p) + ')';
+  $('r-art').style.opacity = String(1 - 0.6 * p);
+}
+function onGenreScroll() {
+  const r = $('genre');
+  const h = $('genre-art').offsetHeight || 240;
+  const p = Math.max(0, Math.min(1, r.scrollTop / (h * 0.8)));
+  $('genre-art').style.opacity = String(1 - 0.7 * p);
 }
 
-window.addEventListener('popstate', () => { if (_readerOpen) hideReader(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && _readerOpen && !document.querySelector('.overlay')) closeReader(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || document.querySelector('.overlay')) return;
+  if (_searchOpen) closeSearch(); else closeTop();
+});
 
 // ── Audio state machine ───────────────────────────────────────────────────────
 let isPlaying = false, audioEl = null, playbackRate = 1;
@@ -1025,9 +1103,11 @@ function openNewBookModal(prefillTitle) {
 function wire() {
   KUI.popover($('acct-btn'), $('acct-menu'));
   $('menu-signout').addEventListener('click', handleSignOut);
+  $('menu-theme').addEventListener('click', () => { KUI.toggleTheme(); paintThemeItem(); });
+  paintThemeItem();
   $('reader-close').addEventListener('click', closeReader);
-  $('reader-close-bottom').addEventListener('click', closeReader);
-  $('reader').addEventListener('scroll', () => $('reader').classList.toggle('scrolled', $('reader').scrollTop > 140), { passive: true });
+  $('reader').addEventListener('scroll', onReaderScroll, { passive: true });
+  $('genre').addEventListener('scroll', onGenreScroll, { passive: true });
   $('play-btn').addEventListener('click', togglePlay);
   $('speed-btn').addEventListener('click', cycleSpeed);
   $('skip-back').addEventListener('click', () => skipAudio(-10));
@@ -1041,6 +1121,11 @@ function wire() {
   initScrubEvents();
   resetScrubUI();
   setAudioState('idle');
+}
+function paintThemeItem() {
+  const d = KUI.isDark();
+  $('menu-theme-ic').innerHTML = icon(d ? 'sun' : 'moon');
+  $('menu-theme-tx').textContent = d ? 'Light mode' : 'Dark mode';
 }
 
 try { localStorage.removeItem('kernl_v2'); } catch (e) { /* old local summary cache: the server is the only source of truth now */ }

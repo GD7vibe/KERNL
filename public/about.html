@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About KERNL</title>
+<meta name="description" content="KERNL is for people who like the idea of books but have no time, or inclination, to read them.">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<meta name="theme-color" content="#f3ecfb">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>window.__VERCEL_NO_TOOLBAR__ = true;</script>
+<script src="/kernl-ui.js"></script>
+<link rel="stylesheet" href="/kernl.css">
+<style>
+.top{display:flex;align-items:center;gap:6px;height:60px;padding:0 16px;max-width:720px;margin:0 auto}
+.top .brand{margin-right:auto}
+.about{max-width:720px;margin:0 auto;padding:30px 20px 90px}
+.about h1{font-size:clamp(2.2rem,8vw,3.6rem);line-height:1.04;letter-spacing:-.03em;font-weight:300}
+.about h1 b{font-weight:800;display:block}
+.lead{font-size:1.2rem;line-height:1.6;color:var(--text-2);margin-top:22px;max-width:34rem}
+.block{margin-top:64px}
+.block h2{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;margin-bottom:14px}
+.block p{font-size:1.06rem;line-height:1.75;color:var(--text-2);margin-top:12px;max-width:36rem}
+.block p strong{color:var(--text)}
+.rule{display:flex;gap:30px;align-items:center;flex-wrap:wrap;margin-top:26px}
+.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;width:min(100%,260px)}
+.grid i{aspect-ratio:1;border-radius:5px;background:var(--surface-3);opacity:.7}
+.grid i.hot{background:var(--accent);opacity:1;animation:pop .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes pop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+.cap{flex:1;min-width:200px}
+.cap b{display:block;font-size:2.4rem;font-weight:800;letter-spacing:-.02em;color:var(--accent);line-height:1}
+.cap span{display:block;color:var(--text-2);margin-top:8px;line-height:1.5}
+.times{margin-top:26px;display:grid;gap:14px}
+.times .t{display:flex;align-items:center;gap:14px}
+.times .l{width:84px;font-size:.85rem;font-weight:700;color:var(--text-2)}
+.times .bar{height:30px;border-radius:99px;display:flex;align-items:center;padding:0 14px;font-size:.82rem;font-weight:700;white-space:nowrap}
+.times .read{width:100%;background:var(--surface-3);color:var(--text-2)}
+.times .kernl{width:max(14%,112px);background:var(--accent);color:var(--accent-ink)}
+.list{list-style:none;padding:0;margin:18px 0 0;display:grid;gap:12px;max-width:36rem}
+.list li{display:flex;gap:14px;align-items:flex-start;color:var(--text-2);line-height:1.55}
+.list .c{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.list .c .icon{width:18px;height:18px}
+.list b{color:var(--text)}
+.note-box{margin-top:64px;padding:22px 24px;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-sm);color:var(--text-2);line-height:1.65;font-size:.95rem}
+.note-box b{color:var(--text)}
+.go{margin-top:56px;text-align:center}
+.go .btn{height:54px;padding:0 34px;border-radius:99px;font-size:1rem;font-weight:700}
+.foot{margin-top:40px;text-align:center;font-size:.82rem;color:var(--text-3)}
+.foot a{color:var(--text-2)}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/app.html" aria-label="KERNL home">K<b>E</b>RNL</a>
+  <button class="iconbtn" data-theme-toggle type="button"></button>
+</header>
+
+<main class="about">
+  <h1>The point of a book,<b>without the hours.</b></h1>
+  <p class="lead">KERNL is for people who like the idea of books but have no time, or no inclination, to read them. You get the argument in ten minutes. You read it, or you listen to it.</p>
+
+  <section class="block">
+    <h2>Life is short. The shelf is long.</h2>
+    <p>There are millions of books and one of you. A typical non-fiction book takes <strong>four to six hours</strong> to read, and most of that is repetition, padding and stories told so that a single point sticks.</p>
+    <p>If you love reading for its own sake, keep your books. If you have ever bought one, got forty pages in and quietly given up, this is for you.</p>
+    <div class="times">
+      <div class="t"><span class="l">The book</span><span class="bar read">about 5 hours</span></div>
+      <div class="t"><span class="l">KERNL</span><span class="bar kernl">10 minutes</span></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>The 80/20 rule</h2>
+    <p>The 80/20 rule is a rule of thumb, not a law: roughly <strong>80% of the result comes from 20% of the effort</strong>. Books follow it closely. A handful of ideas carry most of the value, and the rest is there to make them memorable, or to fill the page count.</p>
+    <p>KERNL aims at that 20%.</p>
+    <div class="rule">
+      <div class="grid" aria-label="Ten by ten grid of squares, twenty highlighted" role="img"><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></div>
+      <div class="cap"><b>20%</b><span>of the pages. The ideas you will actually use and remember.</span></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>What you get</h2>
+    <ul class="list">
+      <li><span class="c"><span data-icon="book"></span></span><span><b>About 1,500 words.</b> The central argument, the key ideas, and what to do with them.</span></li>
+      <li><span class="c"><span data-icon="headphones"></span></span><span><b>A voice to read it to you.</b> Press play in the car, on a walk, or while you cook.</span></li>
+      <li><span class="c"><span data-icon="send"></span></span><span><b>Kindle and print.</b> Send it to your Kindle, or print a one-pager with a link to buy the book.</span></li>
+      <li><span class="c"><span data-icon="sparkle"></span></span><span><b>Mega Words.</b> The interesting words from each book, in plain English.</span></li>
+    </ul>
+  </section>
+
+  <div class="note-box"><b>An honest note.</b> KERNL summaries are written by AI from its knowledge of each book. They give you the argument, not the experience, and they can contain mistakes, so check anything that matters. If a book grabs you, read it and support the author.</div>
+
+  <div class="go">
+    <a class="btn primary" href="/app.html">Start with a shelf</a>
+    <p class="foot">12 books free as a guest, no sign-up. &nbsp;&middot;&nbsp; <a href="/privacy.html">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms.html">Terms</a></p>
+  </div>
+</main>
+</body>
+</html>
