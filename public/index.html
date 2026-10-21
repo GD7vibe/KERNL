@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KERNL &mdash; for the curious</title>
-<meta name="description" content="AI-powered book summaries you can read or listen to in 10 minutes. Try a free sample now.">
+<meta name="description" content="Any book in ten minutes. Read it or listen to it. Try a free sample now.">
 <meta property="og:title" content="KERNL &mdash; for the curious">
 <meta property="og:description" content="AI-powered book summaries you can read or listen to in 10 minutes.">
 <meta property="og:url" content="https://kernlbooks.com/">
@@ -12,433 +12,217 @@
 <meta name="twitter:card" content="summary">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KERNL">
-<meta name="theme-color" content="#1a1714">
+<meta name="theme-color" content="#faf8f4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<script>window.__VERCEL_NO_TOOLBAR__ = true;</script>
+<script defer src="/_vercel/insights/script.js"></script>
+<script src="/kernl-ui.js"></script>
+<link rel="stylesheet" href="/kernl.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--ink:#1a1714;--paper:#faf8f4;--warm:#f0ebe0;--accent:#8B4513;--accent-light:#c47a3a;--accent-pale:rgba(139,69,19,0.08);--muted:#7a7060;--border:rgba(139,69,19,0.14);--card:#ffffff;--success-bg:#e8f5ee;--success-fg:#2d6a4f;--error-bg:#fdf0f0;--error-fg:#8B1A1A;--radius:12px;--radius-sm:8px;--transition:0.3s ease}
-html.dark{--ink:#e8e0d5;--paper:#1a1714;--warm:#242019;--accent:#c47a3a;--accent-light:#d4924f;--accent-pale:rgba(196,122,58,0.12);--muted:#9a8f80;--border:rgba(196,122,58,0.2);--card:#221f1a;--success-bg:#1a2e22;--success-fg:#5aab7a;--error-bg:#2e1a1a;--error-fg:#d4706f}
-html{font-size:16px;scroll-behavior:smooth}
-body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background var(--transition),color var(--transition)}
-#app{max-width:900px;margin:0 auto;padding:0 1.5rem 5rem}
-.masthead{text-align:center;padding:3rem 0 2.5rem;position:relative;margin-bottom:0}
-.masthead::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:80px;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
-.logo{font-family:'Playfair Display',serif;font-size:clamp(2.8rem,8vw,4rem);font-weight:600;letter-spacing:0.12em;color:var(--ink);line-height:1;transition:color var(--transition)}
-.logo-e{color:var(--accent)}
-.tagline{font-size:0.95rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--muted);margin-top:0.6rem;font-weight:500}
-.dark-toggle{position:absolute;top:1rem;right:1rem;background:none;border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);transition:all var(--transition);display:flex;align-items:center;gap:6px;opacity:0.7}
-.dark-toggle:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
-.auth-corner{position:absolute;top:1rem;left:1rem;display:flex;gap:8px}
-.auth-btn{height:32px;padding:0 14px;border:1px solid var(--border);border-radius:20px;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;text-decoration:none;display:flex;align-items:center;transition:all 0.2s}
-.auth-btn:hover{border-color:var(--accent-light);color:var(--accent)}
-.auth-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.auth-btn.primary:hover{background:var(--accent-light)}
-.hero{text-align:center;padding:2.5rem 1rem 2rem;margin-bottom:2rem}
-.hero-headline{font-family:'Playfair Display',serif;font-size:clamp(1.6rem,4vw,2.6rem);font-weight:600;color:var(--ink);line-height:1.2;margin-bottom:0.75rem;white-space:nowrap}
-.hero-sub{font-size:1.05rem;color:var(--muted);line-height:1.8;max-width:100%;margin:0 auto 1.5rem}
-.hero-pills{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:1.75rem}
-.hero-pill{display:flex;align-items:center;gap:7px;padding:7px 16px;background:var(--warm);border:1px solid var(--border);border-radius:20px;font-size:0.82rem;color:var(--muted);font-weight:500}
-.hero-pill-icon{font-size:0.95rem}
-.hero-cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.cta-btn{height:46px;padding:0 28px;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.92rem;font-weight:500;cursor:pointer;letter-spacing:0.03em;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s}
-.cta-btn.primary{background:var(--accent);color:#fff;border:none;box-shadow:0 2px 8px rgba(139,69,19,0.25)}
-.cta-btn.primary:hover{background:var(--accent-light)}
-.cta-btn.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
-.cta-btn.secondary:hover{border-color:var(--accent-light);color:var(--accent)}
-.demo-label{text-align:center;margin-bottom:1rem}
-.demo-label-inner{display:inline-flex;align-items:center;gap:10px;font-size:0.75rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
-.demo-label-inner::before,.demo-label-inner::after{content:'';display:inline-block;width:40px;height:1px;background:var(--border)}
-.preview-card{background:var(--card);border:2px solid var(--accent);border-radius:var(--radius);padding:1.5rem 2rem;margin-bottom:2rem;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(139,69,19,0.12)}
-.preview-card:hover{box-shadow:0 6px 28px rgba(139,69,19,0.2);transform:translateY(-1px)}
-.preview-inner{display:flex;align-items:center;justify-content:space-between;gap:1.5rem}
-.preview-left{flex:1}
-.preview-title{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,4vw,1.9rem);font-weight:600;color:var(--ink);line-height:1.2;margin-bottom:4px}
-.preview-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:0.6rem}
-.preview-synopsis{font-size:0.88rem;color:var(--muted);line-height:1.6;border-left:2px solid var(--accent);padding-left:12px;font-style:italic}
-.preview-right{text-align:center;flex-shrink:0}
-.preview-words{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);margin-bottom:8px}
-.preview-cta{font-size:0.82rem;color:var(--accent);font-weight:500}
-@media(max-width:560px){.preview-inner{flex-direction:column;gap:1rem}.preview-right{align-self:flex-start}}
-.summary-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 4px 24px rgba(139,69,19,0.1);margin-bottom:2rem;transition:background var(--transition),border-color var(--transition)}
-.summary-header{padding:2rem 2rem 1.75rem;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--warm) 0%,var(--warm) 100%);position:relative;transition:background var(--transition)}
-.summary-header-ornament{position:absolute;top:1rem;right:1.5rem;font-family:'Playfair Display',serif;font-size:5rem;color:var(--accent);opacity:0.06;line-height:1;pointer-events:none}
-.summary-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:0.3rem}
-.summary-book-title{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,4vw,2rem);font-weight:600;line-height:1.2;color:var(--ink)}
-.summary-word-count{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-pale);padding:4px 12px;border-radius:20px;font-weight:500;border:1px solid rgba(139,69,19,0.12);white-space:nowrap;flex-shrink:0}
-.summary-book-author{font-size:0.9rem;color:var(--muted);font-style:italic;margin-bottom:0.4rem}
-.summary-synopsis{font-size:0.88rem;color:var(--muted);font-style:italic;margin-top:0.5rem;line-height:1.6;border-left:2px solid var(--accent);padding-left:12px;opacity:0.85}
-.player{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);transition:background var(--transition),border-color var(--transition)}
-.player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
-.play-btn{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.1s,box-shadow 0.3s;box-shadow:0 2px 8px rgba(139,69,19,0.3)}
-.play-btn:hover{background:var(--accent-light)}
-.play-btn:active{transform:scale(0.95)}
-.play-btn svg{width:18px;height:18px;fill:white}
-.play-btn.playing{box-shadow:0 0 0 5px var(--accent-pale),0 2px 8px rgba(139,69,19,0.35)}
-.player-center{flex:1;min-width:120px}
-.player-title{font-size:0.85rem;font-weight:500;color:var(--ink)}
-.player-sub{font-size:0.75rem;color:var(--muted);margin-top:2px;transition:color 0.3s}
-.player-sub.playing{color:var(--accent);font-weight:500}
-.player-right{display:flex;gap:6px;flex-shrink:0;align-items:center;flex-wrap:wrap}
-.voice-toggle{display:flex;gap:0;border:1px solid var(--border);border-radius:20px;overflow:hidden}
-.pvb{height:30px;padding:0 12px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.75rem;color:var(--muted);cursor:pointer;transition:all 0.2s;border-right:1px solid var(--border)}
-.pvb:last-child{border-right:none}
-.pvb.active{background:var(--accent);color:#fff;font-weight:500}
-.pvb:hover:not(.active){background:var(--accent-pale);color:var(--accent)}
-.speed-group{display:flex;gap:0;border:1px solid var(--border);border-radius:20px;overflow:hidden}
-.spb{height:30px;padding:0 10px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.73rem;color:var(--muted);cursor:pointer;transition:all 0.2s;border-right:1px solid var(--border)}
-.spb:last-child{border-right:none}
-.spb.active{background:var(--accent);color:#fff}
-.spb:hover:not(.active){background:var(--accent-pale);color:var(--accent)}
-.scrub-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;border:1px solid transparent;background:transparent;transition:background 0.3s,border-color 0.3s}
-.scrub-row.active{background:var(--accent-pale);border-color:var(--border)}
-.skip-btn{width:34px;height:34px;flex-shrink:0;border-radius:50%;background:transparent;border:1.5px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:'DM Sans',sans-serif;font-size:0.62rem;font-weight:700;color:var(--muted);line-height:1}
-.skip-btn:hover{border-color:var(--accent-light);color:var(--accent);background:var(--accent-pale)}
-.scrub-row.active .skip-btn{border-color:var(--accent);color:var(--accent)}
-.scrub-time{font-size:0.75rem;color:var(--muted);white-space:nowrap;min-width:34px;font-variant-numeric:tabular-nums;font-weight:500;transition:color 0.3s}
-.scrub-time.right{text-align:right}
-.scrub-row.active .scrub-time{color:var(--accent);font-weight:600}
-.scrub-track{flex:1;height:6px;background:var(--warm);border-radius:3px;cursor:pointer;position:relative;overflow:visible}
-.scrub-row.active .scrub-track{height:7px;background:rgba(139,69,19,0.15)}
-.scrub-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;pointer-events:none;transition:width 0.25s linear}
-.scrub-thumb{position:absolute;top:50%;left:0%;transform:translateY(-50%) translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 4px rgba(139,69,19,0.4);pointer-events:none;opacity:0;transition:opacity 0.15s}
-.scrub-track:hover .scrub-thumb,.scrub-track.dragging .scrub-thumb,.scrub-row.active .scrub-thumb{opacity:1}
-.summary-actions{padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--warm);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.btn-action{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none}
-.btn-action:hover{border-color:var(--accent-light);color:var(--accent);background:var(--warm)}
-.buy-btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.2s}
-.buy-btn:hover{background:var(--accent-light)}
-.gate-btn{height:38px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:transparent;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--accent);cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;font-weight:500}
-.gate-btn:hover{background:var(--accent);color:#fff}
-.summary-body{padding:2rem 2.5rem;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.9;color:var(--ink)}
-.summary-body h2{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:600;color:var(--accent);margin:2rem 0 0.75rem;padding-bottom:8px;border-bottom:1px solid var(--border)}
-.summary-body h2:first-child{margin-top:0}
-.summary-body p{margin-bottom:1.1rem}
-.summary-body p:last-child{margin-bottom:0}
-.megan-words-section{border-top:1px solid var(--border)}
-.megan-words-header{padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--warm)}
-.megan-words-header:hover{background:var(--accent-pale)}
-.megan-words-title{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent)}
-.megan-words-subtitle{font-size:0.75rem;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400;font-style:italic;margin-left:4px}
-.megan-arrow{font-size:0.75rem;color:var(--muted);transition:transform 0.3s}
-.megan-words-grid{display:none;padding:1.5rem 2rem 2rem;grid-template-columns:repeat(3,1fr);gap:12px;background:var(--card)}
-.megan-words-grid.open{display:grid}
-.megan-word-item{background:var(--warm);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.9rem 1.1rem;transition:all var(--transition)}
-.megan-word-item:hover{border-color:var(--accent-light);transform:translateY(-1px)}
-.megan-word{font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent);margin-bottom:4px}
-.megan-definition{font-size:0.82rem;color:var(--muted);line-height:1.5}
-.disclaimer-bar{padding:1rem 2rem;border-top:1px solid var(--border);background:var(--warm)}
-.disclaimer-text{font-size:0.78rem;color:var(--muted);line-height:1.5;font-style:italic}
-.gate-banner{background:linear-gradient(135deg,var(--warm) 0%,var(--accent-pale) 100%);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;text-align:center;margin-bottom:2rem;box-shadow:0 2px 16px rgba(139,69,19,0.08)}
-.gate-banner-title{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:600;color:var(--ink);margin-bottom:0.5rem}
-.gate-banner-sub{font-size:0.9rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.6}
-.gate-banner-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.gate-banner-btn{height:44px;padding:0 28px;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.9rem;font-weight:500;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s}
-.gate-banner-btn.primary{background:var(--accent);color:#fff;border:none;box-shadow:0 2px 8px rgba(139,69,19,0.2)}
-.gate-banner-btn.primary:hover{background:var(--accent-light)}
-.gate-banner-btn.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
-.gate-banner-btn.secondary:hover{border-color:var(--accent-light);color:var(--accent)}
-.gate-perks{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:1rem}
-.gate-perk{font-size:0.78rem;color:var(--muted);background:var(--card);border:1px solid var(--border);padding:4px 12px;border-radius:20px}
-.more-section{margin-top:1rem}
-.more-title{font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--muted);margin-bottom:1rem}
-.more-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:2rem;position:relative}
-.more-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem 1.25rem;transition:all 0.2s;filter:blur(2px);pointer-events:none;user-select:none}
-.more-card-title{font-family:'Playfair Display',serif;font-size:0.95rem;font-weight:600;color:var(--ink);margin-bottom:3px}
-.more-card-author{font-size:0.78rem;color:var(--muted);margin-bottom:6px}
-.more-card-synopsis{font-size:0.78rem;color:var(--muted);line-height:1.5}
-.more-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(to bottom,rgba(250,248,244,0) 0%,rgba(250,248,244,0.95) 60%);border-radius:var(--radius-sm)}
-html.dark .more-overlay{background:linear-gradient(to bottom,rgba(26,23,20,0) 0%,rgba(26,23,20,0.95) 60%)}
-.more-overlay-inner{text-align:center;padding:1rem}
-.more-overlay-text{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--ink);margin-bottom:0.75rem;font-weight:600}
-.more-overlay-sub{font-size:0.82rem;color:var(--muted);margin-bottom:1rem}
-@media(max-width:700px){.megan-words-grid{grid-template-columns:repeat(2,1fr);padding:1rem 1rem 1.5rem;gap:10px}}
-@media(max-width:560px){
-  .hero-headline{white-space:normal;font-size:1.2rem}
-  body{overflow-x:hidden}
-  #app{padding:0 0 5rem}
-  .masthead{padding:4rem 1rem 1.25rem}
-  .auth-corner{top:0.75rem;left:0.75rem;gap:6px}
-  .dark-toggle{top:0.75rem;right:0.75rem}
-  .summary-card{border-radius:0;border-left:none;border-right:none;box-shadow:none}
-  .summary-header{padding:1.25rem 1rem 1rem}
-  .summary-header-ornament{font-size:3rem;top:0.5rem;right:0.75rem}
-  .player{padding:0.75rem 1rem}
-  .summary-actions{padding:0.75rem 1rem}
-  .summary-body{padding:1.25rem 1rem}
-  .disclaimer-bar{padding:0.75rem 1rem}
-  .megan-words-header{padding:0.75rem 1rem}
-  .summary-title-row{flex-wrap:wrap;gap:0.5rem}
-  .player-right{gap:6px}
-  .hero{padding:1.5rem 0.5rem 1.25rem}
-  .gate-banner{border-radius:0;border-left:none;border-right:none}
-}
+.hero{padding:clamp(40px,9vw,92px) 0 36px;text-align:center}
+.hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.1rem,6.4vw,4rem);line-height:1.08;letter-spacing:-.015em;text-wrap:balance;max-width:16ch;margin:0 auto}
+.hero h1 em{color:var(--accent);font-style:italic}
+.hero p.lead{max-width:34rem;margin:20px auto 0;color:var(--text-2);font-size:1.12rem;line-height:1.65;text-wrap:balance}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+.points{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:34px 0 8px}
+.point{padding:20px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.point .ic{width:38px;height:38px;border-radius:11px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+.point .ic svg{width:20px;height:20px}
+.point b{display:block;font-weight:600;margin-bottom:3px}
+.point span{color:var(--text-2);font-size:.92rem;line-height:1.5}
+h2.sec{font-family:var(--serif);font-size:clamp(1.4rem,3.4vw,1.9rem);margin:54px 0 18px;text-align:center}
+.sample{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.sample-head{display:flex;gap:18px;align-items:center;padding:20px;cursor:pointer;width:100%;text-align:left}
+.sample-head .cover{width:76px;flex-shrink:0;aspect-ratio:3/4;border-radius:8px}
+.sample-head .cover .cover-title{font-size:.62rem;line-height:1.2}.sample-head .cover .cover-author{font-size:.45rem}.sample-head .cover{padding:8px}
+.sample-head h3{font-family:var(--serif);font-size:1.3rem}
+.sample-head .by{color:var(--text-2);font-size:.92rem}
+.sample-head p{color:var(--text-2);font-size:.9rem;margin-top:6px;line-height:1.5}
+.sample-head .go{margin-left:auto;flex-shrink:0}
+.sample-body{padding:4px clamp(18px,4vw,36px) 30px;border-top:1px solid var(--line)}
+.sample-bar{display:flex;align-items:center;gap:14px;padding:16px 0;flex-wrap:wrap}
+.pbtn{width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pbtn:disabled{opacity:.45}
+.pbtn svg{width:22px;height:22px}
+.pinfo{font-size:.88rem;color:var(--text-2)}
+.pinfo b{display:block;color:var(--text);font-size:.95rem}
+.fade{position:relative;max-height:420px;overflow:hidden}
+.fade::after{content:"";position:absolute;left:0;right:0;bottom:0;height:140px;background:linear-gradient(transparent,var(--surface))}
+.fade.open{max-height:none}.fade.open::after{display:none}
+.words{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:14px}
+.word{background:var(--surface-2);border-radius:var(--r-sm);padding:12px 14px}
+.word b{display:block;font-family:var(--serif);color:var(--accent);margin-bottom:3px}
+.word span{font-size:.86rem;color:var(--text-2);line-height:1.45}
+.tease-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:18px}
+.tease .cover{display:flex;width:100%;aspect-ratio:3/4;border-radius:10px;margin-bottom:8px}
+.tease p{font-size:.82rem;color:var(--text-2);line-height:1.45}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.plan{padding:22px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.plan.hl{border-color:var(--accent);box-shadow:var(--shadow)}
+.plan h3{font-family:var(--serif);font-size:1.2rem}
+.plan .big{font-size:2rem;font-weight:600;margin:6px 0 2px}
+.plan ul{list-style:none;padding:0;margin:14px 0 0;color:var(--text-2);font-size:.92rem}
+.plan li{padding:4px 0}
+.final{text-align:center;margin:60px 0 10px}
+.final .cta{margin-top:16px}
+@media(max-width:520px){.sample-head{flex-wrap:wrap}.sample-head .go{display:none}}
 </style>
 </head>
 <body>
-<div id="app">
-  <div class="masthead">
-    <div class="auth-corner" id="auth-corner">
-      <a href="/login.html" class="auth-btn">Sign In</a>
-      <a href="/login.html#signup" class="auth-btn primary">Join Free</a>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="KERNL home">K<b>E</b>RNL<small>for the curious</small></a>
+    <div class="topbar-actions">
+      <span id="auth-corner" style="display:inline-flex;gap:6px"><a class="btn ghost sm" href="/login.html">Sign in</a><a class="btn primary sm" href="/login.html#signup">Join free</a></span>
+      <button class="iconbtn" data-theme-toggle type="button"></button>
     </div>
-    <button class="dark-toggle" onclick="toggleDark()">
-      <span id="dark-icon">&#127769;</span>
-      <span id="dark-label">Dark</span>
+  </div>
+</header>
+
+<main class="wrap mid">
+  <section class="hero">
+    <h1>Any book. <em>Ten minutes.</em> Read or listen.</h1>
+    <p class="lead">KERNL gives you the message of a book in a 1,500-word summary, with a natural voice to read it to you, a list of its best words, and one-tap delivery to your Kindle.</p>
+    <div class="cta">
+      <a class="btn primary lg" href="/app.html">Start reading free</a>
+      <a class="btn lg" href="#sample">Try a sample</a>
+    </div>
+    <p class="faint" style="margin-top:14px;font-size:.88rem"><span id="count-pill">1,280+</span> books. No sign-up needed for your first 12.</p>
+  </section>
+
+  <section class="points">
+    <div class="point"><div class="ic"><span data-icon="headphones"></span></div><b>Listen</b><span>A natural voice reads every summary to you. Pro members can generate audio for any book.</span></div>
+    <div class="point"><div class="ic"><span data-icon="send"></span></div><b>Send to Kindle</b><span>One tap and it lands on your Kindle, or download it as an EPUB.</span></div>
+    <div class="point"><div class="ic"><span data-icon="print"></span></div><b>Print it</b><span>A clean one-page-or-two print-out, with a QR code to buy the book.</span></div>
+    <div class="point"><div class="ic"><span data-icon="book"></span></div><b>Mega Words</b><span>The interesting words from each book, with plain-English definitions.</span></div>
+  </section>
+
+  <h2 class="sec" id="sample">A free sample</h2>
+  <article class="sample">
+    <button class="sample-head" id="sample-head" type="button" aria-expanded="false">
+      <span class="cover" data-cover="Meditations"><span class="cover-title">Meditations</span><span class="cover-author">Marcus Aurelius</span></span>
+      <span><h3>Meditations</h3><span class="by">by Marcus Aurelius &middot; 1,847 words</span><p>A Roman emperor&rsquo;s private journals reveal timeless wisdom on resilience, duty and inner peace.</p></span>
+      <span class="btn sm go">Read &amp; listen</span>
     </button>
-    <div class="logo">K<span class="logo-e">E</span>RNL</div>
-    <div class="tagline">for the curious</div>
+    <div class="sample-body" id="sample-body" hidden>
+      <div class="sample-bar">
+        <button class="pbtn" id="play-btn" type="button" aria-label="Play"><span id="play-icon"></span></button>
+        <div class="pinfo"><b>Meditations</b><span id="player-sub">Press play to listen</span></div>
+      </div>
+      <div class="fade" id="sample-fade"><div class="prose" id="summary-body"><p class="muted">Loading the sample&hellip;</p></div></div>
+      <div style="text-align:center;margin-top:10px"><button class="btn sm" id="sample-more" type="button">Show the whole summary</button></div>
+      <div class="card-title" style="margin-top:28px">Mega Words</div>
+      <div class="words" id="words"></div>
+    </div>
+  </article>
+
+  <h2 class="sec">And a lot more</h2>
+  <div class="tease-grid"><div class="tease"><span class="cover" data-cover="Atomic Habits"><span class="cover-title">Atomic Habits</span><span class="cover-author">James Clear</span></span><p>Small changes compound into remarkable results through the science of habit formation.</p></div><div class="tease"><span class="cover" data-cover="Sapiens"><span class="cover-title">Sapiens</span><span class="cover-author">Yuval Noah Harari</span></span><p>A sweeping history of humankind from the Stone Age to the modern era.</p></div><div class="tease"><span class="cover" data-cover="Man's Search for Meaning"><span class="cover-title">Man's Search for Meaning</span><span class="cover-author">Viktor Frankl</span></span><p>A Holocaust survivor's profound insights on finding purpose amid suffering.</p></div><div class="tease"><span class="cover" data-cover="The Great Gatsby"><span class="cover-title">The Great Gatsby</span><span class="cover-author">F. Scott Fitzgerald</span></span><p>The American Dream dissolves into tragedy in Fitzgerald's Jazz Age masterpiece.</p></div><div class="tease"><span class="cover" data-cover="Thinking, Fast and Slow"><span class="cover-title">Thinking, Fast and Slow</span><span class="cover-author">Daniel Kahneman</span></span><p>How two systems of thought shape every decision we make.</p></div><div class="tease"><span class="cover" data-cover="1984"><span class="cover-title">1984</span><span class="cover-author">George Orwell</span></span><p>A totalitarian state erases truth and freedom through relentless surveillance.</p></div></div>
+  <p style="text-align:center;margin-top:22px"><a class="btn" href="/app.html">Browse all <span id="count-banner">1,280+</span> books</a></p>
+
+  <h2 class="sec">Pick your plan</h2>
+  <div class="plans">
+    <div class="plan"><h3>Guest</h3><div class="big">Free</div><span class="faint">No sign-up</span><ul><li>12 books</li><li>Read, print and send to Kindle</li></ul></div>
+    <div class="plan"><h3>Free account</h3><div class="big">Free</div><span class="faint">Email or Google</span><ul><li>36 books</li><li>Your library on every device</li></ul></div>
+    <div class="plan hl"><h3>Pro</h3><div class="big">&pound;20 <span class="faint" style="font-size:.9rem;font-weight:400">a year</span></div><span class="faint">For heavy readers</span><ul><li>200 books a year</li><li>Audio for every book</li><li>Summaries of books not yet in the library</li><li>Share audio by email or WhatsApp</li></ul></div>
   </div>
 
-  <div class="hero">
-    <h1 class="hero-headline">Any book &mdash; 10 minutes &mdash; Read or Listen.</h1>
-    <p class="hero-sub">KERNL helps you understand the message of any book in 1,500-word summaries with audio narration, vocabulary deep-dives, one-tap delivery to your Kindle, and a link to purchase the book if you want to eat every leaf on the tree.</p>
-    <div class="hero-pills">
-      <span class="hero-pill"><span class="hero-pill-icon">&#127911;</span> Natural AI voice</span>
-      <span class="hero-pill"><span class="hero-pill-icon">&#128218;</span> <span id="count-pill">1,280+</span> books</span>
-      <span class="hero-pill"><span class="hero-pill-icon">&#128235;</span> Send to Kindle</span>
-      <span class="hero-pill"><span class="hero-pill-icon">&#128209;</span> Print-ready</span>
-      <span class="hero-pill"><span class="hero-pill-icon">&#127760;</span> New books daily</span>
-    </div>
-    <div class="hero-cta-row">
-      <a href="/app.html" class="cta-btn primary">Start reading free &rsaquo;</a>
-      <a href="#demo" class="cta-btn secondary">See a sample &#8595;</a>
-    </div>
-  </div>
+  <section class="final">
+    <h2 style="font-family:var(--serif);font-size:clamp(1.5rem,4vw,2.2rem)">Read more. Waste less time.</h2>
+    <div class="cta"><a class="btn primary lg" href="/app.html">Start reading free</a></div>
+  </section>
+</main>
 
-  <div class="demo-label" id="demo">
-    <span class="demo-label-inner">Free sample summary</span>
-  </div>
-
-  <div class="preview-card" id="preview-card" onclick="expandDemo()">
-    <div class="preview-inner">
-      <div class="preview-left">
-        <div class="preview-title">Meditations</div>
-        <div class="preview-author">by Marcus Aurelius</div>
-        <div class="preview-synopsis">A Roman emperor&rsquo;s private journals reveal timeless wisdom on resilience, duty, and inner peace amid life&rsquo;s chaos and suffering.</div>
-      </div>
-      <div class="preview-right">
-        <div class="preview-words">1,847 words</div>
-        <div class="preview-cta">Read &amp; Listen &#9660;</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="summary-card" id="demo-card" style="display:none">
-    <div class="summary-header">
-      <div class="summary-header-ornament">&ldquo;</div>
-      <div class="summary-title-row">
-        <div class="summary-book-title">Meditations</div>
-        <div class="summary-word-count">1,847 words</div>
-      </div>
-      <div class="summary-book-author">by Marcus Aurelius</div>
-      <div class="summary-synopsis">A Roman emperor&rsquo;s private journals reveal timeless wisdom on resilience, duty, and inner peace amid life&rsquo;s chaos and suffering.</div>
-    </div>
-    <div class="player">
-      <div class="player-top">
-        <button class="play-btn" id="play-btn" onclick="togglePlay()">
-          <svg id="play-icon" viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
-        </button>
-        <div class="player-center">
-          <div class="player-title">Meditations &mdash; Marcus Aurelius</div>
-          <div class="player-sub" id="player-sub">Choose a voice and press play</div>
-        </div>
-        <div class="player-right">
-          <div class="voice-toggle">
-            <button class="pvb active" id="vbf" onclick="setVoice('female')">&#9792; Female</button>
-          </div>
-          <div class="speed-group">
-            <button class="spb active" data-rate="1" onclick="setSpeed(1)">1&times;</button>
-            <button class="spb" data-rate="1.5" onclick="setSpeed(1.5)">1.5&times;</button>
-            <button class="spb" data-rate="2" onclick="setSpeed(2)">2&times;</button>
-          </div>
-        </div>
-      </div>
-      <div class="scrub-row" id="scrub-row">
-        <span class="scrub-time" id="scrub-elapsed">0:00</span>
-        <button class="skip-btn" onclick="skipAudio(-10)" title="Back 10s">&minus;10</button>
-        <div class="scrub-track" id="scrub-track">
-          <div class="scrub-fill" id="scrub-fill"></div>
-          <div class="scrub-thumb" id="scrub-thumb"></div>
-        </div>
-        <button class="skip-btn" onclick="skipAudio(10)" title="Forward 10s">+10</button>
-        <span class="scrub-time right" id="scrub-remaining">&minus;0:00</span>
-      </div>
-    </div>
-    <div class="summary-actions">
-      <button class="btn-action" onclick="printSummary()">&#128438; Print</button>
-      <button class="btn-action" onclick="showKindleModal()">&#128235; Send to Kindle</button>
-      <a class="buy-btn" href="https://www.amazon.co.uk/s?k=Meditations+Marcus+Aurelius&tag=gd7vibe-21" target="_blank" rel="noopener">&#128218; Buy this book</a>
-      <a href="/login.html" class="gate-btn" title="Sign in to save">&#43; Save to library</a>
-    </div>
-    <div class="summary-body" id="summary-body"></div>
-    <div class="megan-words-section">
-      <div class="megan-words-header" onclick="toggleMeganWords()">
-        <div class="megan-words-title">
-          <span>&#128218;</span> Mega Words
-          <span class="megan-words-subtitle">&mdash; interesting words from this book</span>
-        </div>
-        <span class="megan-arrow" id="megan-arrow">&#9660;</span>
-      </div>
-      <div class="megan-words-grid" id="megan-words-grid"></div>
-      <div class="disclaimer-bar">
-        <div class="disclaimer-text">KERNL summaries are original works intended to complement, not replace, the reading experience. We encourage you to read the full book and support the author.</div>
-      </div>
-    </div>
-    <div style="padding:1rem 2rem;background:var(--warm);border-top:1px solid var(--border);text-align:center">
-      <button onclick="collapseDemo()" style="background:none;border:none;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--muted);cursor:pointer;text-decoration:underline">&#9650; Collapse summary</button>
-    </div>
-  </div>
-
-  <!-- Gate banner -->
-  <div class="gate-banner">
-    <div class="gate-banner-title">Like what you see? There&rsquo;s plenty more.</div>
-    <div class="gate-banner-sub">Browse our library of <span id="count-banner">1,280+</span> books: <strong>12 free as a guest</strong> with no sign-up, <strong>36 free</strong> when you create an account, or <strong>200 a year on Pro</strong> for &pound;20, with more audio and sharing options.</div>
-    <div class="gate-banner-btns">
-      <a href="/app.html" class="gate-banner-btn primary">&#128218; Browse the library &mdash; 12 books free, no sign-up</a>
-      <a href="/login.html#signup" class="gate-banner-btn secondary">Create a free account &mdash; 36 books</a>
-    </div>
-    <div class="gate-perks">
-      <span class="gate-perk">&#9989; Guest: 12 books, no sign-up</span>
-      <span class="gate-perk">&#9989; Free account: 36 books</span>
-      <span class="gate-perk">&#9989; Natural AI voice</span>
-      <span class="gate-perk">&#9989; Kindle delivery</span>
-      <span class="gate-perk">&#9989; Personal library</span>
-      <span class="gate-perk">&#127775; Pro: 200 books a year for &pound;20</span>
-    </div>
-  </div>
-
-  <!-- More books teaser -->
-  <div class="more-section">
-    <div class="more-title">More in the library&hellip;</div>
-    <div class="more-grid">
-      <div class="more-card"><div class="more-card-title">Atomic Habits</div><div class="more-card-author">James Clear</div><div class="more-card-synopsis">Small changes compound into remarkable results through the science of habit formation.</div></div>
-      <div class="more-card"><div class="more-card-title">Sapiens</div><div class="more-card-author">Yuval Noah Harari</div><div class="more-card-synopsis">A sweeping history of humankind from the Stone Age to the modern era.</div></div>
-      <div class="more-card"><div class="more-card-title">Man's Search for Meaning</div><div class="more-card-author">Viktor Frankl</div><div class="more-card-synopsis">A Holocaust survivor's profound insights on finding purpose amid suffering.</div></div>
-      <div class="more-card"><div class="more-card-title">The Great Gatsby</div><div class="more-card-author">F. Scott Fitzgerald</div><div class="more-card-synopsis">The American Dream dissolves into tragedy in Fitzgerald's Jazz Age masterpiece.</div></div>
-      <div class="more-card"><div class="more-card-title">Thinking, Fast and Slow</div><div class="more-card-author">Daniel Kahneman</div><div class="more-card-synopsis">How two systems of thought shape every decision we make.</div></div>
-      <div class="more-card"><div class="more-card-title">1984</div><div class="more-card-author">George Orwell</div><div class="more-card-synopsis">A totalitarian state erases truth and freedom through relentless surveillance.</div></div>
-      <div class="more-overlay">
-        <div class="more-overlay-inner">
-          <div class="more-overlay-text"><span id="count-overlay">1,280+</span> books inside</div>
-          <div class="more-overlay-sub">Philosophy, fiction, history, science and more</div>
-          <a href="/app.html" class="gate-banner-btn primary" style="font-size:0.85rem;height:40px;padding:0 22px">Unlock the library &rsaquo;</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /app -->
+<footer class="footer"><div class="wrap"><span>&copy; KERNL &mdash; for the curious</span><span><a href="/privacy.html">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms.html">Terms</a></span></div></footer>
 
 <script>
-const DEMO_TITLE  = 'Meditations';
-const DEMO_AUTHOR = 'Marcus Aurelius';
-const DEMO_PLAIN  = `Meditations by Marcus Aurelius stands as one of the most remarkable documents in the history of Western philosophy. Written in the second century AD by a man who ruled the Roman Empire at its height, it was never intended for public consumption. Marcus composed these private notes during military campaigns and the pressures of imperial governance. That they survived at all feels like a small miracle; that they continue to resonate so powerfully two millennia later is testament to the timeless human struggle for virtue, clarity, and equanimity in the face of suffering and uncertainty.`;
-const DEMO_WORDS  = [{"word":"aphoristic","definition":"expressed in short, punchy statements that contain general truths or wisdom"},{"word":"equanimity","definition":"mental calmness and composure, especially in difficult situations"},{"word":"Stoicism","definition":"an ancient Greek and Roman philosophy teaching that virtue is the highest good and that we should accept what we cannot control"},{"word":"logos","definition":"in Stoic philosophy, the rational principle or divine reason that governs and orders the universe"},{"word":"impermanence","definition":"the state of not lasting forever; the quality of being temporary or fleeting"},{"word":"cosmopolitanism","definition":"the belief that all human beings belong to a single community and share universal moral responsibilities"},{"word":"indifferent","definition":"in Stoic terms, things that are neither truly good nor truly bad, such as wealth, health, or fame"},{"word":"treatise","definition":"a formal, systematic written work that thoroughly examines a subject"},{"word":"hegemonikon","definition":"the Stoic term for the ruling faculty of the mind, the rational part that should govern all thoughts and actions"},{"word":"prohairesis","definition":"the Stoic concept of the will or power of choice — the only thing truly within our control"},{"word":"phantasia","definition":"in Stoic philosophy, an impression or mental image presented to the mind from external events"},{"word":"eudaimonia","definition":"the Greek concept of human flourishing or living well, considered the highest human goal"},{"word":"dichotomy","definition":"a division into two completely opposed or contrasting things"},{"word":"ascetic","definition":"practicing severe self-discipline and avoiding indulgence, especially for spiritual or philosophical reasons"},{"word":"provincial","definition":"relating to a province or region outside the capital; also used to suggest a narrow or limited outlook"},{"word":"empirical","definition":"based on observation and real-world evidence rather than theory alone"},{"word":"rationalism","definition":"the belief that reason and logic are the primary sources of knowledge and truth"},{"word":"virtue","definition":"moral excellence and righteous behaviour; in Stoic thought, the only true good"},{"word":"determinism","definition":"the belief that all events are caused by prior conditions and are therefore inevitable"},{"word":"Aurelius","definition":"the family name of Marcus, meaning golden in Latin, reflecting his status as a philosopher-emperor"},{"word":"pantheism","definition":"the belief that God and the universe are identical — that divinity is present in all things"}];
-const AMAZON_TAG  = 'gd7vibe-21';
-const SUPABASE_URL      = 'https://peebgzfufyklxzdfnesc.supabase.co';
+const DEMO_TITLE = 'Meditations', DEMO_AUTHOR = 'Marcus Aurelius';
+const DEMO_WORDS = [{"word":"aphoristic","definition":"expressed in short, punchy statements that contain general truths or wisdom"},{"word":"equanimity","definition":"mental calmness and composure, especially in difficult situations"},{"word":"Stoicism","definition":"an ancient Greek and Roman philosophy teaching that virtue is the highest good and that we should accept what we cannot control"},{"word":"logos","definition":"in Stoic philosophy, the rational principle or divine reason that governs and orders the universe"},{"word":"impermanence","definition":"the state of not lasting forever; the quality of being temporary or fleeting"},{"word":"cosmopolitanism","definition":"the belief that all human beings belong to a single community and share universal moral responsibilities"},{"word":"indifferent","definition":"in Stoic terms, things that are neither truly good nor truly bad, such as wealth, health, or fame"},{"word":"treatise","definition":"a formal, systematic written work that thoroughly examines a subject"},{"word":"hegemonikon","definition":"the Stoic term for the ruling faculty of the mind, the rational part that should govern all thoughts and actions"},{"word":"prohairesis","definition":"the Stoic concept of the will or power of choice — the only thing truly within our control"},{"word":"phantasia","definition":"in Stoic philosophy, an impression or mental image presented to the mind from external events"},{"word":"eudaimonia","definition":"the Greek concept of human flourishing or living well, considered the highest human goal"},{"word":"dichotomy","definition":"a division into two completely opposed or contrasting things"},{"word":"ascetic","definition":"practicing severe self-discipline and avoiding indulgence, especially for spiritual or philosophical reasons"},{"word":"provincial","definition":"relating to a province or region outside the capital; also used to suggest a narrow or limited outlook"},{"word":"empirical","definition":"based on observation and real-world evidence rather than theory alone"},{"word":"rationalism","definition":"the belief that reason and logic are the primary sources of knowledge and truth"},{"word":"virtue","definition":"moral excellence and righteous behaviour; in Stoic thought, the only true good"},{"word":"determinism","definition":"the belief that all events are caused by prior conditions and are therefore inevitable"},{"word":"Aurelius","definition":"the family name of Marcus, meaning golden in Latin, reflecting his status as a philosopher-emperor"},{"word":"pantheism","definition":"the belief that God and the universe are identical — that divinity is present in all things"}];
+const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
+const $ = id => document.getElementById(id);
+const { esc, icon } = KUI;
+document.querySelectorAll('[data-cover]').forEach(el => { el.style.cssText = KUI.coverStyle(el.dataset.cover); });
 
-// ── Live book count ───────────────────────────────────────────────────────────
-// Single HEAD request — fetches only the count header, no book data downloaded.
-// Rounds down to nearest 10 and appends + for a clean marketing number.
-(async function updateBookCount() {
+// Live book count: one HEAD request, count header only.
+(async function () {
   try {
-    const res = await fetch(
-      SUPABASE_URL + '/rest/v1/summaries?select=id',
-      {
-        method: 'HEAD',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-          'Prefer': 'count=exact'
-        }
-      }
-    );
-    const range = res.headers.get('content-range'); // e.g. "0-999/1311"
-    if (!range) return;
-    const total = parseInt(range.split('/')[1], 10);
-    if (!total || isNaN(total)) return;
-    // Round down to nearest 10 for a clean "1,310+" style number
-    const rounded = Math.floor(total / 10) * 10;
-    const display = rounded.toLocaleString('en-GB') + '+';
-    document.getElementById('count-pill').textContent    = display;
-    document.getElementById('count-banner').textContent  = display;
-    document.getElementById('count-overlay').textContent = display;
-  } catch(e) {
-    // Silently fail — hardcoded fallback text remains visible
-  }
+    const res = await fetch(SUPABASE_URL + '/rest/v1/summaries?select=id', { method: 'HEAD', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'count=exact' } });
+    const range = res.headers.get('content-range');
+    const total = range ? parseInt(range.split('/')[1], 10) : 0;
+    if (!total) return;
+    const d = (Math.floor(total / 10) * 10).toLocaleString('en-GB') + '+';
+    $('count-pill').textContent = d; $('count-banner').textContent = d;
+  } catch (e) { /* keep fallback text */ }
 })();
 
-// ── Load demo summary ─────────────────────────────────────────────────────────
-(async function loadSummary() {
+// Signed-in members get a shortcut. Anonymous guests are not "signed in".
+(async function () {
+  try {
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && !session.user.is_anonymous) {
+      $('auth-corner').innerHTML = '<a class="btn primary sm" href="/app.html">Open KERNL</a>';
+    }
+  } catch (e) { /* leave defaults */ }
+})();
+
+$('play-icon').innerHTML = icon('play');
+$('words').innerHTML = DEMO_WORDS.map(w => '<div class="word"><b>' + esc(w.word) + '</b><span>' + esc(w.definition) + '</span></div>').join('');
+
+let loaded = false;
+async function loadSample() {
+  if (loaded) return; loaded = true;
   try {
     const res = await fetch('/api/get-summary?title=' + encodeURIComponent(DEMO_TITLE) + '&author=' + encodeURIComponent(DEMO_AUTHOR));
-    if (res.ok) {
-      const data = await res.json();
-      if (data.html) document.getElementById('summary-body').innerHTML = data.html;
-    }
-  } catch(e) { console.warn('Could not load summary HTML:', e.message); }
-})();
+    const data = res.ok ? await res.json() : null;
+    if (!data || !data.html) throw new Error('none');
+    $('summary-body').innerHTML = cleanHtml(data.html);
+  } catch (e) { $('summary-body').innerHTML = '<p class="muted">The sample could not be loaded just now. You can still open the library.</p>'; }
+}
+// Plain formatting only: drop everything except basic text tags.
+function cleanHtml(html) {
+  const ok = new Set(['H1','H2','H3','H4','P','UL','OL','LI','STRONG','B','EM','I','BLOCKQUOTE','BR','HR']);
+  const tpl = document.createElement('template'); tpl.innerHTML = String(html).replace(/^GENRE:(FICTION|NONFICTION)\s*/i, '');
+  (function walk(n) { Array.from(n.childNodes).forEach(c => {
+    if (c.nodeType === 3) return;
+    if (c.nodeType !== 1) { c.remove(); return; }
+    if (!ok.has(c.tagName)) { if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|SVG|FORM|IMG|BASE)$/.test(c.tagName)) { c.remove(); return; } walk(c); while (c.firstChild) n.insertBefore(c.firstChild, c); c.remove(); return; }
+    while (c.attributes.length) c.removeAttribute(c.attributes[0].name); walk(c); }); })(tpl.content);
+  return tpl.innerHTML;
+}
+$('sample-head').addEventListener('click', () => {
+  const body = $('sample-body'), open = body.hidden;
+  body.hidden = !open; $('sample-head').setAttribute('aria-expanded', String(open));
+  if (open) loadSample(); else stopAudio();
+});
+$('sample-more').addEventListener('click', () => { const f = $('sample-fade'); const o = f.classList.toggle('open'); $('sample-more').textContent = o ? 'Show less' : 'Show the whole summary'; });
 
-// ── Mega Words ────────────────────────────────────────────────────────────────
-(function() {
-  const grid = document.getElementById('megan-words-grid');
-  grid.innerHTML = DEMO_WORDS.map(w =>
-    `<div class="megan-word-item"><div class="megan-word">${esc(w.word)}</div><div class="megan-definition">${esc(w.definition)}</div></div>`
-  ).join('');
-})();
-
-// ── Auth state ────────────────────────────────────────────────────────────────
-(async function checkAuth() {
-  const { createClient } = supabase;
-  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) {
-    document.getElementById('auth-corner').innerHTML =
-      '<a href="/app.html" class="auth-btn primary">Go to KERNL &rsaquo;</a>';
-  }
-})();
-
-// ── Dark mode ─────────────────────────────────────────────────────────────────
-function toggleDark() { const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('kernl_dark', isDark ? '1' : '0'); document.getElementById('dark-icon').textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'; document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark'; }
-(function(){ const saved = localStorage.getItem('kernl_dark'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; if (saved === '1' || (saved === null && prefersDark)) { document.documentElement.classList.add('dark'); document.getElementById('dark-icon').textContent = '\u2600\uFE0F'; document.getElementById('dark-label').textContent = 'Light'; } })();
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmtTime(secs) { if (!isFinite(secs)||secs<0) secs=0; return Math.floor(secs/60)+':'+String(Math.floor(secs%60)).padStart(2,'0'); }
-function safe(s) { return String(s).replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').slice(0,60); }
-
-// ── Player ────────────────────────────────────────────────────────────────────
-let currentVoice = 'female'; let isPlaying = false; let audioEl = null; let playbackRate = 1; let streamingAudioContext = null; let streamingSources = []; let isStartingAudio = false;
-function setVoice(v) { const wasPlaying = isPlaying; if (wasPlaying) stopAudio(); currentVoice = v; document.getElementById('vbf').classList.toggle('active', v === 'female'); document.getElementById('player-sub').textContent = (v === 'female' ? 'Female' : 'Male') + ' voice \u2014 press play'; if (wasPlaying) setTimeout(startTTS, 150); }
-function setSpeed(rate) { playbackRate = rate; document.querySelectorAll('.spb').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.rate) === rate)); if (audioEl) audioEl.playbackRate = rate; }
-function togglePlay() { if (isStartingAudio) return; if (isPlaying) { pauseAudio(); return; } if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; } if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; } startTTS(); }
-function pauseAudio() { if (audioEl && !audioEl.paused) audioEl.pause(); if (streamingAudioContext && streamingAudioContext.state === 'running') streamingAudioContext.suspend(); isPlaying = false; setPlayerState(false, 'Paused \u2014 press play to continue'); }
-function resumeAudio() { if (streamingAudioContext && streamingAudioContext.state === 'suspended') { streamingAudioContext.resume(); setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing'); return; } if (audioEl && audioEl.paused && audioEl.src) { audioEl.play(); setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing'); } }
-function stopAudio() { isStartingAudio = false; if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch(e){} audioEl = null; } if (streamingSources.length) { streamingSources.forEach(s => { try { s.stop(); } catch(e){} }); streamingSources = []; } if (streamingAudioContext && streamingAudioContext.state !== 'closed') { try { streamingAudioContext.close(); } catch(e){} streamingAudioContext = null; } isPlaying = false; setPlayerState(false, null); resetScrubUI(); }
-function setPlayerState(playing, subText) { isPlaying = playing; const icon = document.getElementById('play-icon'); icon.innerHTML = playing ? '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>' : '<polygon points="6,3 20,12 6,21"/>'; if (subText) document.getElementById('player-sub').textContent = subText; const row = document.getElementById('scrub-row'); const btn = document.getElementById('play-btn'); const sub = document.getElementById('player-sub'); if (row) row.classList.toggle('active', playing); if (btn) btn.classList.toggle('playing', playing); if (sub) sub.classList.toggle('playing', playing); }
-function resetScrubUI() { const fill = document.getElementById('scrub-fill'); if (fill) fill.style.width = '0%'; const thumb = document.getElementById('scrub-thumb'); if (thumb) thumb.style.left = '0%'; const el = document.getElementById('scrub-elapsed'); if (el) el.textContent = '0:00'; const re = document.getElementById('scrub-remaining'); if (re) re.textContent = '\u22120:00'; document.getElementById('scrub-row').classList.remove('active'); }
-function updateScrubUI() { if (!audioEl || !audioEl.duration) return; const pct = (audioEl.currentTime / audioEl.duration) * 100; const fill = document.getElementById('scrub-fill'); if (fill) fill.style.width = pct + '%'; const thumb = document.getElementById('scrub-thumb'); if (thumb) thumb.style.left = pct + '%'; const el = document.getElementById('scrub-elapsed'); if (el) el.textContent = fmtTime(audioEl.currentTime); const re = document.getElementById('scrub-remaining'); if (re) re.textContent = '\u2212' + fmtTime(audioEl.duration - audioEl.currentTime); }
-function skipAudio(secs) { if (!audioEl) return; audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, audioEl.currentTime + secs)); updateScrubUI(); }
-function initScrubEvents() { const track = document.getElementById('scrub-track'); if (!track || track._scrubInit) return; track._scrubInit = true; let dragging = false; function seekTo(e) { if (!audioEl || !audioEl.duration) return; const rect = track.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)); audioEl.currentTime = pct * audioEl.duration; updateScrubUI(); } track.addEventListener('mousedown', e => { dragging = true; track.classList.add('dragging'); seekTo(e); }); track.addEventListener('touchstart', e => { dragging = true; track.classList.add('dragging'); seekTo(e); }, { passive: true }); document.addEventListener('mousemove', e => { if (dragging) seekTo(e); }); document.addEventListener('touchmove', e => { if (dragging) seekTo(e); }, { passive: true }); document.addEventListener('mouseup', () => { dragging = false; track.classList.remove('dragging'); }); document.addEventListener('touchend', () => { dragging = false; track.classList.remove('dragging'); }); }
-function isSafari() { return /^((?!chrome|android).)*safari/i.test(navigator.userAgent); }
-async function checkAudioCache() { try { const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice: currentVoice, title: DEMO_TITLE, author: DEMO_AUTHOR }) }); if (res.ok) { const data = await res.json(); return data.url || null; } } catch(e) {} return null; }
-async function startTTS() { if (isStartingAudio) return; isStartingAudio = true; document.getElementById('player-sub').textContent = 'Loading\u2026'; const cachedUrl = await checkAudioCache(); if (cachedUrl) { playSingleAudio(cachedUrl); return; } if (isSafari()) { let pollStopped = false; async function pollForAudio(attempt) { if (pollStopped) return; const elapsed = attempt * 5; document.getElementById('player-sub').textContent = 'Audio preparing\u2026 ' + elapsed + 's'; try { const res = await fetch('/api/tts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ voice: currentVoice, title: DEMO_TITLE, author: DEMO_AUTHOR }) }); if (res.ok) { const data = await res.json(); if (data.url) { playSingleAudio(data.url); return; } } } catch(e) {} if (attempt < 42) setTimeout(() => pollForAudio(attempt + 1), 5000); else { isStartingAudio = false; document.getElementById('player-sub').textContent = 'Audio unavailable \u2014 tap to retry'; } } pollForAudio(1); return; } setPlayerState(true, 'Connecting\u2026'); const AudioCtx = window.AudioContext || window.webkitAudioContext; let audioContext; try { audioContext = new AudioCtx(); if (audioContext.state === 'suspended') await audioContext.resume(); } catch(e) { isStartingAudio = false; setPlayerState(false, 'Audio unavailable \u2014 tap to retry'); return; } streamingAudioContext = audioContext; streamingSources = []; let nextStartTime = audioContext.currentTime + 0.1; let started = false; let mp3Buffer = new Uint8Array(0); const scheduleChunk = async (b64) => { const binary = atob(b64); const newBytes = new Uint8Array(binary.length); for (let i=0;i<binary.length;i++) newBytes[i]=binary.charCodeAt(i); const combined = new Uint8Array(mp3Buffer.length + newBytes.length); combined.set(mp3Buffer); combined.set(newBytes, mp3Buffer.length); mp3Buffer = combined; try { const decoded = await audioContext.decodeAudioData(mp3Buffer.slice(0).buffer); const source = audioContext.createBufferSource(); source.buffer = decoded; source.playbackRate.value = playbackRate; source.connect(audioContext.destination); const when = Math.max(nextStartTime, audioContext.currentTime); source.start(when); streamingSources.push(source); nextStartTime = when + decoded.duration; mp3Buffer = new Uint8Array(0); if (!started) { started = true; isStartingAudio = false; setPlayerState(true, (currentVoice==='female'?'Female':'Male') + ' voice \u2014 now playing'); initScrubEvents(); } } catch(e) {} }; try { const res = await fetch('/api/tts-stream', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ voice: currentVoice, title: DEMO_TITLE, author: DEMO_AUTHOR }) }); if (!res.ok) throw new Error('Stream failed'); const reader = res.body.getReader(); const decoder = new TextDecoder(); let sseBuffer = ''; while (true) { const { done, value } = await reader.read(); if (done) break; sseBuffer += decoder.decode(value, { stream: true }); const lines = sseBuffer.split('\n'); sseBuffer = lines.pop(); for (const line of lines) { if (!line.startsWith('data: ')) continue; try { const msg = JSON.parse(line.slice(6)); if (msg.mp3) await scheduleChunk(msg.mp3); if (msg.done) { if (streamingSources.length) { streamingSources[streamingSources.length-1].onended = () => { setPlayerState(false,'Finished \u2014 press play to replay'); streamingAudioContext=null; streamingSources=[]; }; } } } catch(e) {} } } } catch(e) { isStartingAudio = false; if (audioContext) { try { audioContext.close(); } catch(ex){} } streamingAudioContext=null; streamingSources=[]; setPlayerState(false,'Audio unavailable \u2014 tap to retry'); } }
-function playSingleAudio(url) { isStartingAudio = false; if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch(e) {} audioEl = null; } if (streamingSources.length) { streamingSources.forEach(sr => { try { sr.stop(); } catch(e) {} }); streamingSources = []; } if (streamingAudioContext && streamingAudioContext.state !== 'closed') { try { streamingAudioContext.close(); } catch(e) {} streamingAudioContext = null; } audioEl = new Audio(url); audioEl.playbackRate = playbackRate; audioEl.addEventListener('timeupdate', updateScrubUI); audioEl.addEventListener('ended', () => { setPlayerState(false,'Finished \u2014 press play to replay'); audioEl=null; resetScrubUI(); }); audioEl.addEventListener('error', () => { setPlayerState(false,'Audio unavailable \u2014 tap to retry'); audioEl=null; }); audioEl.play().catch(e => { setPlayerState(false,'Tap play to listen'); }); setPlayerState(true, (currentVoice==='female'?'Female':'Male') + ' voice \u2014 now playing'); initScrubEvents(); }
-function expandDemo() { document.getElementById('preview-card').style.display = 'none'; const card = document.getElementById('demo-card'); card.style.display = 'block'; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-function collapseDemo() { stopAudio(); document.getElementById('demo-card').style.display = 'none'; const preview = document.getElementById('preview-card'); preview.style.display = 'block'; preview.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-function toggleMeganWords() { const grid = document.getElementById('megan-words-grid'); const arrow = document.getElementById('megan-arrow'); const isOpen = grid.classList.toggle('open'); arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)'; }
-function printSummary() { const html = document.getElementById('summary-body').innerHTML; const w = window.open('','_blank'); if (!w) { alert('Please allow popups for kernlbooks.com to use Print.'); return; } w.document.write('<!DOCTYPE html><html><head><title>Meditations \u2014 KERNL</title><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}.print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em}.qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em}#qr-code{margin-bottom:4pt}<\/style><\/head><body><div class="print-header"><div><h1>Meditations<\/h1><div class="byline">by Marcus Aurelius \u2014 KERNL Summary<\/div><\/div><div class="qr-block"><div id="qr-code"><\/div>Scan to buy<\/div><\/div>'+html+'<div class="footer">Generated by KERNL \u2014 for the curious<\/div><script>new QRCode(document.getElementById("qr-code"),{text:"https://www.amazon.co.uk/s?k=Meditations+Marcus+Aurelius&tag=gd7vibe-21",width:100,height:100});<\/script><\/body><\/html>'); w.document.close(); setTimeout(() => w.print(), 500); }
-function showKindleModal() { const existing = document.getElementById('kindle-modal'); if (existing) existing.remove(); const modal = document.createElement('div'); modal.id = 'kindle-modal'; modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem'; modal.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)"><h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3><p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. First add <strong>kindle@kernlbooks.com</strong> to your approved senders in Amazon.</p><input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box"><div style="display:flex;gap:10px;justify-content:flex-end"><button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button><button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button></div><div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div></div>'; document.body.appendChild(modal); setTimeout(() => document.getElementById('kindle-email-input').focus(), 100); }
-async function sendToKindle() { const email = document.getElementById('kindle-email-input').value.trim(); const status = document.getElementById('kindle-status'); const btn = document.getElementById('kindle-send-btn'); if (!email || !email.includes('@')) { status.style.display='block'; status.style.color='var(--error-fg)'; status.textContent='Please enter a valid Kindle email address.'; return; } btn.disabled=true; btn.textContent='Sending\u2026'; status.style.display='block'; status.style.color='var(--muted)'; status.textContent='Sending\u2026'; try { const res = await fetch('/api/send-to-kindle', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title: DEMO_TITLE, author: DEMO_AUTHOR, kindleEmail: email }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Send failed'); status.style.color='var(--success-fg)'; status.textContent='\u2713 Sent! Check your Kindle in a few minutes.'; btn.textContent='Sent \u2713'; setTimeout(() => { const m=document.getElementById('kindle-modal'); if(m) m.remove(); }, 3000); } catch(err) { status.style.color='var(--error-fg)'; status.textContent='Error: '+err.message; btn.disabled=false; btn.textContent='Send \u2192'; } }
+// Audio: the sample's narration already exists on the server, so this only plays it.
+let audioEl = null, playing = false;
+function setPlaying(p, sub) { playing = p; $('play-icon').innerHTML = icon(p ? 'pause' : 'play'); $('play-btn').setAttribute('aria-label', p ? 'Pause' : 'Play'); if (sub) $('player-sub').textContent = sub; }
+function stopAudio() { if (audioEl) { try { audioEl.pause(); } catch (e) {} audioEl = null; } setPlaying(false, 'Press play to listen'); }
+$('play-btn').addEventListener('click', async () => {
+  if (audioEl) { if (playing) { audioEl.pause(); setPlaying(false, 'Paused'); } else { audioEl.play(); setPlaying(true, 'Now playing'); } return; }
+  $('play-btn').disabled = true; $('player-sub').textContent = 'Loading\u2026';
+  try {
+    const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice: 'female', title: DEMO_TITLE, author: DEMO_AUTHOR }) });
+    const d = res.ok ? await res.json() : {};
+    if (!d.url) throw new Error('no audio');
+    audioEl = new Audio(d.url);
+    audioEl.addEventListener('ended', () => { audioEl = null; setPlaying(false, 'Finished. Press play to replay'); });
+    audioEl.addEventListener('error', () => { audioEl = null; setPlaying(false, 'Audio unavailable right now'); });
+    await audioEl.play(); setPlaying(true, 'Now playing');
+  } catch (e) { audioEl = null; setPlaying(false, 'Audio unavailable right now'); }
+  $('play-btn').disabled = false;
+});
 </script>
 </body>
 </html>
