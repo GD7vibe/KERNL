@@ -11,7 +11,7 @@
     var prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (saved === '1' || (saved === null && prefers)) document.documentElement.classList.add('dark');
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', isDark() ? '#14110f' : '#faf8f4');
+    if (meta) meta.setAttribute('content', isDark() ? '#15112a' : '#f3ecfb');
   })();
 
   // ── Icons (stroke icons, 24x24) ──────────────────────────────────────────
@@ -59,19 +59,14 @@
   }
 
   // ── Book covers: a stable colour per title, from a restrained, warm palette ──
-  var COVERS = [
-    ['#7a3b12', '#a85a1f'], ['#1f4e3d', '#2f7a5f'], ['#2b3a67', '#44579a'], ['#6b2737', '#9a3b52'],
-    ['#3d3a2e', '#5f5a45'], ['#4a2c5a', '#6d4285'], ['#14575c', '#1f8087'], ['#7a5a12', '#a9811c'],
-    ['#5a3a28', '#835640'], ['#2f4858', '#4a7089']
-  ];
+  var COVERS = ['#f5c04a', '#f4a3bf', '#f2a07b', '#8ed2f5', '#86d9b8', '#b8a5f3', '#6cc4bd', '#f28f8f'];
   function hash(str) {
     var h = 2166136261;
     for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
     return h >>> 0;
   }
   function coverStyle(title) {
-    var p = COVERS[hash(String(title || '').toLowerCase()) % COVERS.length];
-    return 'background:linear-gradient(150deg,' + p[0] + ',' + p[1] + ')';
+    return 'background:' + COVERS[hash(String(title || '').toLowerCase()) % COVERS.length];
   }
 
   // ── Toasts ───────────────────────────────────────────────────────────────
@@ -151,7 +146,7 @@
       b.setAttribute('title', dark ? 'Light mode' : 'Dark mode');
     });
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#14110f' : '#faf8f4');
+    if (meta) meta.setAttribute('content', dark ? '#15112a' : '#f3ecfb');
   }
   function toggleTheme() {
     var dark = document.documentElement.classList.toggle('dark');

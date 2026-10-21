@@ -3,6 +3,7 @@
   "outputDirectory": "public",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/", "destination": "/app.html" },
     { "source": "/library", "destination": "/library.html" }
   ],
   "functions": {
@@ -13,7 +14,7 @@
   },
   "headers": [
     {
-      "source": "/(app|index|library|summary|kernl-ui).js",
+      "source": "/(app|index|library|summary|kernl-ui|scenes).js",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     },
     {

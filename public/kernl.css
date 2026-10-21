@@ -2,25 +2,27 @@
    Tokens first, then base, then components. Light is the default; html.dark switches the tokens. */
 
 :root{
-  --bg:#faf8f4; --surface:#ffffff; --surface-2:#f3eee5; --surface-3:#ebe4d7;
-  --line:rgba(26,23,20,.10); --line-strong:rgba(26,23,20,.20);
-  --text:#1a1714; --text-2:#6b6256; --text-3:#968c7d;
-  --accent:#8b4513; --accent-hover:#6f3710; --accent-ink:#ffffff; --accent-soft:rgba(139,69,19,.09);
-  --ok:#2d6a4f; --ok-soft:#e8f5ee; --err:#9b1c1c; --err-soft:#fdf0f0; --warn:#a8610f; --warn-soft:#fdf4e4;
-  --shadow-sm:0 1px 2px rgba(26,23,20,.06); --shadow:0 6px 24px rgba(26,23,20,.08); --shadow-lg:0 18px 60px rgba(26,23,20,.18);
-  --r-sm:10px; --r:16px; --r-lg:22px; --r-pill:999px;
-  --serif:'Playfair Display',Georgia,'Times New Roman',serif;
-  --sans:'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --bg:#f3ecfb; --surface:#ffffff; --surface-2:#ece3f8; --surface-3:#e0d4f3;
+  --line:rgba(40,24,80,.09); --line-strong:rgba(40,24,80,.18);
+  --text:#1b1533; --text-2:#675f82; --text-3:#9a93b3;
+  --accent:#238a83; --accent-hover:#1b726c; --accent-ink:#ffffff; --accent-soft:rgba(35,138,131,.11);
+  --accent-2:#a98cf0; --ink:#17122b;
+  --ok:#23805a; --ok-soft:#e3f5ec; --err:#b3261e; --err-soft:#fdeceb; --warn:#9a5b0c; --warn-soft:#fdf2df;
+  --shadow-sm:0 1px 2px rgba(40,24,80,.06); --shadow:0 10px 30px rgba(60,36,120,.12); --shadow-lg:0 22px 70px rgba(40,20,90,.28);
+  --r-sm:14px; --r:20px; --r-lg:28px; --r-pill:999px;
+  --serif:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --sans:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   --topbar-h:60px;
   color-scheme:light;
 }
 html.dark{
-  --bg:#14110f; --surface:#1d1915; --surface-2:#26211b; --surface-3:#312a22;
-  --line:rgba(236,228,217,.10); --line-strong:rgba(236,228,217,.22);
-  --text:#ece4d9; --text-2:#a99e8d; --text-3:#7f7566;
-  --accent:#d68f4f; --accent-hover:#e6a768; --accent-ink:#1a1209; --accent-soft:rgba(214,143,79,.14);
-  --ok:#62b887; --ok-soft:#16281f; --err:#e48583; --err-soft:#2b1717; --warn:#e0a24a; --warn-soft:#2b2110;
-  --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow:0 6px 24px rgba(0,0,0,.35); --shadow-lg:0 18px 60px rgba(0,0,0,.6);
+  --bg:#15112a; --surface:#211b3d; --surface-2:#2b2452; --surface-3:#372e66;
+  --line:rgba(235,228,255,.10); --line-strong:rgba(235,228,255,.22);
+  --text:#f0ebff; --text-2:#aba3cd; --text-3:#7d759f;
+  --accent:#5fd4c9; --accent-hover:#82e2d9; --accent-ink:#0b2a27; --accent-soft:rgba(95,212,201,.15);
+  --accent-2:#b9a2f5;
+  --ok:#62d29b; --ok-soft:#173528; --err:#ff8f86; --err-soft:#35191a; --warn:#f0b35a; --warn-soft:#352711;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow:0 10px 30px rgba(0,0,0,.4); --shadow-lg:0 22px 70px rgba(0,0,0,.6);
   color-scheme:dark;
 }
 
@@ -55,8 +57,8 @@ button:disabled{cursor:not-allowed}
 /* ── Top bar ────────────────────────────────────────────────────────────── */
 .topbar{position:sticky;top:0;z-index:50;height:var(--topbar-h);background:color-mix(in srgb,var(--bg) 82%,transparent);-webkit-backdrop-filter:saturate(1.4) blur(14px);backdrop-filter:saturate(1.4) blur(14px);border-bottom:1px solid var(--line)}
 .topbar .wrap{height:100%;display:flex;align-items:center;gap:10px}
-.brand{font-family:var(--serif);font-weight:600;font-size:1.55rem;letter-spacing:.12em;color:var(--text);line-height:1;display:inline-flex;align-items:baseline;gap:0;text-decoration:none!important}
-.brand b{color:var(--accent);font-weight:600}
+.brand{font-family:var(--serif);font-weight:800;font-size:1.35rem;letter-spacing:.14em;color:var(--text);line-height:1;display:inline-flex;align-items:baseline;gap:0;text-decoration:none!important}
+.brand b{color:var(--accent);font-weight:800}
 .brand small{display:none;font-family:var(--sans);font-size:.62rem;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3);margin-left:12px;font-weight:500}
 @media(min-width:760px){.brand small{display:inline}}
 .topbar-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
@@ -119,10 +121,10 @@ button:disabled{cursor:not-allowed}
 .book{display:flex;flex-direction:column;gap:10px;text-align:left;border-radius:var(--r);transition:transform .15s;min-width:0}
 .book:hover{transform:translateY(-3px)}
 .book:focus-visible{outline-offset:4px}
-.cover{position:relative;aspect-ratio:3/4;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:14px 13px 12px;color:#fff;box-shadow:var(--shadow);isolation:isolate}
-.cover::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(135deg,rgba(255,255,255,.14),transparent 55%)}
-.cover::after{content:'';position:absolute;left:9px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.22);z-index:0}
-.cover-title{font-family:var(--serif);font-weight:600;font-size:1.02rem;line-height:1.2;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;padding-left:6px}
+.cover{position:relative;aspect-ratio:3/4;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:14px 13px 12px;color:var(--ink);box-shadow:var(--shadow);isolation:isolate}
+
+
+.cover-title{font-family:var(--serif);font-weight:800;font-size:.98rem;line-height:1.2;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;padding-left:6px}
 .cover-author{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;opacity:.85;padding-left:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .book-meta{min-height:0}
 .book-name{font-size:.9rem;font-weight:600;line-height:1.3;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
