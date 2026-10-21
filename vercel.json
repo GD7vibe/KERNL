@@ -13,7 +13,11 @@
   },
   "headers": [
     {
-      "source": "/(app|index|library|summary).js",
+      "source": "/(app|index|library|summary|kernl-ui).js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+    },
+    {
+      "source": "/kernl.css",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     },
     {
