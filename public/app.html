@@ -51,6 +51,8 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
 .hc-add{position:relative;z-index:2;margin-top:14px}
 .btn.onacc{background:rgba(255,255,255,.2);border-color:transparent;color:inherit}
 .btn.onacc:hover:not(:disabled){background:rgba(255,255,255,.32);color:inherit;border-color:transparent}
+.pro-wrap{margin-top:24px}
+.pro-wrap:not([hidden])+.sec-title{margin-top:12px}
 .sec-title{font-size:1.15rem;font-weight:700;margin:34px 2px 14px;letter-spacing:-.01em}
 .genres{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;padding-bottom:8px}
 @media(min-width:640px){.genres{grid-template-columns:repeat(4,1fr)}}
@@ -186,6 +188,7 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
 <header class="top">
   <a class="brand" href="/" aria-label="KERNL home">K<b>E</b>RNL</a>
   <a class="about-link" href="/about.html">About</a>
+  <button class="iconbtn" data-theme-toggle type="button"></button>
   <button class="iconbtn" id="search-btn" type="button" aria-label="Search books"><span data-icon="search"></span></button>
   <div class="acct">
     <button class="iconbtn" id="acct-btn" type="button" aria-label="Menu"><span data-icon="user"></span></button>
@@ -199,7 +202,6 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
       <a class="menu-item" id="menu-signup" href="/login.html#signup" hidden><span data-icon="plus"></span>Create free account</a>
       <a class="menu-item" id="menu-signin" href="/login.html" hidden><span data-icon="user"></span>Sign in</a>
       <a class="menu-item" id="menu-upgrade" href="/upgrade.html" hidden><span data-icon="star"></span>Upgrade to Pro</a>
-      <button class="menu-item" id="menu-theme" type="button"><span data-icon="moon" id="menu-theme-ic"></span><span id="menu-theme-tx">Dark mode</span></button>
       <button class="menu-item" id="menu-signout" type="button" hidden><span data-icon="logout"></span>Sign out</button>
     </div>
   </div>
@@ -218,7 +220,7 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
     <div class="hc-art" id="hero-art"></div>
   </a>
   <p class="hc-note" id="limit-note" hidden style="color:var(--text-2);margin-top:12px"></p>
-  <div id="pro-add-wrap" style="margin-top:12px" hidden><button class="btn sm" id="pro-add" type="button"><span data-icon="sparkle"></span>Summarise a new book</button></div>
+  <div id="pro-add-wrap" class="pro-wrap" hidden><button class="btn sm" id="pro-add" type="button"><span data-icon="sparkle"></span>Summarise a new book</button></div>
 
   <h2 class="sec-title">Pick a shelf</h2>
   <div class="genres skel-genres" id="genres"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>

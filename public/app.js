@@ -1156,8 +1156,6 @@ function openNewBookModal(prefillTitle) {
 function wire() {
   KUI.popover($('acct-btn'), $('acct-menu'));
   $('menu-signout').addEventListener('click', handleSignOut);
-  $('menu-theme').addEventListener('click', () => { KUI.toggleTheme(); paintThemeItem(); });
-  paintThemeItem();
   $('reader-close').addEventListener('click', closeReader);
   $('reader').addEventListener('scroll', onReaderScroll, { passive: true });
   $('genre').addEventListener('scroll', onGenreScroll, { passive: true });
@@ -1183,12 +1181,6 @@ function wire() {
   resetScrubUI();
   setAudioState('idle');
 }
-function paintThemeItem() {
-  const d = KUI.isDark();
-  $('menu-theme-ic').innerHTML = icon(d ? 'sun' : 'moon');
-  $('menu-theme-tx').textContent = d ? 'Light mode' : 'Dark mode';
-}
-
 try { localStorage.removeItem('kernl_v2'); } catch (e) { /* old local summary cache: the server is the only source of truth now */ }
 wire();
 initAuth();
