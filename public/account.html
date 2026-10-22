@@ -15,36 +15,38 @@
 <script src="/kernl-ui.js"></script>
 <link rel="stylesheet" href="/kernl.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/scenes.js"></script>
 <style>
-.page{padding:32px 0 24px}
-.page h1{font-family:var(--serif);font-size:clamp(1.7rem,4.5vw,2.3rem);margin-bottom:6px}
-.stack>*+*{margin-top:18px}
+.page{padding-top:20px;padding-bottom:24px}
+.page h1{font-size:clamp(1.7rem,6vw,2.4rem);font-weight:800;letter-spacing:-.025em}
+.page .sub{color:var(--text-2);margin:4px 0 22px}
+.stack>*+*{margin-top:22px}
 .plan-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
-.plan-name{font-family:var(--serif);font-size:1.5rem;font-weight:600}
-.usage{margin-top:20px}
+.plan-name{font-size:1.4rem;font-weight:800;letter-spacing:-.02em}
+.usage{margin-top:18px}
 .usage-top{display:flex;justify-content:space-between;font-size:.88rem;color:var(--text-2);margin-bottom:8px}
 .usage-top b{color:var(--text)}
-.track{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
-.track>div{height:100%;border-radius:99px;background:var(--ok);transition:width .5s}
+.bar{height:8px;border-radius:99px;background:var(--surface-3);overflow:hidden}
+.bar>div{height:100%;border-radius:99px;background:var(--ok);transition:width .5s}
 .reset{font-size:.8rem;color:var(--text-3);margin-top:8px}
-.portrait{border-left:3px solid var(--accent);padding:6px 0 6px 18px;font-family:var(--serif);font-size:1.05rem;line-height:1.7;font-style:italic}
-.portrait-foot{font-size:.8rem;color:var(--text-3);margin-top:14px}
-.recs{display:grid;gap:10px}
-.rec{display:block;width:100%;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2);transition:border-color .15s}
-.rec:hover{border-color:var(--accent)}
-.rec b{display:block;font-family:var(--serif);font-size:1rem}
-.rec span{display:block;font-size:.82rem;color:var(--text-2)}
-.rec i{display:block;font-size:.82rem;color:var(--text-3);margin-top:6px;line-height:1.5}
-.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
-.shelf .item{position:relative}
-.shelf .book{width:100%}
-.shelf .rm{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s}
-.shelf .rm svg{width:15px;height:15px}
-.shelf .item:hover .rm,.shelf .rm:focus-visible{opacity:1}
-@media (hover:none){.shelf .rm{opacity:.9}}
-.shelf .when{font-size:.74rem;color:var(--text-3);margin-top:6px}
-.empty{text-align:center;padding:36px 16px;border:1px dashed var(--line-strong);border-radius:var(--r);color:var(--text-2)}
-.loadingline{display:flex;align-items:center;gap:10px;color:var(--text-2);padding:8px 0}
+details.fold>summary{list-style:none;display:flex;align-items:center;gap:12px;cursor:pointer;font-weight:800;font-size:1.05rem;letter-spacing:-.01em}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary .grow{flex:1}
+details.fold>summary .icon{color:var(--text-2);transition:transform .2s}
+details.fold[open]>summary .icon{transform:rotate(180deg)}
+details.fold>.inner{margin-top:14px}
+.portrait{border-left:3px solid var(--accent);padding:4px 0 4px 16px;line-height:1.7;font-style:italic;color:var(--text-2)}
+.portrait-foot{font-size:.8rem;color:var(--text-3);margin-top:12px}
+.sec-h{font-size:1.05rem;font-weight:800;letter-spacing:-.01em;margin-bottom:6px;display:flex;align-items:baseline;gap:10px}
+.sec-h small{font-weight:600;color:var(--text-3);font-size:.82rem}
+.lib-sec+.lib-sec{margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
+.lib-sec>summary{padding:10px 0}
+.lib-sec .tile{width:46px;height:46px;border-radius:14px;flex-shrink:0;background:var(--g);overflow:hidden;color:var(--ink);border:1.5px solid rgba(23,18,43,.5);box-shadow:0 3px 0 rgba(23,18,43,.22)}
+.lib-sec .tile svg{width:100%;height:100%;display:block}
+.lib-sec .nm{font-weight:800}
+.lib-sec .ct{font-size:.82rem;font-weight:600;color:var(--text-3);margin-left:8px}
+.empty{text-align:center;padding:30px 16px;color:var(--text-2)}
+.loadingline{display:flex;align-items:center;gap:10px;color:var(--text-2);padding:6px 0}
 </style>
 </head>
 <body>
@@ -60,14 +62,20 @@
 </header>
 
 <main class="wrap mid page">
-  <h1 id="who">My account</h1>
-  <p class="muted" id="who-sub" style="margin-bottom:22px"></p>
+  <h1 id="who">My library</h1>
+  <p class="sub" id="who-sub"></p>
   <div class="stack">
-    <div class="card pad" id="tier-card"><div class="loadingline"><div class="spinner"></div>Loading account&hellip;</div></div>
-    <div id="portrait-section"></div>
-    <div id="recs-section"></div>
+    <div class="card pad" id="tier-card"><div class="loadingline"><div class="spinner"></div>Loading&hellip;</div></div>
+    <details class="card pad fold" id="portrait-card" hidden>
+      <summary><span class="grow">Your reading portrait</span><span data-icon="chevron"></span></summary>
+      <div class="inner" id="portrait-body"></div>
+    </details>
+    <div class="card pad" id="recs-card" hidden>
+      <div class="sec-h">Suggested for you</div>
+      <div id="recs-list"></div>
+    </div>
     <div class="card pad">
-      <div class="card-title" id="lib-title">My books</div>
+      <div class="sec-h" id="lib-title">My books <small id="lib-count"></small></div>
       <div id="library-container"><div class="loadingline"><div class="spinner"></div>Loading your books&hellip;</div></div>
     </div>
   </div>
@@ -82,29 +90,41 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const PORTRAIT_THRESHOLD = 10;
 const { esc, fmtDate, icon, toast } = KUI;
 const $ = id => document.getElementById(id);
-let _session = null, _guest = false, _items = [];
+let _session = null, _guest = false, _items = [], _recs = [], _obs = null;
+
+// The open synopsis follows the scroll: whichever row sits in the middle band of the screen opens.
+function observeRows(root) {
+  if (!_obs) _obs = new IntersectionObserver(es => es.forEach(e => { const r = e.target.parentElement; if (r) r.classList.toggle('on', e.isIntersecting); }), { rootMargin: '-44% 0px -46% 0px', threshold: 0 });
+  (root || document).querySelectorAll('.brow .hd').forEach(h => _obs.observe(h));
+}
+function rowHtml(title, author, synopsis, key, idx, removable) {
+  const g = SCENES.byKey(key);
+  return '<div class="brow-wrap"><button class="brow" type="button" data-i="' + idx + '" style="--g:' + g.bg + '"><div class="hd"><span class="tile">' + SCENES.svg(key, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(title) + '</div><div class="au">' + esc(author || '') + '</div></span></div>' +
+    '<div class="syn"><div><p>' + esc(synopsis || '') + '</p></div></div></button>' +
+    (removable ? '<button class="rm" type="button" data-rm="' + idx + '" aria-label="Remove ' + esc(title) + '">' + icon('x') + '</button>' : '') + '</div>';
+}
+function catsOf(s) { try { const c = JSON.parse((s && s.categories) || '[]'); return Array.isArray(c) ? c : []; } catch (e) { return []; } }
 
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = '/login.html'; return; }
   _session = session;
   _guest = !!session.user.is_anonymous;
-  $('who').textContent = _guest ? 'Your books' : 'My account';
+  $('who').textContent = 'My library';
   $('who-sub').textContent = _guest ? 'Browsing as a guest' : session.user.email;
   $('signout').hidden = _guest;
-  if (_guest) $('lib-title').textContent = 'My books';
 
   let profile = null;
   if (!_guest) ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single());
   const { data: library, error } = await sb.from('user_library')
-    .select('id, voice, language, added_at, summaries(title, author, synopsis)')
+    .select('id, voice, language, added_at, summaries(title, author, synopsis, categories)')
     .eq('user_id', session.user.id).order('added_at', { ascending: false });
   if (error) console.warn('library load failed', error.message);
   _items = library || [];
   if (_guest) profile = { tier: 'guest', downloads_used: _items.length };
   renderTierCard(profile);
   renderLibrary();
-  if (_guest) { $('portrait-section').innerHTML = ''; $('recs-section').innerHTML = ''; }
+  if (_guest) { $('portrait-card').hidden = true; $('recs-card').hidden = true; }
   else loadPortraitAndRecs(_items);
 }
 
@@ -124,52 +144,61 @@ function renderTierCard(profile) {
     (tier === 'pro' ? ' <span class="badge pro">&pound;20 a year</span>' : '') + '</div></div>' + cta + '</div>' +
     (tier === 'guest' ? '<p class="muted" style="margin-top:14px;line-height:1.55">You are a guest. A free account keeps your books on every device and raises your allowance from 12 to 36.</p>' : '') +
     '<div class="usage"><div class="usage-top"><span>Summaries used</span><b>' + used + ' of ' + limit + '</b></div>' +
-    '<div class="track"><div style="width:' + pct + '%;background:' + color + '"></div></div>' +
+    '<div class="bar"><div style="width:' + pct + '%;background:' + color + '"></div></div>' +
     (reset ? '<div class="reset">Resets on ' + esc(reset) + '</div>' : '') + '</div>';
-  KUI.hydrateIcons && KUI.hydrateIcons($('tier-card'));
   $('tier-card').querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.getAttribute('data-icon')); el.style.display = 'inline-flex'; });
 }
 
+// The reading portrait is tucked away until you want it; suggestions are plain book rows.
 async function loadPortraitAndRecs(library) {
-  const n = library.length, ps = $('portrait-section'), rs = $('recs-section');
+  const n = library.length, card = $('portrait-card'), body = $('portrait-body');
+  card.hidden = false;
   if (n < PORTRAIT_THRESHOLD) {
     const need = PORTRAIT_THRESHOLD - n;
-    ps.innerHTML = '<div class="card pad"><div class="card-title">Your reading portrait</div><p class="muted" style="line-height:1.6">Read ' + need + ' more book' + (need !== 1 ? 's' : '') + ' and KERNL will write you a short portrait of your reading, with recommendations. ' + n + ' of ' + PORTRAIT_THRESHOLD + ' so far.</p></div>';
-    rs.innerHTML = '';
+    body.innerHTML = '<p class="muted" style="line-height:1.6">Read ' + need + ' more book' + (need !== 1 ? 's' : '') + ' and KERNL will write you a short portrait of your reading, with suggestions. ' + n + ' of ' + PORTRAIT_THRESHOLD + ' so far.</p>';
     return;
   }
-  ps.innerHTML = '<div class="card pad"><div class="card-title">Your reading portrait</div><div class="loadingline"><div class="spinner"></div>Writing your portrait&hellip;</div></div>';
+  body.innerHTML = '<div class="loadingline"><div class="spinner"></div>Writing your portrait&hellip;</div>';
   try {
     const res = await fetch('/api/generate-portrait', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + _session.access_token }, body: '{}' });
     if (!res.ok) throw new Error('API error ' + res.status);
     const data = await res.json();
-    ps.innerHTML = data.portrait
-      ? '<div class="card pad"><div class="card-title">Your reading portrait</div><div class="portrait">' + esc(data.portrait) + '</div><div class="portrait-foot">Based on your library. Updates every 10 books.</div></div>'
-      : '';
-    const recs = data.recommendations || [];
-    rs.innerHTML = recs.length
-      ? '<div class="card pad"><div class="card-title">Recommended for you</div><div class="recs">' +
-        recs.map((r, i) => '<button class="rec" type="button" data-r="' + i + '"><b>' + esc(r.title) + '</b><span>by ' + esc(r.author) + '</span>' + (r.synopsis ? '<i>' + esc(r.synopsis) + '</i>' : '') + '</button>').join('') + '</div></div>'
-      : '';
-    rs._recs = recs;
+    body.innerHTML = data.portrait ? '<div class="portrait">' + esc(data.portrait) + '</div><div class="portrait-foot">Based on your library. Updates every 10 books.</div>' : '<p class="muted">No portrait yet.</p>';
+    _recs = (data.recommendations || []).slice(0, 3);
+    if (_recs.length) await renderRecs();
   } catch (e) {
-    ps.innerHTML = '<div class="card pad"><div class="card-title">Your reading portrait</div><p class="muted">Could not load your portrait just now. Refresh to try again.</p></div>';
+    body.innerHTML = '<p class="muted">Could not load your portrait just now. Refresh to try again.</p>';
   }
 }
+async function renderRecs() {
+  // Look up each suggestion's categories so its icon matches the shelf it belongs on.
+  let cats = {};
+  try {
+    const list = _recs.map(r => '"' + String(r.title).replace(/"/g, '\\"') + '"').join(',');
+    const res = await fetch(SUPABASE_URL + '/rest/v1/summaries?select=title,categories&title=in.(' + encodeURIComponent(list) + ')', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } });
+    if (res.ok) (await res.json()).forEach(b => { cats[b.title] = catsOf(b); });
+  } catch (e) { /* fall back to a default icon */ }
+  $('recs-list').innerHTML = _recs.map((r, i) => rowHtml(r.title, r.author, r.synopsis, SCENES.groupFor(cats[r.title] || []), i, false)).join('');
+  $('recs-card').hidden = false;
+  observeRows($('recs-list'));
+}
 
+// Books are filed on the same eight shelves as the library, and the shelves appear as the collection grows.
 function renderLibrary() {
   const c = $('library-container');
+  $('lib-count').textContent = _items.length ? _items.length + (_items.length === 1 ? ' book' : ' books') : '';
   if (!_items.length) {
-    c.innerHTML = '<div class="empty">Nothing here yet.<div style="margin-top:14px"><a class="btn primary" href="/app.html">Browse the library</a></div></div>';
+    c.innerHTML = '<div class="empty">Nothing here yet.<div style="margin-top:14px"><a class="btn primary" href="/app.html">Browse the shelves</a></div></div>';
     return;
   }
-  c.innerHTML = '<div class="shelf">' + _items.map((it, i) => {
-    const s = it.summaries || {}, t = s.title || '', a = s.author || '';
-    return '<div class="item"><button class="book" type="button" data-open="' + i + '" aria-label="' + esc(t) + '">' +
-      '<span class="cover" style="' + KUI.coverStyle(t) + '"><span class="cover-title">' + esc(t) + '</span><span class="cover-author">' + esc(a) + '</span></span></button>' +
-      (_guest ? '' : '<button class="rm" type="button" data-rm="' + i + '" aria-label="Remove ' + esc(t) + '">' + icon('x') + '</button>') +
-      '<div class="when">' + esc(fmtDate(it.added_at)) + '</div></div>';
-  }).join('') + '</div>';
+  const by = {};
+  _items.forEach((it, i) => { const s = it.summaries || {}; const k = SCENES.groupFor(catsOf(s)); (by[k] = by[k] || []).push(i); });
+  c.innerHTML = SCENES.DISPLAY.filter(k => by[k]).map(k => {
+    const g = SCENES.byKey(k);
+    return '<details class="fold lib-sec" open style="--g:' + g.bg + '"><summary><span class="tile">' + SCENES.svg(k, { slice: true }) + '</span><span class="grow"><span class="nm">' + esc(g.name) + '</span><span class="ct">' + by[k].length + '</span></span><span>' + icon('chevron') + '</span></summary>' +
+      '<div class="inner">' + by[k].map(i => { const it = _items[i], s = it.summaries || {}; return rowHtml(s.title || '', s.author, s.synopsis, k, i, !_guest); }).join('') + '</div></details>';
+  }).join('');
+  observeRows(c);
 }
 
 function openBook(title, author) {
@@ -178,21 +207,21 @@ function openBook(title, author) {
 }
 
 document.addEventListener('click', async e => {
-  const o = e.target.closest('[data-open]');
-  if (o) { const s = (_items[+o.dataset.open] || {}).summaries || {}; openBook(s.title, s.author); return; }
-  const r = e.target.closest('.rec');
-  if (r) { const x = ($('recs-section')._recs || [])[+r.dataset.r]; if (x) openBook(x.title, x.author); return; }
   const rm = e.target.closest('[data-rm]');
   if (rm) {
     const it = _items[+rm.dataset.rm]; if (!it) return;
     const t = (it.summaries || {}).title || 'this book';
-    const ok = await KUI.confirm('Remove from your library?', '“' + t + '” will leave your list. It will still count towards your allowance, and you can open it again from the library.', 'Remove', { danger: true });
+    const ok = await KUI.confirm('Remove from your library?', '“' + t + '” will leave your list. It still counts towards your allowance, and you can open it again from the shelves.', 'Remove', { danger: true });
     if (!ok) return;
     const { error } = await sb.from('user_library').delete().eq('id', it.id);
     if (error) { toast('Could not remove it: ' + error.message, 'err'); return; }
     toast('Removed.', 'ok');
     init();
+    return;
   }
+  const row = e.target.closest('.brow'); if (!row) return;
+  if (row.closest('#recs-list')) { const r = _recs[+row.dataset.i]; if (r) openBook(r.title, r.author); }
+  else { const s = (_items[+row.dataset.i] || {}).summaries || {}; openBook(s.title, s.author); }
 });
 $('signout').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = '/login.html'; });
 init();
