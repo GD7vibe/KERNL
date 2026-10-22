@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About KERNL</title>
+<meta name="description" content="KERNL is for people who like the idea of books but have no time, or inclination, to read them.">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<meta name="theme-color" content="#f3ecfb">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>window.__VERCEL_NO_TOOLBAR__ = true;</script>
+<script src="/kernl-ui.js"></script>
+<link rel="stylesheet" href="/kernl.css">
+<style>
+.top{display:flex;align-items:center;gap:6px;height:60px;padding:0 16px;max-width:720px;margin:0 auto}
+.top .brand{margin-right:auto}
+.about{max-width:720px;margin:0 auto;padding:30px 20px 90px}
+.about h1{font-size:clamp(2.2rem,8vw,3.6rem);line-height:1.04;letter-spacing:-.03em;font-weight:300}
+.about h1 b{font-weight:800;display:block}
+.lead{font-size:1.2rem;line-height:1.6;color:var(--text-2);margin-top:22px;max-width:34rem}
+.block{margin-top:64px}
+.block h2{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;margin-bottom:14px}
+.block p{font-size:1.06rem;line-height:1.75;color:var(--text-2);margin-top:12px;max-width:36rem}
+.block p strong{color:var(--text)}
+.tag-line{font-weight:700;color:var(--accent)!important;font-size:1.1rem!important;margin-top:4px!important}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:22px}
+@media(min-width:640px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{background:var(--surface);border:1.5px solid var(--edge);border-radius:var(--r);padding:14px 16px 12px;box-shadow:0 4px 0 var(--edge-d),var(--lift)}
+.stat span{display:block;font-size:.72rem;font-weight:600;color:var(--text-2);line-height:1.3;min-height:2.6em}
+.stat b{display:block;font-size:2rem;font-weight:800;letter-spacing:-.03em;color:var(--accent);line-height:1.1;margin-top:6px}
+.figure{margin:26px 0 8px;background:var(--surface);border:1.5px solid var(--edge);border-radius:var(--r);padding:14px 10px 10px;box-shadow:0 4px 0 var(--edge-d),var(--lift)}
+.figure figcaption{font-size:.78rem;color:var(--text-3);text-align:center;padding:6px 10px 2px;line-height:1.5}
+.chart{width:100%;height:auto;display:block;--kc:#1f8f87;--nc:#5b7fe8}
+html.dark .chart{--kc:#5fd4c9;--nc:#8fb0ff}
+.chart .zone{fill:var(--accent-soft)}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .ax{fill:var(--text-3);font-size:10px;font-family:inherit}
+.chart .vline{stroke:var(--text-3);stroke-width:1;stroke-dasharray:3 3}
+.chart .kern{fill:none;stroke:var(--kc);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+.chart .normal{fill:none;stroke:var(--nc);stroke-width:2.5;stroke-dasharray:7 5;stroke-linecap:round}
+.chart .kdot{fill:var(--kc)}.chart .ndot{fill:var(--nc)}
+.chart .leader{stroke:var(--kc);stroke-width:1.5}
+.chart .tag rect{rx:6}
+.chart .kt rect{fill:var(--kc)}.chart .nt rect{fill:var(--nc)}
+.chart .tag text{font-size:10.5px;font-weight:700;fill:#fff;font-family:inherit}
+html.dark .chart .kt text{fill:#06201d}html.dark .chart .nt text{fill:#0b1a3d}
+.chart .note rect{fill:var(--surface);stroke:var(--edge);stroke-width:1}
+.chart .note text{font-size:10px;font-weight:700;fill:var(--text-2);font-family:inherit}
+.list{list-style:none;padding:0;margin:18px 0 0;display:grid;gap:12px;max-width:36rem}
+.list li{display:flex;gap:14px;align-items:flex-start;color:var(--text-2);line-height:1.55}
+.list .c{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.list .c .icon{width:18px;height:18px}
+.list b{color:var(--text)}
+.note-box{margin-top:64px;padding:22px 24px;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-sm);color:var(--text-2);line-height:1.65;font-size:.95rem}
+.note-box b{color:var(--text)}
+.go{margin-top:56px;text-align:center}
+.go .btn{height:54px;padding:0 34px;border-radius:99px;font-size:1rem;font-weight:700}
+.foot{margin-top:40px;text-align:center;font-size:.82rem;color:var(--text-3)}
+.foot a{color:var(--text-2)}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/app.html" aria-label="KERNL home">K<b>E</b>RNL</a>
+  <button class="iconbtn" data-theme-toggle type="button"></button>
+</header>
+
+<main class="about">
+  <h1>The point of a book,<b>without the hours.</b></h1>
+  <p class="lead">KERNL is for people who like the idea of books but have no time, or no inclination, to read them. You get the argument in ten minutes. You read it, or you listen to it.</p>
+
+  <section class="block">
+    <h2>Life is short. The shelf is long.</h2>
+    <p>There are millions of books and one of you. A typical non-fiction book takes about <strong>four and a half hours</strong> to read, and most of that is repetition, padding and stories told so that a single point sticks.</p>
+    <p>If you love reading for its own sake, keep your books. If you have ever bought one, got forty pages in and quietly given up, this is for you.</p>
+  </section>
+
+  <section class="block">
+    <h2>The KERNL value proposition</h2>
+    <p class="tag-line">10 minutes. 80% of the value.</p>
+    <div class="stats">
+      <div class="stat"><span>Full book, 70,000 words</span><b>280 min</b></div>
+      <div class="stat"><span>KERNL summary, 1,500 words</span><b>10 min</b></div>
+      <div class="stat"><span>Value at 10 minutes</span><b>80%</b></div>
+      <div class="stat"><span>Time saved</span><b>96%</b></div>
+    </div>
+    <figure class="figure">
+      <svg class="chart" viewBox="0 0 420 300" role="img" aria-label="Chart: a KERNL summary captures about 80% of a book's value in 10 minutes. A normal read captures about 12% in the same time and needs around 300 minutes to reach full value.">
+<rect x="44" y="14" width="362" height="246" class="zone"/>
+<line x1="44.0" y1="260.0" x2="406.0" y2="260.0" class="gl"/><text x="38.0" y="264.0" class="ax" text-anchor="end">0%</text><line x1="44.0" y1="210.8" x2="406.0" y2="210.8" class="gl"/><text x="38.0" y="214.8" class="ax" text-anchor="end">20%</text><line x1="44.0" y1="161.6" x2="406.0" y2="161.6" class="gl"/><text x="38.0" y="165.6" class="ax" text-anchor="end">40%</text><line x1="44.0" y1="112.4" x2="406.0" y2="112.4" class="gl"/><text x="38.0" y="116.4" class="ax" text-anchor="end">60%</text><line x1="44.0" y1="63.2" x2="406.0" y2="63.2" class="gl"/><text x="38.0" y="67.2" class="ax" text-anchor="end">80%</text><line x1="44.0" y1="14.0" x2="406.0" y2="14.0" class="gl"/><text x="38.0" y="18.0" class="ax" text-anchor="end">100%</text><text x="44.0" y="276.0" class="ax" text-anchor="middle">0</text><text x="116.4" y="276.0" class="ax" text-anchor="middle">60</text><text x="188.8" y="276.0" class="ax" text-anchor="middle">120</text><text x="261.2" y="276.0" class="ax" text-anchor="middle">180</text><text x="333.6" y="276.0" class="ax" text-anchor="middle">240</text><text x="406.0" y="276.0" class="ax" text-anchor="middle">300</text>
+<line x1="56.1" y1="14" x2="56.1" y2="260" class="vline"/>
+<path d="M44.0 260.0L48.8 247.7L53.7 236.1L58.5 225.0L63.3 214.5L68.1 204.5L73.0 195.0L77.8 186.0L82.6 177.4L87.4 169.2L92.3 161.5L97.1 154.1L101.9 147.2L106.7 140.5L111.6 134.2L116.4 128.2L121.2 122.5L126.1 117.1L130.9 112.0L135.7 107.1L140.5 102.4L145.4 98.0L150.2 93.8L155.0 89.9L159.8 86.1L164.7 82.5L169.5 79.1L174.3 75.8L179.1 72.7L184.0 69.8L188.8 67.0L193.6 64.4L198.5 61.9L203.3 59.5L208.1 57.2L212.9 55.1L217.8 53.0L222.6 51.1L227.4 49.2L232.2 47.5L237.1 45.8L241.9 44.2L246.7 42.7L251.5 41.3L256.4 39.9L261.2 38.6L266.0 37.4L270.9 36.2L275.7 35.1L280.5 34.1L285.3 33.1L290.2 32.1L295.0 31.2L299.8 30.4L304.6 29.5L309.5 28.8L314.3 28.0L319.1 27.3L323.9 26.7L328.8 26.0L333.6 25.4L338.4 24.9L343.3 24.3L348.1 23.8L352.9 23.3L357.7 22.9L362.6 22.4L367.4 22.0L372.2 21.6L377.0 21.2L381.9 20.9L386.7 20.5L391.5 20.2L396.3 19.9L401.2 19.6L406.0 19.3" class="normal"/>
+<path d="M44.0 260.0L56.1 63.2L58.5 61.6L63.3 58.5L68.1 55.6L73.0 53.0L77.8 50.4L82.6 48.1L87.4 45.9L92.3 43.8L97.1 41.9L101.9 40.1L106.7 38.4L111.6 36.9L116.4 35.4L121.2 34.0L126.1 32.7L130.9 31.5L135.7 30.4L140.5 29.3L145.4 28.3L150.2 27.4L155.0 26.5L159.8 25.7L164.7 25.0L169.5 24.3L174.3 23.6L179.1 23.0L184.0 22.4L188.8 21.9L193.6 21.4L198.5 20.9L203.3 20.4L208.1 20.0L212.9 19.6L217.8 19.3L222.6 18.9L227.4 18.6L232.2 18.3L237.1 18.0L241.9 17.8L246.7 17.5L251.5 17.3L256.4 17.1L261.2 16.9L266.0 16.7L270.9 16.5L275.7 16.4L280.5 16.2L285.3 16.1L290.2 15.9L295.0 15.8L299.8 15.7L304.6 15.6L309.5 15.5L314.3 15.4L319.1 15.3L323.9 15.2L328.8 15.1L333.6 15.1L338.4 15.0L343.3 14.9L348.1 14.9L352.9 14.8L357.7 14.8L362.6 14.7L367.4 14.7L372.2 14.6L377.0 14.6L381.9 14.5L386.7 14.5L391.5 14.5L396.3 14.4L401.2 14.4L406.0 14.4" class="kern"/>
+<circle cx="56.1" cy="63.2" r="5" class="kdot"/>
+<circle cx="56.1" cy="230.5" r="5" class="ndot"/>
+<line x1="56.1" y1="63.2" x2="158.6" y2="107.5" class="leader"/><g class="tag kt"><rect x="158.6" y="97.6" width="124" height="22" rx="6"/><text x="166.6" y="112.6">KERNL: 80% in 10 min</text></g>
+<g class="tag nt"><rect x="68.1" y="200.5" width="148" height="22" rx="6"/><text x="76.1" y="215.5">Normal read: 12% at 10 min</text></g>
+<g class="note"><rect x="237.1" y="196.0" width="118" height="36" rx="6"/><text x="296.1" y="211.0" text-anchor="middle">270 more minutes</text><text x="296.1" y="224.0" text-anchor="middle">for just 20% extra value</text></g>
+<text x="225.0" y="296" class="ax" text-anchor="middle">Time spent reading (minutes)</text>
+<text x="12" y="137.0" class="ax" text-anchor="middle" transform="rotate(-90 12 137.0)">Value captured</text>
+</svg>
+      <figcaption>An illustrative model, not a measured result. A summary front-loads the ideas; a book spreads them across hours.</figcaption>
+    </figure>
+    <p>A well-crafted KERNL summary delivers the thesis, the core frameworks and the key takeaways: the substance of a non-fiction book. The remaining 270 minutes yields largely anecdote, repetition, and elaboration of points already captured. A conventional book drip-feeds its ideas, and early chapters are often scene-setting before the core argument even appears.</p>
+    <p>At the 10-minute mark a normal reader is just 12% in. KERNL gives you the payload first, immediately.</p>
+    <p><strong>1,500 words is not a compromise. It is the efficient frontier.</strong> Short enough to read every day. Long enough to carry the substance.</p>
+    <p>Over a year, that compounds into something extraordinary.</p>
+  </section>
+
+  <section class="block">
+    <h2>What you get</h2>
+    <ul class="list">
+      <li><span class="c"><span data-icon="book"></span></span><span><b>About 1,500 words.</b> The central argument, the key ideas, and what to do with them.</span></li>
+      <li><span class="c"><span data-icon="headphones"></span></span><span><b>A voice to read it to you.</b> Press play in the car, on a walk, or while you cook.</span></li>
+      <li><span class="c"><span data-icon="send"></span></span><span><b>Kindle and print.</b> Send it to your Kindle, or print a one-pager with a link to buy the book.</span></li>
+      <li><span class="c"><span data-icon="sparkle"></span></span><span><b>Mega Words.</b> The interesting words from each book, in plain English.</span></li>
+    </ul>
+  </section>
+
+  <div class="note-box"><b>An honest note.</b> KERNL summaries are written by AI from its knowledge of each book. They give you the argument, not the experience, and they can contain mistakes, so check anything that matters. If a book grabs you, read it and support the author.</div>
+
+  <div class="go">
+    <a class="btn primary" href="/app.html">Start with a shelf</a>
+    <p class="foot">12 books free as a guest, no sign-up. &nbsp;&middot;&nbsp; <a href="/privacy.html">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms.html">Terms</a></p>
+  </div>
+</main>
+</body>
+</html>

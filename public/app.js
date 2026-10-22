@@ -1,131 +1,31 @@
-const STORAGE_KEY = 'kernl_v2'; const AMAZON_TAG = 'gd7vibe-21';
+/* KERNL app: library browser, reader and player.
+   The server decides who may read what (api/*). This file only draws the screen and calls the API. */
+'use strict';
+
+const AMAZON_TAG = 'gd7vibe-21';
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
+// guest = anonymous visitor (no email). Mirrors LIMITS in lib/kernl.js; the server is what enforces it.
+const LIMITS = { guest: 12, free: 36, pro: 200 };
+const CATEGORIES = [
+  'Business & Entrepreneurship', 'Personal Development', 'Psychology', 'History',
+  'Science & Technology', 'Politics & Society', 'Philosophy', 'Biography & Memoir',
+  'Fiction — Literary', 'Fiction — Thriller', 'Fiction — Sci-Fi', 'Fiction — Historical',
+  'Health & Wellbeing', 'Economics', 'Leadership', 'Nature & Environment',
+  'Crime & True Crime', 'Sport', 'Parenting & Family', 'Spirituality'
+];
 
-let currentVoice = 'female'; let currentSummary = null; let isPlaying = false; let audioEl = null; let playbackRate = 1; let isGenerating = false; let streamingAudioContext = null; let streamingSources = []; let autocompleteTimer = null;
+const $ = id => document.getElementById(id);
+const { esc, icon, toast } = KUI;
 
-// ── Audio state ───────────────────────────────────────────────────────────────
-let _audioState = 'idle';
-
-function setAudioState(state) {
-  _audioState = state;
-  applyAudioStateToUI();
-}
-
-function applyAudioStateToUI() {
-  switch (_audioState) {
-    case 'idle':
-    case 'generating':
-      _setPlayBtn(false);
-      _setSeekControls(false);
-      _setSpeedBtns(false, null);
-      _setVoiceBtns(false);
-      _setPrintKindle(false);
-      break;
-    case 'audio-prep':
-      _setPlayBtn(false, 'Preparing audio\u2026');
-      _setSeekControls(false);
-      _setSpeedBtns(false, null);
-      _setVoiceBtns(true);
-      _setPrintKindle(true);
-      break;
-    case 'streaming':
-      _setPlayBtn(true);
-      _setSeekControls(false);
-      _setSpeedBtns(true, 1);
-      _setVoiceBtns(false);
-      _setPrintKindle(true);
-      break;
-    case 'cached':
-      _setPlayBtn(true);
-      _setSeekControls(true);
-      _setSpeedBtns(true, null);
-      _setVoiceBtns(true);
-      _setPrintKindle(true);
-      break;
-  }
-}
-
-function _setPlayBtn(enabled, subOverride) {
-  const btn = document.getElementById('play-btn');
-  if (!btn) return;
-  btn.disabled = !enabled;
-  btn.style.opacity    = enabled ? '' : '0.35';
-  btn.style.cursor     = enabled ? '' : 'not-allowed';
-  btn.style.pointerEvents = enabled ? '' : 'none';
-  if (subOverride !== undefined) {
-    const sub = document.getElementById('player-sub');
-    if (sub) sub.textContent = subOverride;
-  }
-}
-
-function _setSeekControls(enabled) {
-  ['scrub-row','scrub-track'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.style.opacity      = enabled ? '' : '0.3';
-    el.style.pointerEvents= enabled ? '' : 'none';
-  });
-  document.querySelectorAll('.skip-btn').forEach(btn => {
-    btn.disabled          = !enabled;
-    btn.style.opacity     = enabled ? '' : '0.3';
-    btn.style.pointerEvents = enabled ? '' : 'none';
-  });
-}
-
-function _setSpeedBtns(enabled, onlyRate) {
-  document.querySelectorAll('.speed-btn').forEach(btn => {
-    const rate = parseFloat(btn.dataset.rate);
-    const thisEnabled = enabled && (onlyRate === null || rate === onlyRate);
-    btn.disabled          = !thisEnabled;
-    btn.style.opacity     = thisEnabled ? '' : '0.3';
-    btn.style.pointerEvents = thisEnabled ? '' : 'none';
-    btn.style.cursor      = thisEnabled ? '' : 'not-allowed';
-  });
-}
-
-function _setVoiceBtns(enabled) {
-  ['vbf','vbm'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.disabled       = !enabled;
-    el.style.opacity  = enabled ? '' : '0.4';
-    el.style.cursor   = enabled ? '' : 'not-allowed';
-  });
-}
-
-function _setPrintKindle(enabled) {
-  const kindleBtn = document.getElementById('send-kindle-btn');
-  if (kindleBtn) {
-    kindleBtn.disabled        = !enabled;
-    kindleBtn.style.opacity   = enabled ? '' : '0.35';
-    kindleBtn.style.cursor    = enabled ? '' : 'not-allowed';
-    kindleBtn.style.pointerEvents = enabled ? '' : 'none';
-  }
-  document.querySelectorAll('.btn-action').forEach(btn => {
-    if (btn.getAttribute('onclick') === 'printSummary()') {
-      btn.disabled        = !enabled;
-      btn.style.opacity   = enabled ? '' : '0.35';
-      btn.style.cursor    = enabled ? '' : 'not-allowed';
-      btn.style.pointerEvents = enabled ? '' : 'none';
-    }
-  });
-}
-
-function lockAllControls()         { setAudioState('generating'); }
-function unlockAllControls()       { /* intentionally no-op — state machine handles this */ }
-function lockStreamingControls()   { /* no-op */ }
-function unlockStreamingControls() { /* no-op */ }
-function lockVoiceButtons()        { _setVoiceBtns(false); }
-function unlockVoiceButtons()      { _setVoiceBtns(true); }
-function greyPlayBtn()             { _setPlayBtn(false); }
-function ungreyPlayBtn()           { _setPlayBtn(true); }
-
+// ── State ─────────────────────────────────────────────────────────────────────
 let _sbClient = null;
 let _currentUser = null;
 let _userProfile = null;
-// guest = anonymous visitor (no email). Mirrors LIMITS in lib/kernl.js — the server is what enforces it.
-const LIMITS = { guest: 12, free: 36, pro: 200 };
+let currentSummary = null;     // { title, author, html, plain, words }
+let _allBooks = [];            // catalogue: { title, author, synopsis, categories, _cats, _s }
+let _opening = false;
+let _readerOpen = false;
 
 function getSB() {
   if (!_sbClient) _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -142,20 +42,69 @@ async function apiHeaders() {
   return h;
 }
 
+// ── Small helpers ─────────────────────────────────────────────────────────────
+function norm(s) { return String(s || '').toLowerCase().trim().replace(/\s+/g, ' '); }
+// Case- and accent-insensitive form used for searching ("Charrière" matches "charriere").
+function fold(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function fmtTime(secs) { if (!isFinite(secs) || secs < 0) secs = 0; const m = Math.floor(secs / 60); const s = Math.floor(secs % 60); return m + ':' + String(s).padStart(2, '0'); }
+function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').slice(0, 60); }
+function countWords(plain) { return String(plain || '').split(/\s+/).filter(Boolean).length; }
+function makeAmazonUrl(title, author) { return 'https://www.amazon.co.uk/s?k=' + encodeURIComponent(title + (author ? ' ' + author : '')) + '&tag=' + AMAZON_TAG; }
+function tier() { return !_currentUser ? 'guest' : _currentUser.is_anonymous ? 'guest' : ((_userProfile && _userProfile.tier) || 'free'); }
+function isPro() { return tier() === 'pro'; }
+function parseWords(w) {
+  if (Array.isArray(w)) return w;
+  if (typeof w === 'string') { try { const p = JSON.parse(w); return Array.isArray(p) ? p : []; } catch (e) { /* fall through */ } }
+  return [];
+}
+function stripGenreLine(html) { return String(html || '').replace(/^GENRE:(FICTION|NONFICTION)\s*/i, '').replace(/^<p>GENRE:(FICTION|NONFICTION)<\/p>\s*/i, ''); }
+
+// Summaries are model-written HTML. Keep only plain formatting so nothing in them can run or load anything.
+const ALLOWED_TAGS = new Set(['H1', 'H2', 'H3', 'H4', 'P', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'I', 'BLOCKQUOTE', 'BR', 'HR']);
+const DROP_TAGS = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|SVG|MATH|FORM|INPUT|BUTTON|TEXTAREA|SELECT|NOSCRIPT|TEMPLATE|IMG|VIDEO|AUDIO|SOURCE|BASE)$/;
+function sanitizeHtml(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html || '');
+  (function walk(node) {
+    Array.from(node.childNodes).forEach(ch => {
+      if (ch.nodeType === 3) return;
+      if (ch.nodeType !== 1) { ch.remove(); return; }
+      if (!ALLOWED_TAGS.has(ch.tagName)) {
+        if (DROP_TAGS.test(ch.tagName)) { ch.remove(); return; }
+        walk(ch);
+        while (ch.firstChild) node.insertBefore(ch.firstChild, ch);
+        ch.remove();
+        return;
+      }
+      while (ch.attributes.length) ch.removeAttribute(ch.attributes[0].name);
+      walk(ch);
+    });
+  })(tpl.content);
+  return tpl.innerHTML;
+}
+
+function setBusy(text) {
+  const el = $('status');
+  if (!text) { el.hidden = true; return; }
+  $('status-text').textContent = text;
+  el.hidden = false;
+}
+
+// ── Auth and profile ──────────────────────────────────────────────────────────
 // Own profile is read-only from the browser; the server does all the counting.
 async function refreshProfile() {
   if (!_currentUser) return;
   try {
     const sb = getSB();
     if (_currentUser.is_anonymous) {
-      // Guests have no profile to speak of: their count is simply the books the server has opened for them.
+      // Guests have no profile: their count is simply the books the server has opened for them.
       const { count } = await sb.from('user_library').select('id', { count: 'exact', head: true }).eq('user_id', _currentUser.id);
       _userProfile = { tier: 'guest', downloads_used: count || 0 };
     } else {
       const { data } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
       if (data) _userProfile = data;
     }
-    renderUserBar();
+    renderUser();
   } catch (e) { console.warn('refreshProfile failed:', e.message); }
 }
 
@@ -178,688 +127,694 @@ async function initAuth() {
   _currentUser = session.user;
   if (_currentUser.is_anonymous) {
     _userProfile = { tier: 'guest', downloads_used: 0 };
-    renderUserBar();
+    renderUser();
     refreshProfile();
   } else {
     const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
     _userProfile = profile || { tier: 'free', downloads_used: 0, downloads_reset: null };
-    renderUserBar();
+    renderUser();
   }
   loadLibrary();
+
+  // Opened from My Books / the landing page with ?title=&author=: strip the query, then open the book.
   const params = new URLSearchParams(window.location.search);
   const autoTitle = params.get('title');
   const autoAuthor = params.get('author');
-  if (autoTitle && autoAuthor) {
-    document.getElementById('book-input').value = autoTitle;
-    document.getElementById('author-input').value = autoAuthor;
-    _executeGenerate(autoTitle, autoAuthor); // opens the summary straight away
+  if (autoTitle) {
+    history.replaceState(null, '', window.location.pathname);
+    openSummary(autoTitle, autoAuthor || '');
   }
 }
 
-function renderUserBar() {
+function renderUser() {
   if (!_currentUser) return;
-  const bar = document.getElementById('user-bar');
   const guest = !!_currentUser.is_anonymous;
-  const tier = guest ? 'guest' : (_userProfile.tier || 'free');
-  const used = _userProfile.downloads_used || 0;
-  updateAudioShareBtns();
-  const limit = LIMITS[tier] || LIMITS.free;
+  const t = tier();
+  const used = (_userProfile && _userProfile.downloads_used) || 0;
+  const limit = LIMITS[t] || LIMITS.free;
   const remaining = Math.max(0, limit - used);
   const pct = Math.min(100, (used / limit) * 100);
-  const colour = pct >= 80 ? '#8B1A1A' : pct >= 50 ? '#c47a3a' : '#2d6a4f';
-  bar.style.display = 'flex';
-  document.getElementById('user-email-display').textContent = guest ? '' : _currentUser.email;
-  document.getElementById('user-usage-display').innerHTML =
-    `<span style="font-weight:600;color:${colour}">${remaining}</span> of ${limit} ${guest ? 'free books' : 'summaries'} remaining`;
-  const badge = document.getElementById('user-tier-badge');
-  badge.textContent = tier === 'pro' ? '\u2605 Pro' : guest ? 'Guest' : 'Free';
-  badge.className = 'user-tier ' + (tier === 'pro' ? 'pro' : 'free');
-  document.getElementById('upgrade-btn-wrap').innerHTML = guest
-    ? '<a href="/login.html#signup" class="user-nav-btn upgrade">Create free account</a>'
-    : tier === 'free' ? '<a href="/upgrade.html" class="user-nav-btn upgrade">Upgrade to Pro</a>' : '';
-  const libLink = document.getElementById('my-library-link');
-  if (libLink) { libLink.style.display = ''; libLink.textContent = guest ? 'My Books' : 'My Library'; }
-  const signOut = document.getElementById('signout-btn');
-  if (signOut) signOut.style.display = guest ? 'none' : '';
-  const signIn = document.getElementById('signin-link');
-  if (signIn) signIn.style.display = guest ? '' : 'none';
-  const bookInput   = document.getElementById('book-input');
-  const authorInput = document.getElementById('author-input');
-  const searchHint  = document.getElementById('search-hint');
-  if (tier !== 'pro') {
-    if (bookInput)   bookInput.placeholder   = 'Search the library by title\u2026';
-    if (authorInput) authorInput.placeholder = 'or search by author\u2026';
-    if (searchHint)  searchHint.style.display = 'block';
-  } else {
-    if (bookInput)   bookInput.placeholder   = 'e.g. Papillon';
-    if (authorInput) authorInput.placeholder = 'e.g. Henri Charri\u00e8re';
-    if (searchHint)  searchHint.style.display = 'none';
+
+  // Pro-only buttons
+  document.querySelectorAll('.pro-audio').forEach(b => { b.hidden = !isPro(); });
+
+  // Usage card
+  $('meter').hidden = false;
+  $('meter-label').textContent = remaining <= 0 ? (guest ? 'Free books used' : 'Summaries used') : (guest ? 'Free books left' : 'Summaries left');
+  $('meter-num').textContent = String(remaining);
+  $('meter-of').textContent = 'of ' + limit;
+  $('meter-fill').style.width = (100 - pct) + '%';
+  $('pro-add-wrap').hidden = !isPro();
+  if (!$('hero-art').firstChild) {
+    const keys = SCENES.DISPLAY, k = keys[new Date().getDate() % keys.length];
+    $('hero-art').style.setProperty('--g', SCENES.byKey(k).bg);
+    $('hero-art').innerHTML = SCENES.svg(k);
   }
-  const limitBar = document.getElementById('limit-bar');
-  limitBar.innerHTML = guest
-    ? 'You have used your ' + limit + ' free books. <a href="/login.html#signup">Create a free account</a> to keep your library, or <a href="/upgrade.html">upgrade to Pro</a> for ' + LIMITS.pro + ' summaries a year.'
-    : 'You have used all your summaries. <a href="/upgrade.html">Upgrade to Pro</a> for ' + LIMITS.pro + ' summaries per year.';
-  if (remaining <= 0) limitBar.classList.add('show'); else limitBar.classList.remove('show');
+
+  // Limit note
+  const note = $('limit-note');
+  if (remaining <= 0) {
+    note.innerHTML = guest
+      ? 'You have used your ' + limit + ' free books. <a href="/login.html#signup"><b>Create a free account</b></a> to keep your library and get ' + LIMITS.free + ' books, or <a href="/upgrade.html"><b>see Pro</b></a> for ' + LIMITS.pro + ' a year.'
+      : t === 'pro'
+        ? 'You have reached your ' + limit + ' summaries for this year.'
+        : 'You have used all ' + limit + ' of your summaries. <a href="/upgrade.html"><b>See Pro</b></a> for ' + LIMITS.pro + ' a year.';
+    note.hidden = false;
+  } else {
+    note.hidden = true;
+  }
+
+  // Account menu
+  $('menu-who').textContent = guest ? 'Guest' : (_currentUser.email || 'Signed in');
+  const badge = $('menu-tier');
+  badge.textContent = t === 'pro' ? 'Pro' : guest ? 'Guest' : 'Free';
+  badge.className = 'badge ' + (t === 'pro' ? 'pro' : 'muted');
+  $('menu-usage').textContent = used + ' / ' + limit + ' used';
+  $('menu-signup').hidden = !guest;
+  $('menu-signin').hidden = !guest;
+  $('menu-upgrade').hidden = !(t === 'free');
+  $('menu-signout').hidden = guest;
 }
 
 async function handleSignOut() { await getSB().auth.signOut(); window.location.href = '/login.html'; }
 
-// Library membership and the usage counter are now handled by the server when a summary is
-// opened (api/summarise and api/get-summary). The browser only refreshes what it displays.
-async function saveToLibrary() { await refreshProfile(); }
-async function autoSaveToLibrary() { await refreshProfile(); }
-
-// ── Audio generation helper — fire-and-forget, safe to call multiple times ────
-// Fire-and-forget. The server decides who may generate, and never regenerates a file that exists,
-// so this is safe to call more than once. The text comes from the library, not from here.
-async function triggerAudioGeneration(title, author, plain, voice) {
-  if (!title) return;
+// ── Library: load, shelves, search ────────────────────────────────────────────
+async function loadLibrary() {
   try {
-    fetch('/api/generate-audio', {
-      method: 'POST', headers: await apiHeaders(),
-      body: JSON.stringify({ title, author, voice: voice || currentVoice })
-    }).catch(e => console.warn('generate-audio failed:', e.message));
-  } catch (e) { console.warn('generate-audio failed:', e.message); }
-}
-
-async function checkAudioAvailability() {
-  if (!currentSummary) return;
-  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
-  if (tier === 'pro') {
-    try {
-      const cacheRes = await fetch('/api/tts', {
-        method: 'POST', headers: await apiHeaders(),
-        body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author, checkOnly: true })
-      });
-      if (cacheRes.ok) {
-        const cacheData = await cacheRes.json();
-        if (cacheData.url) { setAudioState('cached'); return; }
-      }
-    } catch(e) { console.warn('Pro cache check failed:', e); }
-    // No cached audio — trigger generation in background
-    if (currentSummary && currentSummary.plain) {
-      triggerAudioGeneration(currentSummary.title, currentSummary.author, currentSummary.plain, currentVoice);
-    }
-    setAudioState('audio-prep');
-    return;
-  }
-  try {
-    const res = await fetch('/api/tts', {
-      method: 'POST', headers: await apiHeaders(),
-      body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author, checkOnly: true })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.url) { setAudioState('cached'); }
-      else { setAudioState('audio-prep'); document.getElementById('player-sub').textContent = 'Audio available on Pro'; }
-    } else {
-      setAudioState('audio-prep'); document.getElementById('player-sub').textContent = 'Audio available on Pro';
-    }
-  } catch(e) {
-    setAudioState('audio-prep'); document.getElementById('player-sub').textContent = 'Audio available on Pro';
-  }
-}
-
-function toggleDark() { const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('kernl_dark', isDark ? '1' : '0'); document.getElementById('dark-icon').textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'; document.getElementById('dark-label').textContent = isDark ? 'Light' : 'Dark'; }
-function initDark() { const saved = localStorage.getItem('kernl_dark'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const isDark = saved !== null ? saved === '1' : prefersDark; if (isDark) { document.documentElement.classList.add('dark'); document.getElementById('dark-icon').textContent = '\u2600\uFE0F'; document.getElementById('dark-label').textContent = 'Light'; } }
-
-async function fetchBookSuggestions(query) {
-  if (!query || query.length < 2) { hideDropdown(); return; }
-  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
-  if (tier === 'pro') { fetchOpenLibrarySuggestions(query); } else { fetchLibrarySuggestions(query); }
-}
-async function fetchOpenLibrarySuggestions(query) {
-  try {
-    const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(query)}&limit=6&fields=title,author_name,first_publish_year`);
-    const data = await res.json();
-    if (!data.docs || !data.docs.length) { hideDropdown(); return; }
-    const results = data.docs.filter(d => d.title && d.author_name && d.author_name.length).slice(0,5).map(d => ({ title: d.title, author: d.author_name[0], year: d.first_publish_year || '' }));
-    if (results.length) showDropdown(results); else hideDropdown();
-  } catch(e) { hideDropdown(); }
-}
-async function fetchLibrarySuggestions(query) {
-  if (!_allBooks || !_allBooks.length) { hideDropdown(); return; }
-  const q = query.toLowerCase().trim();
-  const results = _allBooks.filter(b => (b.title && b.title.toLowerCase().includes(q)) || (b.author && b.author.toLowerCase().includes(q))).slice(0,6).map(b => ({ title: b.title, author: b.author || '', year: '' }));
-  if (results.length) showDropdown(results); else showDropdownEmpty('No matches in the free library \u2014 upgrade to Pro to search any book.');
-}
-function showDropdown(results) { let d = document.getElementById('book-dropdown'); if (!d) { d = document.createElement('div'); d.id = 'book-dropdown'; d.className = 'book-dropdown'; document.getElementById('book-input').parentNode.appendChild(d); } d.innerHTML = results.map((r,i) => `<div class="dropdown-item" onmousedown="selectBook(${i})" data-title="${esc(r.title)}" data-author="${esc(r.author)}"><div class="dropdown-title">${esc(r.title)}</div><div class="dropdown-author">${esc(r.author)}${r.year ? ' \u00b7 '+r.year : ''}</div></div>`).join(''); d.style.display = 'block'; }
-function showDropdownEmpty(msg) { let d = document.getElementById('book-dropdown'); if (!d) { d = document.createElement('div'); d.id = 'book-dropdown'; d.className = 'book-dropdown'; document.getElementById('book-input').parentNode.appendChild(d); } d.innerHTML = `<div class="dropdown-item" style="cursor:default;opacity:0.7"><div class="dropdown-author">${esc(msg)}</div></div>`; d.style.display = 'block'; }
-function hideDropdown() { const d = document.getElementById('book-dropdown'); if (d) d.style.display = 'none'; }
-function selectBook(idx) { const d = document.getElementById('book-dropdown'); if (!d) return; const items = d.querySelectorAll('.dropdown-item'); if (!items[idx]) return; const title = items[idx].getAttribute('data-title'); const author = items[idx].getAttribute('data-author'); document.getElementById('book-input').value = title; const ai = document.getElementById('author-input'); ai.value = author; ai.classList.add('author-autofilled'); setTimeout(() => ai.classList.remove('author-autofilled'), 1500); hideDropdown(); }
-
-function getArchive() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; } }
-function saveEntry(entry) { const arc = getArchive(); const key = norm(entry.title)+'||'+norm(entry.author); const idx = arc.findIndex(e => norm(e.title)+'||'+norm(e.author) === key); if (idx >= 0) arc[idx] = entry; else arc.unshift(entry); localStorage.setItem(STORAGE_KEY, JSON.stringify(arc.slice(0,300))); }
-function clearArchive() { if (!confirm('Clear your entire local KERNL cache? This cannot be undone.')) return; localStorage.removeItem(STORAGE_KEY); }
-function renderArchive() { /* no-op */ }
-function loadEntry(idx) { const e = getArchive()[idx]; if (e) displaySummary(e.title, e.author, e.html, e.plain, e.words || [], false, true); }
-
-function norm(s) { return String(s||'').toLowerCase().trim().replace(/\s+/g,' '); }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmtDate(ts) { if (!ts) return ''; return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }); }
-function fmtTime(secs) { if (!isFinite(secs)||secs<0) secs=0; const m=Math.floor(secs/60); const s=Math.floor(secs%60); return m+':'+String(s).padStart(2,'0'); }
-function safe(s) { return String(s).replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').slice(0,60); }
-function countWords(plain) { return plain.split(/\s+/).filter(w=>w.length>0).length; }
-function makeAmazonUrl(title,author) { return `https://www.amazon.co.uk/s?k=${encodeURIComponent(title+(author?' '+author:''))}&tag=${AMAZON_TAG}`; }
-function setStatus(msg,show) { const bar=document.getElementById('status-bar'); document.getElementById('status-text').textContent=msg; bar.classList.toggle('show',!!show); }
-function setError(msg) { const bar=document.getElementById('error-bar'); bar.textContent=msg; bar.classList.toggle('show',!!msg); }
-function setSpeed(rate) { playbackRate=rate; document.querySelectorAll('.speed-btn').forEach(btn=>{ btn.classList.toggle('active',parseFloat(btn.dataset.rate)===rate); }); if (audioEl) audioEl.playbackRate=rate; }
-
-// ── Confirmation panel ────────────────────────────────────────────────────────
-// isLibraryBook: true = known to exist in Supabase, skip Open Library verification
-// pendingGenerate: function to call when user confirms
-let _pendingGenerate = null;
-
-function dismissConfirmation() {
-  const panel = document.getElementById('confirm-panel');
-  if (panel) panel.remove();
-  _pendingGenerate = null;
-  setError('');
-}
-
-function showConfirmation(title, author, isLibraryBook) {
-  // Remove any existing panel
-  dismissConfirmation();
-  setError('');
-
-  // Validate author before showing confirmation
-  const authorTrimmed = (author || '').trim();
-  if (!authorTrimmed || /^unknown/i.test(authorTrimmed)) {
-    setError('Please enter the author\u2019s name before loading this summary.');
-    document.getElementById('author-input').focus();
-    return;
-  }
-
-  // Build the panel
-  const panel = document.createElement('div');
-  panel.id = 'confirm-panel';
-  panel.style.cssText = [
-    'background:var(--card)',
-    'border:2px solid var(--accent)',
-    'border-radius:var(--radius)',
-    'padding:1.25rem 1.5rem',
-    'margin-bottom:1.5rem',
-    'box-shadow:0 4px 20px rgba(139,69,19,0.12)',
-    'animation:kernlFadeIn 0.18s ease'
-  ].join(';');
-
-  panel.innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem">
-      <div>
-        <div style="font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:600;color:var(--ink);margin-bottom:2px">${esc(title)}</div>
-        <div style="font-size:0.85rem;color:var(--muted);font-style:italic">by ${esc(authorTrimmed)}</div>
-      </div>
-      <button onclick="dismissConfirmation()" style="background:none;border:none;font-size:1.1rem;color:var(--muted);cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0" title="Cancel">&times;</button>
-    </div>
-    <div id="confirm-verify-msg" style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem;display:${isLibraryBook ? 'none' : 'block'}">
-      <span id="confirm-verify-spinner" style="display:inline-block;width:10px;height:10px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:6px;vertical-align:middle"></span>
-      Verifying book\u2026
-    </div>
-    <div id="confirm-warning" style="display:none;background:var(--error-bg,#fdf0f0);border:1px solid rgba(139,69,19,0.2);border-radius:var(--radius-sm);padding:0.6rem 0.9rem;font-size:0.82rem;color:var(--error-fg,#8B1A1A);margin-bottom:1rem;line-height:1.5"></div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button id="confirm-load-btn" onclick="confirmAndGenerate()" style="height:38px;padding:0 20px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='var(--accent)'">
-        &#128218; Load Summary
-      </button>
-      <button onclick="dismissConfirmation()" style="height:38px;padding:0 20px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;font-family:'DM Sans',sans-serif;font-size:0.85rem;color:var(--muted);cursor:pointer">
-        Cancel
-      </button>
-    </div>
-  `;
-
-  // Insert panel above the summary card (or status bar area)
-  const anchor = document.getElementById('status-bar') || document.getElementById('summary-card');
-  if (anchor && anchor.parentNode) {
-    anchor.parentNode.insertBefore(panel, anchor);
-  } else {
-    document.getElementById('app').appendChild(panel);
-  }
-
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  // Store what to do when confirmed
-  _pendingGenerate = { title, author: authorTrimmed };
-
-  // For library books we trust the data — no verification needed
-  if (isLibraryBook) return;
-
-  // For new books, verify against Open Library in the background
-  verifyBookExists(title, authorTrimmed);
-}
-
-async function verifyBookExists(title, author) {
-  const verifyMsg  = document.getElementById('confirm-verify-msg');
-  const warning    = document.getElementById('confirm-warning');
-  const loadBtn    = document.getElementById('confirm-load-btn');
-  if (!verifyMsg) return;
-
-  try {
-    const res = await fetch(
-      `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=3&fields=title,author_name`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!res.ok) throw new Error('network');
-    const data = await res.json();
-
-    verifyMsg.style.display = 'none';
-
-    const found = data.docs && data.docs.length > 0 &&
-      data.docs.some(d =>
-        d.title && d.title.toLowerCase().includes(title.toLowerCase().slice(0,15))
+    let all = [], offset = 0;
+    while (true) {
+      const res = await fetch(
+        SUPABASE_URL + '/rest/v1/summaries?select=title,author,synopsis,categories&limit=1000&offset=' + offset + '&order=title.asc',
+        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } }
       );
-
-    if (!found) {
-      warning.style.display = 'block';
-      warning.innerHTML = '&#9888;&#65039; We couldn\u2019t verify this book exists in Open Library. Generating anyway may produce an inaccurate summary. Proceed only if you\u2019re confident the title and author are correct.';
-      if (loadBtn) loadBtn.textContent = '\u26A0\uFE0F Generate anyway';
-    }
-  } catch(e) {
-    // Verification failed (timeout, network) — don't block the user, just hide spinner
-    if (verifyMsg) verifyMsg.style.display = 'none';
-  }
-}
-
-function confirmAndGenerate() {
-  if (!_pendingGenerate) return;
-  const { title, author } = _pendingGenerate;
-  dismissConfirmation();
-  _executeGenerate(title, author);
-}
-
-// ── Search button handler — now shows confirmation first ──────────────────────
-async function handleGenerate() {
-  const title  = document.getElementById('book-input').value.trim();
-  const author = document.getElementById('author-input').value.trim();
-  setError('');
-  hideDropdown();
-
-  // 1. Must have a title
-  if (!title) {
-    setError('Please enter a book title to continue.');
-    return;
-  }
-
-  // 2. Must have an author — never allow "Unknown"
-  if (!author || /^unknown/i.test(author)) {
-    setError('Please enter the author\u2019s name. Summaries cannot be generated without a known author.');
-    document.getElementById('author-input').focus();
-    return;
-  }
-
-  // 3. Free tier — must be in library
-  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
-  if (tier !== 'pro' && _allBooks && _allBooks.length) {
-    const q = title.toLowerCase().trim();
-    const inLibrary = _allBooks.some(b => b.title && b.title.toLowerCase().includes(q));
-    if (!inLibrary) {
-      setError('This book isn\u2019t in the free library. Upgrade to Pro to generate summaries for any book.');
-      return;
-    }
-  }
-
-  // 4. Check local cache — if found, it's verified, skip Open Library check
-  const cached = getArchive().find(e => norm(e.title) === norm(title) && norm(e.author) === norm(author));
-  if (cached) {
-    _executeGenerate(title, author);
-    return;
-  }
-
-  // 5. Check Supabase library — if found there, it's a real book
-  const inSupabase = _allBooks && _allBooks.some(b => norm(b.title) === norm(title));
-
-  // Books already in the library open straight away. Only a brand-new book (which costs a generation) asks first.
-  if (inSupabase) { _executeGenerate(title, author); return; }
-  showConfirmation(title, author, false);
-}
-
-// ── The actual generation logic (was handleGenerate body) ─────────────────────
-async function _executeGenerate(title, author) {
-  // Check local cache first
-  const cached = getArchive().find(e => norm(e.title) === norm(title) && norm(e.author) === norm(author));
-  if (cached) {
-    setStatus('Found in your library \u2014 loading instantly!', true);
-    setTimeout(async () => {
-      setStatus('', false);
-      let words = cached.words || [];
-      if (!words.length) {
-        try {
-          const r = await fetch('/api/get-summary?title=' + encodeURIComponent(cached.title) + '&author=' + encodeURIComponent(cached.author || ''), { headers: await apiHeaders() });
-          if (r.ok) { const d = await r.json(); if (d.words) { try { words = typeof d.words === 'string' ? JSON.parse(d.words) : d.words; } catch(e) {} } }
-        } catch(e) {}
-      }
-      displaySummary(cached.title, cached.author, cached.html, cached.plain, words, cached.spoilers || false, true);
-    }, 600);
-    return;
-  }
-
-  document.getElementById('gen-btn').disabled = true;
-  isGenerating = true;
-  setAudioState('generating');
-  setStatus('Generating summary \u2014 appearing shortly\u2026', true);
-
-  try {
-    const res = await fetch('/api/summarise', {
-      method: 'POST', headers: await apiHeaders(),
-      body: JSON.stringify({ title, author })
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      if (data.code === 'limit') { await refreshProfile(); }
-      throw new Error(data.error || 'Error ' + res.status);
-    }
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
+      if (!res.ok) throw new Error('library ' + res.status);
       const data = await res.json();
-      const displayAuthor = author || data.author || 'Unknown author';
-      saveEntry({ title, author: displayAuthor, html: data.html, plain: data.plain, words: data.words || [], savedAt: Date.now() });
-      setStatus('', false);
-      displaySummary(title, displayAuthor, data.html, data.plain, data.words || [], false);
+      if (!data || !data.length) break;
+      all = all.concat(data);
+      if (data.length < 1000) break;
+      offset += 1000;
+    }
+    all.forEach(b => {
+      let cats = [];
+      try { cats = JSON.parse(b.categories || '[]'); } catch (e) { cats = []; }
+      b._cats = Array.isArray(cats) ? cats : [];
+      b._g = SCENES.groupFor(b._cats);
+      b._t = fold(b.title);
+      b._a = fold(b.author);
+    });
+    _allBooks = all;
+    renderGenres();
+  } catch (e) {
+    console.warn('loadLibrary failed:', e.message);
+    $('genres').className = 'genres';
+    $('genres').innerHTML = '<div class="empty" style="grid-column:1/-1"><b>Could not load the library</b>Check your connection, then <a href="" onclick="location.reload();return false">try again</a>.</div>';
+  }
+}
+
+function groupOfTitle(title) {
+  const b = findInLibrary(title);
+  if (b) return b._g;
+  const keys = SCENES.DISPLAY;
+  let h = 0; const s = String(title || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return keys[h % keys.length];
+}
+function findInLibrary(title) {
+  const t = norm(title);
+  return _allBooks.find(b => norm(b.title) === t) || null;
+}
+
+function renderGenres() {
+  const counts = {};
+  SCENES.GROUPS.forEach(g => { counts[g.key] = _allBooks.filter(b => b._cats.some(c => g.cats.indexOf(c) !== -1)).length; });
+  const box = $('genres');
+  box.className = 'genres';
+  box.innerHTML = SCENES.DISPLAY.filter(k => counts[k]).map(k => {
+    const g = SCENES.byKey(k);
+    return '<button class="gcard" type="button" data-g="' + k + '" style="--g:' + g.bg + '">' +
+      '<span class="art">' + SCENES.svg(k) + '</span>' +
+      '<span class="meta"><span class="ct">' + counts[k].toLocaleString() + (counts[k] === 1 ? ' book' : ' books') + '</span>' +
+      '<span class="nm">' + esc(g.name) + '</span></span></button>';
+  }).join('');
+}
+
+// Shelf layer: one genre's books. A book's one-line synopsis opens as it scrolls to the middle of the screen.
+let _shelfBooks = [], _shelfShown = 0, _shelfKey = '', _shelfCat = 'All', _rowObs = null, _moreObs = null;
+const SHELF_PAGE = 60;
+
+function openShelf(key) {
+  const g = SCENES.byKey(key);
+  _shelfKey = key;
+  _shelfCat = 'All';
+  _shelfBooks = shelfFilter();
+  _shelfShown = 0;
+  const layer = $('genre');
+  layer.style.setProperty('--g', g.bg);
+  $('genre-art').innerHTML = SCENES.svg(key) + '<h2>' + esc(g.name) + '</h2>';
+  renderShelfChips();
+  $('genre-list').innerHTML = '';
+  layer.scrollTop = 0;
+  layer.hidden = false;
+  layer.classList.remove('closing');
+  layer.classList.add('opening');
+  setupRowObserver(layer);
+  appendShelfRows();
+  _genreOpen = true;
+  pushLayer('genre');
+}
+// A shelf holds every book in any of its categories; the chips narrow it to one category.
+function shelfFilter() {
+  const g = SCENES.byKey(_shelfKey);
+  const cats = _shelfCat === 'All' ? g.cats : [_shelfCat];
+  return _allBooks.filter(b => b._cats.some(c => cats.indexOf(c) !== -1));
+}
+function renderShelfChips() {
+  const g = SCENES.byKey(_shelfKey);
+  const n = c => _allBooks.filter(b => b._cats.indexOf(c) !== -1).length;
+  const all = _allBooks.filter(b => b._cats.some(c => g.cats.indexOf(c) !== -1)).length;
+  $('genre-chips').innerHTML = ['All'].concat(g.cats).map(c => {
+    const label = c === 'All' ? 'All' : c.replace('Fiction \u2014 ', '');
+    return '<button class="sub' + (c === _shelfCat ? ' on' : '') + '" type="button" data-c="' + esc(c) + '">' + esc(label) + ' <i>' + (c === 'All' ? all : n(c)).toLocaleString() + '</i></button>';
+  }).join('');
+}
+function setShelfCat(c) {
+  _shelfCat = c;
+  _shelfBooks = shelfFilter();
+  _shelfShown = 0;
+  renderShelfChips();
+  $('genre-list').innerHTML = '';
+  appendShelfRows();
+}
+function appendShelfRows() {
+  const list = $('genre-list');
+  const old = list.querySelector('.more-sentinel'); if (old) old.remove();
+  const g = SCENES.byKey(_shelfKey);
+  const slice = _shelfBooks.slice(_shelfShown, _shelfShown + SHELF_PAGE);
+  const frag = document.createDocumentFragment();
+  slice.forEach((b, i) => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'brow'; el.dataset.i = String(_shelfShown + i);
+    el.style.setProperty('--g', g.bg);
+    el.innerHTML = '<div class="hd"><span class="tile">' + SCENES.svg(_shelfKey, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(b.title) + '</div><div class="au">' + esc(b.author || '') + '</div></span></div>' +
+      '<div class="syn"><div><p>' + esc(b.synopsis || '') + '</p></div></div>';
+    frag.appendChild(el);
+    if (_rowObs) _rowObs.observe(el.querySelector('.hd'));
+  });
+  list.appendChild(frag);
+  _shelfShown += slice.length;
+  if (_shelfShown < _shelfBooks.length) {
+    const s = document.createElement('div'); s.className = 'more-sentinel';
+    list.appendChild(s);
+    if (_moreObs) _moreObs.disconnect();
+    _moreObs = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { _moreObs.disconnect(); appendShelfRows(); } }, { root: $('genre'), rootMargin: '600px 0px' });
+    _moreObs.observe(s);
+  }
+}
+function setupRowObserver(root) {
+  if (_rowObs) _rowObs.disconnect();
+  // A thin band across the middle of the screen: the book whose title row sits in it is the open one.
+  _rowObs = new IntersectionObserver(entries => {
+    entries.forEach(e => { const row = e.target.parentElement; if (row) row.classList.toggle('on', e.isIntersecting); });
+  }, { root: root, rootMargin: '-44% 0px -46% 0px', threshold: 0 });
+}
+
+function hideLayer(id, after) {
+  const el = $(id);
+  if (el.hidden) return;
+  el.classList.remove('opening');
+  el.classList.add('closing');
+  setTimeout(() => { el.hidden = true; el.classList.remove('closing'); if (after) after(); }, 230);
+}
+let _genreOpen = false;
+function hideShelf() {
+  if (!_genreOpen) return;
+  _genreOpen = false;
+  if (_rowObs) _rowObs.disconnect();
+  if (_moreObs) _moreObs.disconnect();
+  hideLayer('genre');
+}
+
+// History: every layer that opens adds one entry, so the phone's Back gesture closes the top layer.
+const _stack = [];
+function pushLayer(name) { _stack.push(name); history.pushState({ kl: name }, '', window.location.href); }
+function closeTop() { if (_stack.length) history.back(); }
+window.addEventListener('popstate', () => {
+  const top = _stack.pop();
+  if (top === 'reader') hideReader();
+  else if (top === 'genre') hideShelf();
+});
+
+// Search: a full-screen pop-up, so the home screen stays clear.
+let _searchOpen = false;
+function openSearch() {
+  _searchOpen = true;
+  $('search').hidden = false;
+  $('search').classList.remove('closing');
+  $('search').classList.add('opening');
+  document.body.style.overflow = 'hidden';
+  renderSearch();
+  setTimeout(() => $('search-input').focus(), 60);
+}
+function closeSearch() {
+  if (!_searchOpen) return;
+  _searchOpen = false;
+  document.body.style.overflow = _readerOpen || _genreOpen ? 'hidden' : '';
+  hideLayer('search');
+}
+function renderSearch() {
+  const raw = $('search-input').value, q = fold(raw);
+  const out = $('search-results');
+  if (!q) { out.innerHTML = '<p class="s-hint">' + (_allBooks.length ? _allBooks.length.toLocaleString() + ' books. Type a title or an author.' : 'Loading the library…') + '</p>'; return; }
+  const scored = [];
+  _allBooks.forEach((b, i) => {
+    let s = -1;
+    if (b._t.startsWith(q)) s = 0; else if (b._t.includes(q)) s = 1; else if (b._a.includes(q)) s = 2;
+    if (s >= 0) scored.push([s, i]);
+  });
+  scored.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const top = scored.slice(0, 40).map(x => _allBooks[x[1]]);
+  _searchHits = top;
+  if (!top.length) {
+    out.innerHTML = '<div class="empty"><b>Nothing matches “' + esc(raw.trim()) + '”</b>' +
+      (isPro() ? 'It is not in the library yet, but you can have it written.<div style="margin-top:16px"><button class="btn primary" id="empty-add" type="button">Summarise “' + esc(raw.trim()) + '”</button></div>' : 'Try another title or author. Pro members can have a summary written for any book.') + '</div>';
+    return;
+  }
+  out.innerHTML = top.map((b, i) => {
+    const g = SCENES.byKey(b._g);
+    return '<button class="brow" type="button" data-s="' + i + '" style="--g:' + g.bg + '"><div class="hd"><span class="tile">' + SCENES.svg(b._g, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(b.title) + '</div><div class="au">' + esc(b.author || '') + '</div></span></div></button>';
+  }).join('') + (scored.length > 40 ? '<p class="s-hint">Showing 40 of ' + scored.length + '. Keep typing to narrow it down.</p>' : '');
+}
+let _searchHits = [];
+
+function wireLibrary() {
+  $('search-btn').addEventListener('click', openSearch);
+  $('search-close').addEventListener('click', closeSearch);
+  let timer = null;
+  $('search-input').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(renderSearch, 80); });
+  $('search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const b = _searchHits[0];
+      if (b && fold($('search-input').value)) { closeSearch(); openSummary(b.title, b.author || ''); }
+      else if (isPro() && $('search-input').value.trim()) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
+    }
+  });
+  $('search-results').addEventListener('click', e => {
+    const row = e.target.closest('[data-s]');
+    if (row) { const b = _searchHits[Number(row.dataset.s)]; if (b) { closeSearch(); openSummary(b.title, b.author || ''); } return; }
+    if (e.target.closest('#empty-add')) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
+  });
+  $('genres').addEventListener('click', e => { const c = e.target.closest('.gcard'); if (c) openShelf(c.dataset.g); });
+  $('genre-list').addEventListener('click', e => {
+    const r = e.target.closest('.brow'); if (!r) return;
+    const b = _shelfBooks[Number(r.dataset.i)]; if (b) openSummary(b.title, b.author || '');
+  });
+  $('genre-close').addEventListener('click', closeTop);
+  $('genre-chips').addEventListener('click', e => { const c = e.target.closest('.sub'); if (c) setShelfCat(c.dataset.c); });
+  $('pro-add').addEventListener('click', () => openNewBookModal(''));
+}
+
+// ── Opening a summary ─────────────────────────────────────────────────────────
+// Books already in the library come straight back from the server. A brand-new book (Pro only) is written
+// and streamed in. Either way the server counts it against the allowance.
+async function openSummary(title, author, opts) {
+  if (_opening) return;
+  _opening = true;
+  const isNew = !!(opts && opts.isNew);
+  setBusy(isNew ? 'Writing your summary. This takes about 30 seconds…' : 'Opening…');
+  let streamStarted = false;
+  try {
+    const res = await fetch('/api/summarise', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title, author }) });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      if (d.code === 'limit' || d.code === 'ip_limit') refreshProfile();
+      throw new Error(d.error || 'Something went wrong (' + res.status + '). Please try again.');
+    }
+    if ((res.headers.get('content-type') || '').includes('application/json')) {
+      const d = await res.json();
+      setBusy('');
+      showSummary(title, author || d.author || '', d.html, d.plain, parseWords(d.words));
+      refreshProfile();
       return;
     }
-    const reader = res.body.getReader(); const decoder = new TextDecoder();
-    let buffer = ''; let streamingStarted = false; let finalData = null; let lastHtml = '';
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const msg = JSON.parse(line.slice(6).trim());
-            if (msg.error) throw new Error(msg.error);
-            if (msg.done) { finalData = msg; continue; }
-            if (msg.chunk) {
-              lastHtml = msg.chunk;
-              if (!streamingStarted) {
-                streamingStarted = true;
-                setStatus('', false);
-                displaySummaryStreaming(title, author, msg.chunk);
-              } else {
-                updateStreamingBody(msg.chunk);
-              }
-            }
-          } catch(e) { if (e.message && e.message !== 'Unexpected end of JSON input') throw e; }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', finalData = null, serverError = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let msg = null;
+        try { msg = JSON.parse(line.slice(6).trim()); } catch (e) { continue; }
+        if (msg.error) { serverError = msg.error; continue; }
+        if (msg.done) { finalData = msg; continue; }
+        if (msg.chunk) {
+          if (!streamStarted) { streamStarted = true; setBusy(''); showSummary(title, author, msg.chunk, '', [], { streaming: true }); }
+          else updateStreamingBody(msg.chunk);
         }
       }
-    } catch(streamErr) { if (!streamingStarted) throw streamErr; console.warn('Stream dropped early:', streamErr.message); }
-
-    if (finalData) {
-      saveEntry({ title, author, html: finalData.html, plain: finalData.plain, words: finalData.words || [], savedAt: Date.now() });
-      displaySummary(title, author, finalData.html, finalData.plain, finalData.words || [], false);
-    } else if (streamingStarted && lastHtml) {
-      const plainText = lastHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-      saveEntry({ title, author, html: lastHtml, plain: plainText, words: [], savedAt: Date.now() });
-      displaySummary(title, author, lastHtml, plainText, [], false);
     }
-  } catch(err) {
-    setStatus('', false);
-    setError('Could not generate summary: ' + err.message);
+    // Never present a half-written summary as if it were finished.
+    if (serverError) throw new Error(serverError);
+    if (!finalData) throw new Error('The connection dropped before the summary finished. It may still be saving, so try opening it again in a minute.');
+    showSummary(title, author, finalData.html, finalData.plain, parseWords(finalData.words));
+    refreshProfile();
+  } catch (err) {
+    if (streamStarted && _readerOpen) closeReader();
+    toast(err.message || 'Could not open that summary.', 'err', 7000);
   } finally {
-    document.getElementById('gen-btn').disabled = false;
-    isGenerating = false;
+    setBusy('');
+    _opening = false;
   }
 }
 
-function stripGenreLine(html) { return html.replace(/^GENRE:(FICTION|NONFICTION)\s*/i,'').replace(/^<p>GENRE:(FICTION|NONFICTION)<\/p>\s*/i,''); }
-
-function displaySummaryStreaming(title, author, htmlSoFar) {
-  htmlSoFar = stripGenreLine(htmlSoFar);
-  stopAudio();
-  currentSummary = { title, author, html: htmlSoFar, plain: '', words: [] };
-  document.getElementById('s-title').textContent = title;
-  document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = 'generating\u2026';
-  document.getElementById('summary-body').innerHTML = htmlSoFar;
-  document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = (currentVoice === 'female' ? 'Female' : 'Male') + ' voice';
-  resetScrubUI();
-  document.getElementById('megan-words-section').style.display = 'none';
-  document.getElementById('summary-card').classList.add('show');
-  document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  setAudioState('generating');
+// ── Reader ────────────────────────────────────────────────────────────────────
+function updateStreamingBody(htmlSoFar) {
+  const body = $('summary-body');
+  if (body) body.innerHTML = sanitizeHtml(stripGenreLine(htmlSoFar));
 }
 
-function updateStreamingBody(htmlSoFar) { htmlSoFar = stripGenreLine(htmlSoFar); const body = document.getElementById('summary-body'); if (body) body.innerHTML = htmlSoFar; }
+function showSummary(title, author, html, plain, words, opts) {
+  opts = opts || {};
+  stopAudio();
+  const clean = sanitizeHtml(stripGenreLine(html));
+  currentSummary = { title, author, html: clean, plain: plain || '', words: words || [] };
 
-function renderMeganWords(words) {
-  const section = document.getElementById('megan-words-section');
-  if (!words || !words.length) { section.style.display = 'none'; return; }
+  const key = groupOfTitle(title);
+  const g = SCENES.byKey(key);
+  $('reader').style.setProperty('--g', g.bg);
+  $('r-cover').innerHTML = SCENES.svg(key);
+  $('s-title').textContent = title;
+  $('s-author').textContent = author ? 'by ' + author : '';
+  $('summary-body').innerHTML = clean;
+  $('buy-btn').href = makeAmazonUrl(title, author);
+  resetScrubUI();
+  setSpeed(1);
+
+  if (opts.streaming) {
+    $('s-words').textContent = 'Writing…';
+    $('s-time').textContent = '';
+    $('words').hidden = true;
+    setAudioState('generating');
+    $('player-sub').textContent = 'Writing your summary…';
+  } else {
+    const n = countWords(plain);
+    $('s-words').textContent = n.toLocaleString() + ' words';
+    $('s-time').textContent = Math.max(1, Math.round(n / 220)) + ' min read';
+    renderWords(words);
+    $('player-sub').textContent = 'Checking audio…';
+    setAudioState('idle');
+    checkAudioAvailability();
+  }
+  if (!_readerOpen) openReader();
+}
+
+function renderWords(words) {
+  const box = $('words');
+  if (!words || !words.length) { box.hidden = true; return; }
   const seen = new Set();
-  const uniqueWords = words.filter(w => { const key = w.word.toLowerCase().trim(); if (seen.has(key)) return false; seen.add(key); return true; });
-  section.style.display = 'block';
-  document.getElementById('megan-words-grid').innerHTML = uniqueWords.map(w => `<div class="megan-word-item"><div class="megan-word">${esc(w.word)}</div><div class="megan-definition">${esc(w.definition)}</div></div>`).join('');
+  const unique = words.filter(w => { if (!w || !w.word) return false; const k = String(w.word).toLowerCase().trim(); if (seen.has(k)) return false; seen.add(k); return true; });
+  box.open = false;
+  box.hidden = !unique.length;
+  $('megan-words-grid').innerHTML = unique.map(w => '<div class="word"><b>' + esc(w.word) + '</b><span>' + esc(w.definition) + '</span></div>').join('');
 }
 
-function toggleMeganWords() { const grid = document.getElementById('megan-words-grid'); const arrow = document.getElementById('megan-arrow'); const isOpen = grid.classList.toggle('open'); arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)'; }
+function openReader() {
+  const r = $('reader');
+  r.hidden = false;
+  r.classList.remove('closing');
+  r.classList.add('opening');
+  r.scrollTop = 0;
+  $('r-cover').style.transform = '';
+  $('r-art').style.opacity = '';
+  document.body.style.overflow = 'hidden';
+  _readerOpen = true;
+  watchCard();
+  pushLayer('reader');
+}
 
-function displaySummary(title, author, html, plain, words, spoilers, fromArchive) {
+function hideReader() {
+  if (!_readerOpen) return;
+  _readerOpen = false;
   stopAudio();
-  currentSummary = { title, author, html, plain, words, spoilers };
-  document.getElementById('s-title').textContent = title;
-  document.getElementById('s-author').textContent = 'by ' + author;
-  document.getElementById('s-words').textContent = countWords(plain).toLocaleString() + ' words';
-  document.getElementById('summary-body').innerHTML = html;
-  const buyBtn = document.getElementById('buy-btn');
-  buyBtn.href = makeAmazonUrl(title, author);
-  const kindleBtn = document.getElementById('send-kindle-btn');
-  if (kindleBtn) kindleBtn.onclick = showKindleModal;
-  const saveBtn = document.getElementById('save-library-btn');
-  if (saveBtn) saveBtn.style.display = 'none';
-  document.getElementById('player-title').textContent = title;
-  document.getElementById('player-sub').textContent = currentVoice === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
-  resetScrubUI();
-  const grid  = document.getElementById('megan-words-grid');
-  const arrow = document.getElementById('megan-arrow');
-  grid.classList.remove('open'); arrow.style.transform = 'rotate(0deg)';
-  renderMeganWords(words);
-  document.getElementById('summary-card').classList.add('show');
-  document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (_currentUser && !fromArchive) autoSaveToLibrary(title, author);
-  checkAudioAvailability();
+  setAudioState('idle');
+  $('mini').classList.remove('show');
+  if (_cardObs) _cardObs.disconnect();
+  document.body.style.overflow = _genreOpen ? 'hidden' : '';
+  hideLayer('reader', () => { currentSummary = null; _waFile = null; });
 }
 
-function closeSummary() { stopAudio(); document.getElementById('summary-card').classList.remove('show'); currentSummary = null; setAudioState('idle'); }
-
-// ── Library card handler — shows confirmation instead of immediate load ────────
-function loadLibraryBook(title, author) {
-  const ta = document.createElement('textarea');
-  ta.innerHTML = title; const t = ta.value;
-  ta.innerHTML = author; const a = ta.value;
-  document.getElementById('book-input').value = t;
-  document.getElementById('author-input').value = a;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  _executeGenerate(t, a);
+// Mini player: shown at the top while the full player card is scrolled out of sight.
+let _cardObs = null, _cardGone = false;
+function watchCard() {
+  if (_cardObs) _cardObs.disconnect();
+  _cardGone = false;
+  _cardObs = new IntersectionObserver(es => {
+    const e = es[es.length - 1];
+    _cardGone = !e.isIntersecting && e.boundingClientRect.top < 0;
+    updateMini();
+  }, { root: $('reader'), rootMargin: '-64px 0px 0px 0px', threshold: 0 });
+  _cardObs.observe($('player'));
+  updateMini();
+}
+function updateMini() {
+  const can = !$('play-btn').disabled;
+  const show = _readerOpen && _cardGone && can;
+  $('mini').classList.toggle('show', show);
+  $('mini').setAttribute('aria-hidden', show ? 'false' : 'true');
+  $('mini-play').disabled = !can;
 }
 
-// ── Player state ──────────────────────────────────────────────────────────────
+function closeReader() { if (_readerOpen) closeTop(); }
+
+// The cover shrinks and fades as the summary slides up over it.
+function onReaderScroll() {
+  const r = $('reader');
+  const h = $('r-art').offsetHeight || 300;
+  const p = Math.max(0, Math.min(1, r.scrollTop / (h * 0.75)));
+  $('r-cover').style.transform = 'translateY(' + (-p * 24) + 'px) scale(' + (1 - 0.18 * p) + ')';
+  $('r-art').style.opacity = String(1 - 0.6 * p);
+}
+function onGenreScroll() {
+  const r = $('genre');
+  const h = $('genre-art').offsetHeight || 240;
+  const p = Math.max(0, Math.min(1, r.scrollTop / (h * 0.8)));
+  $('genre-art').style.opacity = String(1 - 0.7 * p);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || document.querySelector('.overlay')) return;
+  if (_searchOpen) closeSearch(); else closeTop();
+});
+
+// ── Audio state machine ───────────────────────────────────────────────────────
+let isPlaying = false, audioEl = null, playbackRate = 1;
+let streamingAudioContext = null, streamingSources = [];
+let _audioState = 'idle';
+
+function setAudioState(state) { _audioState = state; applyAudioStateToUI(); }
+
+function applyAudioStateToUI() {
+  switch (_audioState) {
+    case 'idle':
+    case 'generating':
+      _setPlayBtn(false); _setSeekControls(false); _setSpeedBtn(false); _setPrintKindle(false); break;
+    case 'audio-prep':
+      _setPlayBtn(false); _setSeekControls(false); _setSpeedBtn(false); _setPrintKindle(true); break;
+    case 'streaming':
+      _setPlayBtn(true); _setSeekControls(false); _setSpeedBtn(false); _setPrintKindle(true); break;
+    case 'cached':
+      _setPlayBtn(true); _setSeekControls(true); _setSpeedBtn(true); _setPrintKindle(true); break;
+  }
+}
+function _setPlayBtn(enabled) { $('play-btn').disabled = !enabled; $('play-btn').style.opacity = enabled ? '' : '.4'; updateMini(); }
+function _setSeekControls(enabled) {
+  $('scrub-row').classList.toggle('disabled', !enabled);
+  $('skip-back').disabled = !enabled;
+  $('skip-fwd').disabled = !enabled;
+}
+function _setSpeedBtn(enabled) { $('speed-btn').disabled = !enabled; }
+function _setPrintKindle(enabled) { $('send-kindle-btn').disabled = !enabled; $('print-btn').disabled = !enabled; }
+function setSub(text) { $('player-sub').textContent = text; }
+
+function setSpeed(rate) {
+  playbackRate = rate;
+  $('speed-btn').textContent = rate + '×';
+  if (audioEl) audioEl.playbackRate = rate;
+}
+function cycleSpeed() { setSpeed(playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1); }
+
+// Is there audio for this book? Everyone can play audio that exists; only Pro can have new audio made.
+async function checkAudioAvailability() {
+  if (!currentSummary) return;
+  const mine = currentSummary.title;
+  const stillHere = () => currentSummary && currentSummary.title === mine;
+  const pro = isPro();
+  let cached = false;
+  try {
+    const res = await fetch('/api/tts', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title: currentSummary.title, author: currentSummary.author, checkOnly: true }) });
+    if (res.ok) { const d = await res.json(); cached = !!d.url; }
+  } catch (e) { console.warn('Audio check failed:', e.message); }
+  if (!stillHere()) return;
+  if (cached) { setAudioState('cached'); setSub('Press play to listen'); return; }
+  if (!pro) { setAudioState('audio-prep'); setSub('Audio for this book is a Pro feature'); return; }
+
+  // Pro: make the audio now. The server answers once the file exists.
+  setAudioState('audio-prep');
+  setSub('Preparing audio… about a minute');
+  try {
+    const res = await fetch('/api/generate-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: currentSummary.title, author: currentSummary.author, voice: 'female' }) });
+    const d = await res.json().catch(() => ({}));
+    if (!stillHere()) return;
+    if (res.ok && d.ok) { setAudioState('cached'); setSub('Press play to listen'); }
+    else setSub(d.error || 'Audio unavailable right now');
+  } catch (e) {
+    if (stillHere()) setSub('Audio unavailable right now');
+  }
+}
+
+// ── Player ────────────────────────────────────────────────────────────────────
 function setPlayerState(playing, subText) {
   isPlaying = playing;
-  const icon = document.getElementById('play-icon');
-  icon.innerHTML = playing
-    ? '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>'
-    : '<polygon points="6,3 20,12 6,21"/>';
-  if (subText) document.getElementById('player-sub').textContent = subText;
+  $('play-icon').innerHTML = icon(playing ? 'pause' : 'play');
+  $('mini-icon').innerHTML = icon(playing ? 'pause' : 'play');
+  $('play-btn').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  if (subText) setSub(subText);
   setScrubActive(playing);
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
 }
-
 function setScrubActive(active) {
-  const row = document.getElementById('scrub-row');
-  const btn = document.getElementById('play-btn');
-  const sub = document.getElementById('player-sub');
-  if (row) row.classList.toggle('active', active);
-  if (btn) btn.classList.toggle('playing', active);
-  if (sub) sub.classList.toggle('playing', active);
+  $('scrub-row').classList.toggle('active', active);
+  $('play-btn').classList.toggle('playing', active);
+  $('player-sub').classList.toggle('playing', active);
 }
-
 function resetScrubUI() {
-  const fill  = document.getElementById('scrub-fill');
-  const thumb = document.getElementById('scrub-thumb');
-  if (fill)  { fill.style.width = '0%'; if (thumb) thumb.style.left = '0%'; }
-  const el = document.getElementById('scrub-elapsed');
-  const re = document.getElementById('scrub-remaining');
-  if (el) el.textContent = '0:00';
-  if (re) re.textContent = '\u22120:00';
+  $('scrub-fill').style.width = '0%';
+  $('scrub-thumb').style.left = '0%';
+  $('scrub-elapsed').textContent = '0:00';
+  $('scrub-remaining').textContent = '−0:00';
+  $('scrub-track').setAttribute('aria-valuenow', '0');
+  $('play-icon').innerHTML = icon('play');
+  $('mini-icon').innerHTML = icon('play');
+  $('mini-fill').style.width = '0%';
+  $('mini-time').textContent = '';
   setScrubActive(false);
 }
-
 function updateScrubUI() {
   if (!audioEl || !audioEl.duration) return;
-  const pct   = (audioEl.currentTime / audioEl.duration) * 100;
-  const fill  = document.getElementById('scrub-fill');
-  const thumb = document.getElementById('scrub-thumb');
-  if (fill)  fill.style.width = pct + '%';
-  if (thumb) thumb.style.left = pct + '%';
-  const el = document.getElementById('scrub-elapsed');
-  const re = document.getElementById('scrub-remaining');
-  if (el) el.textContent = fmtTime(audioEl.currentTime);
-  if (re) re.textContent = '\u2212' + fmtTime(audioEl.duration - audioEl.currentTime);
+  const pct = (audioEl.currentTime / audioEl.duration) * 100;
+  $('scrub-fill').style.width = pct + '%';
+  $('scrub-thumb').style.left = pct + '%';
+  $('scrub-track').setAttribute('aria-valuenow', String(Math.round(pct)));
+  $('scrub-elapsed').textContent = fmtTime(audioEl.currentTime);
+  $('scrub-remaining').textContent = '−' + fmtTime(audioEl.duration - audioEl.currentTime);
+  $('mini-fill').style.width = pct + '%';
+  $('mini-time').textContent = '−' + fmtTime(audioEl.duration - audioEl.currentTime);
 }
-
 function initScrubEvents() {
-  const track = document.getElementById('scrub-track');
-  if (!track || track._scrubInit) return;
+  const track = $('scrub-track');
+  if (track._scrubInit) return;
   track._scrubInit = true;
   let dragging = false;
   function seekTo(e) {
     if (!audioEl || !audioEl.duration) return;
-    const rect   = track.getBoundingClientRect();
+    const rect = track.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const pct    = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     audioEl.currentTime = pct * audioEl.duration;
     updateScrubUI();
   }
   track.addEventListener('mousedown', e => { dragging = true; track.classList.add('dragging'); seekTo(e); });
   track.addEventListener('touchstart', e => { dragging = true; track.classList.add('dragging'); seekTo(e); }, { passive: true });
-  document.addEventListener('mousemove',  e => { if (dragging) seekTo(e); });
-  document.addEventListener('touchmove',  e => { if (dragging) seekTo(e); }, { passive: true });
-  document.addEventListener('mouseup',  () => { dragging = false; track.classList.remove('dragging'); });
+  document.addEventListener('mousemove', e => { if (dragging) seekTo(e); });
+  document.addEventListener('touchmove', e => { if (dragging) seekTo(e); }, { passive: true });
+  document.addEventListener('mouseup', () => { dragging = false; track.classList.remove('dragging'); });
   document.addEventListener('touchend', () => { dragging = false; track.classList.remove('dragging'); });
+  track.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') skipAudio(-10); if (e.key === 'ArrowRight') skipAudio(10); });
 }
-
 function skipAudio(secs) {
   if (!audioEl) return;
-  audioEl.currentTime = Math.max(0, Math.min(audioEl.duration||0, audioEl.currentTime + secs));
+  audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, audioEl.currentTime + secs));
   updateScrubUI();
 }
-
 function registerMediaSession(title, author) {
   if (!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: title||'KERNL Summary', artist: author||'', album: 'KERNL \u2014 for the curious' });
-  navigator.mediaSession.setActionHandler('play',         () => resumeAudio());
-  navigator.mediaSession.setActionHandler('pause',        () => pauseAudio());
-  navigator.mediaSession.setActionHandler('stop',         () => stopAudio());
+  navigator.mediaSession.metadata = new MediaMetadata({ title: title || 'KERNL Summary', artist: author || '', album: 'KERNL — for the curious' });
+  navigator.mediaSession.setActionHandler('play', () => resumeAudio());
+  navigator.mediaSession.setActionHandler('pause', () => pauseAudio());
+  navigator.mediaSession.setActionHandler('stop', () => stopAudio());
   navigator.mediaSession.setActionHandler('seekbackward', () => skipAudio(-10));
-  navigator.mediaSession.setActionHandler('seekforward',  () => skipAudio(10));
+  navigator.mediaSession.setActionHandler('seekforward', () => skipAudio(10));
 }
-
 function stopAudio() {
-  if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch(e) {} audioEl = null; }
-  if (streamingSources && streamingSources.length > 0) {
-    streamingSources.forEach(s => { try { s.stop(); } catch(e) {} });
-    streamingSources = [];
-  }
-  if (streamingAudioContext && streamingAudioContext.state !== 'closed') {
-    try { streamingAudioContext.close(); } catch(e) {}
-    streamingAudioContext = null;
-  }
+  if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch (e) { /* ignore */ } audioEl = null; }
+  if (streamingSources.length) { streamingSources.forEach(s => { try { s.stop(); } catch (e) { /* ignore */ } }); streamingSources = []; }
+  if (streamingAudioContext && streamingAudioContext.state !== 'closed') { try { streamingAudioContext.close(); } catch (e) { /* ignore */ } streamingAudioContext = null; }
   setPlayerState(false, null);
   resetScrubUI();
 }
-
 function pauseAudio() {
   if (audioEl && !audioEl.paused) audioEl.pause();
   if (streamingAudioContext && streamingAudioContext.state === 'running') streamingAudioContext.suspend();
-  setPlayerState(false, 'Paused \u2014 press play to continue');
-  setScrubActive(false);
+  setPlayerState(false, 'Paused');
 }
-
 function resumeAudio() {
-  if (streamingAudioContext && streamingAudioContext.state === 'suspended') {
-    streamingAudioContext.resume();
-    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
-    setScrubActive(true);
-    return true;
-  }
-  if (audioEl && audioEl.paused && audioEl.src) {
-    audioEl.play();
-    setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
-    setScrubActive(true);
-    return true;
-  }
+  if (streamingAudioContext && streamingAudioContext.state === 'suspended') { streamingAudioContext.resume(); setPlayerState(true, 'Now playing'); return true; }
+  if (audioEl && audioEl.paused && audioEl.src) { audioEl.play(); setPlayerState(true, 'Now playing'); return true; }
   return false;
 }
-
 async function checkAudioCache() {
   if (!currentSummary) return null;
   try {
-    const res = await fetch('/api/tts', {
-      method: 'POST', headers: await apiHeaders(),
-      body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
-    });
-    if (res.ok) { const data = await res.json(); return data.url || null; }
-  } catch(e) { console.warn('Cache check failed', e); }
+    const res = await fetch('/api/tts', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title: currentSummary.title, author: currentSummary.author }) });
+    if (res.ok) { const d = await res.json(); return d.url || null; }
+  } catch (e) { console.warn('Cache check failed', e); }
   return null;
 }
-
 function isSafari() { return /^((?!chrome|android).)*safari/i.test(navigator.userAgent); }
 
 async function startTTS() {
   if (!currentSummary) return;
-  const tier = _userProfile ? (_userProfile.tier || 'free') : 'free';
-  if (tier !== 'pro') {
-    const cachedUrl = await checkAudioCache();
-    if (cachedUrl) { playSingleAudio(cachedUrl, null); }
-    else { setAudioState('audio-prep'); document.getElementById('player-sub').textContent = 'Audio available on Pro'; }
-    return;
-  }
   const cachedUrl = await checkAudioCache();
   if (cachedUrl) { setAudioState('cached'); playSingleAudio(cachedUrl, null); return; }
+  if (!isPro()) { setAudioState('audio-prep'); setSub('Audio for this book is a Pro feature'); return; }
+
   if (isSafari()) {
+    // Safari can't play the live stream: wait for the file to be built, then play it.
     setAudioState('audio-prep');
-    const pollTitle  = currentSummary.title;
-    const pollAuthor = currentSummary.author;
-    const pollVoice  = currentVoice;
-    let pollStopped  = false;
-    window._safariPollStop = function() { pollStopped = true; };
-    async function pollForAudio(attempt) {
-      if (pollStopped) return;
+    const pollTitle = currentSummary.title, pollAuthor = currentSummary.author;
+    const pollForAudio = async attempt => {
       if (!currentSummary || currentSummary.title !== pollTitle) return;
-      const elapsed = attempt * 5;
-      document.getElementById('player-sub').textContent = 'Audio preparing\u2026 ' + elapsed + 's';
+      setSub('Audio preparing… ' + (attempt * 5) + 's');
       try {
-        const res = await fetch('/api/tts', {
-          method: 'POST', headers: await apiHeaders(),
-          body: JSON.stringify({ voice: pollVoice, title: pollTitle, author: pollAuthor })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.url) { if (pollStopped) return; setAudioState('cached'); playSingleAudio(data.url, null); return; }
-        }
-      } catch(e) { console.warn('Poll error:', e.message); }
-      if (attempt < 42) { setTimeout(() => pollForAudio(attempt + 1), 5000); }
-      else { document.getElementById('player-sub').textContent = 'Audio unavailable \u2014 tap to retry'; setAudioState('cached'); }
-    }
-    // Trigger generation before polling so audio is being built while we wait
-    if (currentSummary && currentSummary.plain) {
-      triggerAudioGeneration(currentSummary.title, currentSummary.author, currentSummary.plain, currentVoice);
-    }
+        const res = await fetch('/api/tts', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title: pollTitle, author: pollAuthor }) });
+        if (res.ok) { const d = await res.json(); if (d.url) { setAudioState('cached'); playSingleAudio(d.url, null); return; } }
+      } catch (e) { console.warn('Poll error:', e.message); }
+      if (attempt < 42) setTimeout(() => pollForAudio(attempt + 1), 5000);
+      else { setSub('Audio unavailable. Tap play to retry'); setAudioState('cached'); }
+    };
+    try { fetch('/api/generate-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: pollTitle, author: pollAuthor, voice: 'female' }) }).catch(() => {}); } catch (e) { /* ignore */ }
     pollForAudio(1);
     return;
   }
+
   setAudioState('streaming');
-  setPlayerState(true, 'Connecting\u2026');
+  setSpeed(1);
+  setPlayerState(true, 'Connecting…');
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   let audioContext;
   try {
     audioContext = new AudioCtx();
     if (audioContext.state === 'suspended') await audioContext.resume();
-  } catch(e) {
+  } catch (e) {
     console.warn('AudioContext failed:', e);
     setAudioState('audio-prep');
-    setPlayerState(false, 'Audio unavailable \u2014 tap to retry');
+    setPlayerState(false, 'Audio unavailable. Tap play to retry');
     return;
   }
   streamingAudioContext = audioContext;
@@ -867,8 +822,8 @@ async function startTTS() {
   let nextStartTime = audioContext.currentTime + 0.1;
   let started = false;
   let mp3Buffer = new Uint8Array(0);
-  const scheduleChunk = async (base64chunk) => {
-    const binary  = atob(base64chunk);
+  const scheduleChunk = async base64chunk => {
+    const binary = atob(base64chunk);
     const newBytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) newBytes[i] = binary.charCodeAt(i);
     const combined = new Uint8Array(mp3Buffer.length + newBytes.length);
@@ -876,7 +831,7 @@ async function startTTS() {
     mp3Buffer = combined;
     try {
       const decoded = await audioContext.decodeAudioData(mp3Buffer.slice(0).buffer);
-      const source  = audioContext.createBufferSource();
+      const source = audioContext.createBufferSource();
       source.buffer = decoded;
       source.playbackRate.value = playbackRate;
       source.connect(audioContext.destination);
@@ -887,26 +842,23 @@ async function startTTS() {
       mp3Buffer = new Uint8Array(0);
       if (!started) {
         started = true;
-        setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
+        setPlayerState(true, 'Now playing');
         registerMediaSession(currentSummary.title, currentSummary.author);
         initScrubEvents();
       }
-    } catch(e) { /* not enough data yet */ }
+    } catch (e) { /* not enough data yet */ }
   };
   try {
-    const res = await fetch('/api/tts-stream', {
-      method: 'POST', headers: await apiHeaders(),
-      body: JSON.stringify({ voice: currentVoice, title: currentSummary.title, author: currentSummary.author })
-    });
+    const res = await fetch('/api/tts-stream', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title: currentSummary.title, author: currentSummary.author }) });
     if (!res.ok) throw new Error('Stream failed: ' + res.status);
     if ((res.headers.get('content-type') || '').includes('application/json')) {
       const j = await res.json();
-      if (audioContext) { try { audioContext.close(); } catch (ex) {} }
+      try { audioContext.close(); } catch (ex) { /* ignore */ }
       streamingAudioContext = null; streamingSources = [];
       if (j.url) { setAudioState('cached'); playSingleAudio(j.url, null); return; }
       throw new Error('No audio');
     }
-    const reader  = res.body.getReader();
+    const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let sseBuffer = '';
     while (true) {
@@ -914,7 +866,7 @@ async function startTTS() {
       if (done) break;
       sseBuffer += decoder.decode(value, { stream: true });
       const lines = sseBuffer.split('\n');
-      sseBuffer   = lines.pop();
+      sseBuffer = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         try {
@@ -922,25 +874,25 @@ async function startTTS() {
           if (msg.mp3) await scheduleChunk(msg.mp3);
           if (msg.done) {
             setAudioState('cached');
-            if (streamingSources.length > 0) {
+            if (streamingSources.length) {
               const last = streamingSources[streamingSources.length - 1];
               last.onended = () => {
-                if (audioContext) { try { audioContext.close(); } catch(e) {} }
+                try { audioContext.close(); } catch (e) { /* ignore */ }
                 streamingAudioContext = null; streamingSources = []; isPlaying = false;
-                setPlayerState(false, 'Finished \u2014 press play to replay');
+                setPlayerState(false, 'Finished. Press play to replay');
                 setAudioState('cached');
               };
             }
           }
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
       }
     }
-  } catch(e) {
-    console.warn('Chrome TTS stream error:', e.message);
-    if (audioContext) { try { audioContext.close(); } catch(ex) {} }
+  } catch (e) {
+    console.warn('TTS stream error:', e.message);
+    try { audioContext.close(); } catch (ex) { /* ignore */ }
     streamingAudioContext = null; streamingSources = [];
     setAudioState('audio-prep');
-    setPlayerState(false, 'Audio unavailable \u2014 tap to retry');
+    setPlayerState(false, 'Audio unavailable. Tap play to retry');
   }
 }
 
@@ -948,34 +900,28 @@ function _attachAudioHandlers(blobUrl) {
   if (!audioEl) return;
   audioEl.addEventListener('timeupdate', updateScrubUI);
   audioEl.addEventListener('ended', () => {
-    const fill = document.getElementById('scrub-fill');
-    if (fill) fill.style.width = '100%';
+    $('scrub-fill').style.width = '100%';
     if (blobUrl) URL.revokeObjectURL(blobUrl);
-    setPlayerState(false, 'Finished \u2014 press play to replay');
-    setScrubActive(false);
+    setPlayerState(false, 'Finished. Press play to replay');
     audioEl = null;
   });
   audioEl.addEventListener('error', e => {
     console.error('Audio error:', e.target.error);
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     audioEl = null;
-    setPlayerState(false, 'Audio unavailable \u2014 tap to retry');
-    setScrubActive(false);
+    setPlayerState(false, 'Audio unavailable. Tap play to retry');
   });
 }
-
 function playSingleAudio(audioUrl, blobUrl) {
   audioEl = new Audio(audioUrl);
   audioEl.playbackRate = playbackRate;
   _attachAudioHandlers(blobUrl);
   const p = audioEl.play();
   if (p) p.catch(err => { console.warn('play() failed:', err.message); setPlayerState(false, 'Tap play to listen'); });
-  setPlayerState(true, (currentVoice === 'female' ? 'Female' : 'Male') + ' voice \u2014 now playing');
-  setScrubActive(true);
+  setPlayerState(true, 'Now playing');
   initScrubEvents();
   if (currentSummary) registerMediaSession(currentSummary.title, currentSummary.author);
 }
-
 function togglePlay() {
   if (!currentSummary) return;
   if (isPlaying) { pauseAudio(); return; }
@@ -984,112 +930,105 @@ function togglePlay() {
   startTTS();
 }
 
-function setVoice(v) {
-  currentVoice = v;
-  v = 'female'; currentVoice = v; // female voice only
-  const wasPlaying = isPlaying;
-  stopAudio();
-  isPlaying = false;
-  if (currentSummary) {
-    document.getElementById('player-sub').textContent = v === 'female' ? 'Female voice \u2014 press play' : 'Male voice \u2014 press play';
-    if (wasPlaying) setTimeout(startTTS, 150);
-  }
-}
-
-// ── Kindle / Print ────────────────────────────────────────────────────────────
-function showKindleModal() { if (!currentSummary) return; const existing = document.getElementById('kindle-modal'); if (existing) existing.remove(); const modal = document.createElement('div'); modal.id = 'kindle-modal'; modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem'; modal.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3)"><h3 style="font-family:\'Playfair Display\',serif;font-size:1.2rem;color:var(--ink);margin-bottom:0.5rem">Send to Kindle</h3><p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Enter your Kindle email address. Find it in your Amazon account under <strong>Manage Your Content and Devices</strong>. First add <strong>kindle@kernlbooks.com</strong> to your approved senders.</p><input id="kindle-email-input" type="email" placeholder="yourname@kindle.com" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--warm);color:var(--ink);font-family:\'DM Sans\',sans-serif;font-size:0.9rem;margin-bottom:1rem;box-sizing:border-box"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between"><button onclick="downloadEpub()" style="height:38px;padding:0 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;display:flex;align-items:center;gap:6px">\uD83D\uDCDA Download EPUB</button><div style="display:flex;gap:10px"><button onclick="document.getElementById(\'kindle-modal\').remove()" style="height:38px;padding:0 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem">Cancel</button><button onclick="sendToKindle()" id="kindle-send-btn" style="height:38px;padding:0 18px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:0.82rem;font-weight:500">Send \u2192</button></div></div><div id="kindle-status" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;text-align:center;display:none"></div></div>'; document.body.appendChild(modal); setTimeout(() => document.getElementById('kindle-email-input').focus(), 100); }
-async function sendToKindle() { const email = document.getElementById('kindle-email-input').value.trim(); const status = document.getElementById('kindle-status'); const btn = document.getElementById('kindle-send-btn'); if (!email || !email.includes('@')) { status.style.display='block'; status.style.color='var(--error-fg)'; status.textContent='Please enter a valid Kindle email address.'; return; } btn.disabled=true; btn.textContent='Sending\u2026'; status.style.display='block'; status.style.color='var(--muted)'; status.textContent='Generating EPUB and sending\u2026'; try { const res = await fetch('/api/send-to-kindle', { method:'POST', headers: await apiHeaders(), body:JSON.stringify({ title:currentSummary.title, author:currentSummary.author, kindleEmail:email }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error||'Send failed'); status.style.color='var(--success-fg)'; status.textContent='\u2713 Sent! Check your Kindle in a few minutes.'; btn.textContent='Sent \u2713'; setTimeout(() => { const m=document.getElementById('kindle-modal'); if(m) m.remove(); }, 3000); } catch(err) { status.style.color='var(--error-fg)'; status.textContent='Error: '+err.message; btn.disabled=false; btn.textContent='Send \u2192'; } }
-function downloadEpub() { if (!currentSummary) return; if (typeof JSZip === 'undefined') { alert('Please wait a moment and try again.'); return; } const id='kernl-'+Date.now(); const t=esc(currentSummary.title), a=esc(currentSummary.author); const contentHtml='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>'+t+'</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>'+t+'</h1><div class="byline">by '+a+' \u2014 KERNL Summary</div>'+currentSummary.html+'<div class="footer">Generated by KERNL \u2014 for the curious</div></body></html>'; const opf='<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>'+t+' \u2014 KERNL</dc:title><dc:creator>'+a+'</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">'+id+'</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>'; const ncx='<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="'+id+'"/></head><docTitle><text>'+t+'</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>'; const container='<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'; const zip=new JSZip(); (async()=>{ zip.file('mimetype','application/epub+zip'); zip.folder('META-INF').file('container.xml',container); const oebps=zip.folder('OEBPS'); oebps.file('content.opf',opf); oebps.file('toc.ncx',ncx); oebps.file('content.html',contentHtml); const blob=await zip.generateAsync({type:'blob',mimeType:'application/epub+zip'}); triggerDownload(blob,safe(currentSummary.title)+'_KERNL.epub'); })(); }
-function printSummary() { if (!currentSummary) return; const meganGrid=document.getElementById('megan-words-grid'); const meganOpen=meganGrid&&meganGrid.classList.contains('open'); const words=currentSummary.words||[]; let meganSection=''; if (meganOpen&&words.length) { const wordRows=words.map(w=>`<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">${esc(w.word)}</td><td style="padding:5pt 0;color:#444;line-height:1.5">${esc(w.definition)}</td></tr>`).join(''); meganSection=`<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">${wordRows}</table></div>`; } const w=window.open('','_blank'); if (!w) { alert('Please allow popups for kernlbooks.com to use Print.'); return; } w.document.write('<!DOCTYPE html><html><head><title>'+esc(currentSummary.title)+' \u2014 KERNL</title><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}.print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em}.print-header-left{flex:1}.qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em}#qr-code{margin-bottom:4pt}<\/style><\/head><body><div class="print-header"><div class="print-header-left"><h1>'+esc(currentSummary.title)+'<\/h1><div class="byline">by '+esc(currentSummary.author)+' \u2014 KERNL Summary<\/div><\/div><div class="qr-block"><div id="qr-code"><\/div>Scan to buy this book<\/div><\/div>'+currentSummary.html+meganSection+'<div class="footer">Generated by KERNL \u2014 for the curious<\/div><script>new QRCode(document.getElementById("qr-code"),{text:"'+makeAmazonUrl(currentSummary.title,currentSummary.author)+'",width:100,height:100,colorDark:"#000000",colorLight:"#ffffff"});<\/script><\/body><\/html>'); w.document.close(); setTimeout(()=>w.print(),500); }
-function triggerDownload(blob,filename) { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); },1000); }
-
-// ── Library loading / filtering ───────────────────────────────────────────────
-const CATEGORIES = [
-  'Business & Entrepreneurship','Personal Development','Psychology','History',
-  'Science & Technology','Politics & Society','Philosophy','Biography & Memoir',
-  'Fiction — Literary','Fiction — Thriller','Fiction — Sci-Fi','Fiction — Historical',
-  'Health & Wellbeing','Economics','Leadership','Nature & Environment',
-  'Crime & True Crime','Sport','Parenting & Family','Spirituality'
-];
-
-let _allBooks = [];
-let _activeCategory = 'All';
-
-async function loadLibrary() {
-  try {
-    let all = [], offset = 0;
-    while (true) {
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/summaries?select=title,author,synopsis,categories&limit=1000&offset=${offset}&order=title.asc`,
-        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }
-      );
-      const data = await res.json();
-      if (!data || !data.length) break;
-      all = all.concat(data);
-      if (data.length < 1000) break;
-      offset += 1000;
+// ── Send to Kindle, EPUB, Print ───────────────────────────────────────────────
+function showKindleModal() {
+  if (!currentSummary) return;
+  const m = KUI.modal(
+    '<h3>Send to Kindle</h3>' +
+    '<p class="sub">Enter your Kindle email address. You will find it in your Amazon account under <b>Manage Your Content and Devices</b>. First add <b>kindle@kernlbooks.com</b> to your approved senders.</p>' +
+    '<label class="label" for="kindle-email-input">Kindle email</label>' +
+    '<input class="input" id="kindle-email-input" type="email" placeholder="yourname@kindle.com" autocomplete="email" inputmode="email">' +
+    '<div class="note" id="kindle-status" hidden style="margin-top:14px"></div>' +
+    '<div class="modal-actions" style="justify-content:space-between">' +
+      '<button class="btn" id="kindle-epub" type="button"><span data-icon="download"></span>Download EPUB</button>' +
+      '<span class="row"><button class="btn" data-cancel type="button">Cancel</button><button class="btn primary" id="kindle-send-btn" type="button">Send</button></span>' +
+    '</div>'
+  );
+  m.el.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.getAttribute('data-icon')); el.style.display = 'inline-flex'; });
+  m.el.querySelector('[data-cancel]').onclick = m.close;
+  m.el.querySelector('#kindle-epub').onclick = downloadEpub;
+  const input = m.el.querySelector('#kindle-email-input');
+  const status = m.el.querySelector('#kindle-status');
+  const btn = m.el.querySelector('#kindle-send-btn');
+  const say = (msg, kind) => { status.hidden = false; status.className = 'note' + (kind ? ' ' + kind : ''); status.textContent = msg; };
+  async function send() {
+    const email = input.value.trim();
+    if (!email || !email.includes('@')) { say('Please enter a valid Kindle email address.', 'err'); return; }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    say('Making the EPUB and sending it…');
+    try {
+      const res = await fetch('/api/send-to-kindle', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: currentSummary.title, author: currentSummary.author, kindleEmail: email }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      say('Sent. Check your Kindle in a few minutes.', 'ok');
+      btn.textContent = 'Sent';
+      setTimeout(m.close, 2500);
+    } catch (err) {
+      say('Could not send: ' + err.message, 'err');
+      btn.disabled = false; btn.textContent = 'Send';
     }
-    _allBooks = all;
-    const row = document.getElementById('cat-filter-row');
-    row.innerHTML = '<button class="cat-btn active" data-cat="All" onclick="filterLibrary(\'All\')">All</button>';
-    CATEGORIES.forEach(cat => {
-      const count = all.filter(b => { try { return (JSON.parse(b.categories||'[]')).includes(cat); } catch { return false; } }).length;
-      if (count > 0) {
-        const btn = document.createElement('button');
-        btn.className = 'cat-btn'; btn.dataset.cat = cat; btn.onclick = () => filterLibrary(cat);
-        btn.textContent = cat + ' (' + count + ')'; row.appendChild(btn);
-      }
-    });
-    renderLibraryGrid(_allBooks);
-  } catch(e) {
-    document.getElementById('lib-grid-container').innerHTML = '<div class="lib-empty">Could not load library \u2014 please refresh.</div>';
   }
+  btn.onclick = send;
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
 }
 
-function filterLibrary(cat) {
-  _activeCategory = cat;
-  document.querySelectorAll('.cat-btn').forEach(btn => { btn.classList.toggle('active', btn.dataset.cat === cat); });
-  const filtered = cat === 'All' ? _allBooks : _allBooks.filter(b => { try { return (JSON.parse(b.categories||'[]')).includes(cat); } catch { return false; } });
-  renderLibraryGrid(filtered);
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + src));
+    document.head.appendChild(s);
+  });
+}
+async function downloadEpub() {
+  if (!currentSummary) return;
+  try { if (typeof JSZip === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'); }
+  catch (e) { toast('Could not prepare the EPUB. Check your connection and try again.', 'err'); return; }
+  const id = 'kernl-' + Date.now();
+  const t = esc(currentSummary.title), a = esc(currentSummary.author);
+  const body = currentSummary.html.replace(/<br>/g, '<br/>').replace(/<hr>/g, '<hr/>');
+  const contentHtml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + t + '</title><style>body{font-family:Georgia,serif;font-size:1em;line-height:1.75;margin:1.5em 2em}h1{font-size:1.8em;margin-bottom:.2em}.byline{font-style:italic;color:#777;margin-bottom:2em}h2{font-size:1.05em;font-weight:bold;margin:1.8em 0 .5em;padding-bottom:5px;border-bottom:1px solid #ddd;color:#8B4513}p{margin:0 0 .9em;text-align:justify}.footer{margin-top:3em;font-size:.8em;color:#aaa;font-style:italic}</style></head><body><h1>' + t + '</h1><div class="byline">by ' + a + ' — KERNL Summary</div>' + body + '<div class="footer">Generated by KERNL — for the curious</div></body></html>';
+  const opf = '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bid" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + t + ' — KERNL</dc:title><dc:creator>' + a + '</dc:creator><dc:language>en</dc:language><dc:identifier id="bid">' + id + '</dc:identifier></metadata><manifest><item id="c" href="content.html" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="c"/></spine></package>';
+  const ncx = '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="' + id + '"/></head><docTitle><text>' + t + '</text></docTitle><navMap><navPoint id="n1" playOrder="1"><navLabel><text>Summary</text></navLabel><content src="content.html"/></navPoint></navMap></ncx>';
+  const container = '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
+  const zip = new JSZip();
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+  zip.folder('META-INF').file('container.xml', container);
+  const oebps = zip.folder('OEBPS');
+  oebps.file('content.opf', opf); oebps.file('toc.ncx', ncx); oebps.file('content.html', contentHtml);
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip', compression: 'DEFLATE' });
+  triggerDownload(blob, safe(currentSummary.title) + '_KERNL.epub');
 }
 
-function renderLibraryGrid(books) {
-  const container = document.getElementById('lib-grid-container');
-  const countEl   = document.getElementById('lib-count');
-  countEl.textContent = books.length.toLocaleString() + ' books';
-  if (!books.length) { container.innerHTML = '<div class="lib-empty">No books in this category yet.</div>'; return; }
-  container.innerHTML = '<div class="lib-grid">' + books.map(b => {
-    const synopsis = b.synopsis ? esc(b.synopsis) : '';
-    return `<div class="lib-card" onclick="loadLibraryBook('${esc(b.title)}','${esc(b.author||'')}')">
-      <div class="lib-card-title">${esc(b.title)}</div>
-      <div class="lib-card-author">by ${esc(b.author||'Unknown')}</div>
-      ${synopsis ? `<div class="lib-card-synopsis">${synopsis}</div>` : ''}
-    </div>`;
-  }).join('') + '</div>';
+function printSummary() {
+  if (!currentSummary) return;
+  const words = currentSummary.words || [];
+  const wordsOpen = $('words').open;
+  let wordsSection = '';
+  if (wordsOpen && words.length) {
+    const rows = words.map(w => '<tr><td style="font-weight:bold;color:#8B4513;padding:5pt 10pt 5pt 0;vertical-align:top;width:120pt">' + esc(w.word) + '</td><td style="padding:5pt 0;color:#444;line-height:1.5">' + esc(w.definition) + '</td></tr>').join('');
+    wordsSection = '<div style="margin-top:2em;border-top:1pt solid #ddd;padding-top:1em"><h2 style="font-size:13pt;font-weight:bold;color:#8B4513;margin-bottom:0.75em">Mega Words</h2><table style="width:100%;border-collapse:collapse;font-family:Georgia,serif;font-size:10pt">' + rows + '</table></div>';
+  }
+  const w = window.open('', '_blank');
+  if (!w) { toast('Please allow pop-ups for kernlbooks.com to print.', 'err'); return; }
+  const buyUrl = makeAmazonUrl(currentSummary.title, currentSummary.author).replace(/"/g, '%22');
+  w.document.write('<!DOCTYPE html><html><head><title>' + esc(currentSummary.title) + ' — KERNL</title><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><style>body{font-family:Georgia,serif;font-size:11pt;line-height:1.7;margin:2cm;color:#000}h1{font-size:18pt;margin-bottom:4pt}.byline{font-style:italic;color:#555;margin-bottom:1.5em}h2{font-size:11pt;font-weight:bold;margin-top:18pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;color:#8B4513}p{margin:0 0 8pt}.footer{margin-top:2em;font-size:8pt;color:#aaa;font-style:italic;border-top:1pt solid #ddd;padding-top:8pt}.print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5em}.print-header-left{flex:1}.qr-block{text-align:center;font-size:8pt;color:#888;flex-shrink:0;margin-left:2em}#qr-code{margin-bottom:4pt}<\/style><\/head><body><div class="print-header"><div class="print-header-left"><h1>' + esc(currentSummary.title) + '<\/h1><div class="byline">by ' + esc(currentSummary.author) + ' — KERNL Summary<\/div><\/div><div class="qr-block"><div id="qr-code"><\/div>Scan to buy this book<\/div><\/div>' + currentSummary.html + wordsSection + '<div class="footer">Generated by KERNL — for the curious<\/div><script>new QRCode(document.getElementById("qr-code"),{text:"' + buyUrl + '",width:100,height:100,colorDark:"#000000",colorLight:"#ffffff"});<\/script><\/body><\/html>');
+  w.document.close();
+  setTimeout(() => w.print(), 800);
+}
+function triggerDownload(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
 }
 
-// ── Event listeners ───────────────────────────────────────────────────────────
-document.getElementById('book-input').addEventListener('input', e => { clearTimeout(autocompleteTimer); autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 300); });
-document.getElementById('author-input').addEventListener('input', e => { clearTimeout(autocompleteTimer); autocompleteTimer = setTimeout(() => fetchBookSuggestions(e.target.value.trim()), 300); });
-document.getElementById('book-input').addEventListener('keydown', e => { if (e.key==='Enter') { hideDropdown(); handleGenerate(); } if (e.key==='Escape') hideDropdown(); });
-document.getElementById('author-input').addEventListener('keydown', e => { if (e.key==='Enter') handleGenerate(); });
-document.addEventListener('click', e => { if (!e.target.closest('#book-input') && !e.target.closest('#book-dropdown')) hideDropdown(); });
-
-initDark();
-setVoice('female');
-initAuth();
-
-
-// ── Pro: save / email / WhatsApp the audio ───────────────────────────────────
-function updateAudioShareBtns() {
-  const pro = _userProfile && _userProfile.tier === 'pro';
-  document.querySelectorAll('.pro-audio').forEach(b => { b.style.display = pro ? '' : 'none'; });
-}
+// ── Pro: save / email / WhatsApp the audio ────────────────────────────────────
+let _waFile = null; // { title, file } once the MP3 has been fetched for sharing
 async function _audioShare(action) {
   if (!currentSummary) return null;
   const res = await fetch('/api/share-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: currentSummary.title, author: currentSummary.author, action }) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) { alert(data.error || 'Could not do that. Try again.'); return null; }
+  if (!res.ok) { toast(data.error || 'Could not do that. Try again.', 'err'); return null; }
   return data;
 }
 async function saveAudio() {
@@ -1098,9 +1037,8 @@ async function saveAudio() {
 }
 async function emailAudio() {
   const d = await _audioShare('email');
-  if (d && d.sent) alert('Sent to ' + d.to);
+  if (d && d.sent) toast('Sent to ' + d.to + '. If it is not in your inbox, check Junk.', 'ok', 6000);
 }
-let _waFile = null; // { title, file } once the MP3 has been fetched for sharing
 function _canShareFiles() {
   // Phones and tablets only: the Mac/PC share menu has no WhatsApp, so desktops use download + WhatsApp Web instead.
   if (!(navigator.maxTouchPoints > 1)) return false;
@@ -1108,13 +1046,12 @@ function _canShareFiles() {
 }
 async function whatsappAudio() {
   if (!currentSummary) return;
-  const btn = document.getElementById('wa-audio-btn');
-  const label = '\uD83D\uDCAC WhatsApp';
+  const btn = $('wa-audio-btn'), label = $('wa-label');
   // Step 2 (phone): the file is ready, so this tap opens the share sheet.
   if (_waFile && _waFile.title === currentSummary.title) {
-    const f = _waFile.file; _waFile = null; btn.textContent = label;
-    try { await navigator.share({ files: [f], title: currentSummary.title + ' \u2014 KERNL audio' }); }
-    catch (e) { if (e && e.name !== 'AbortError') alert('Sharing failed. Use Save audio instead, then attach the file in WhatsApp.'); }
+    const f = _waFile.file; _waFile = null; label.textContent = 'WhatsApp';
+    try { await navigator.share({ files: [f], title: currentSummary.title + ' — KERNL audio' }); }
+    catch (e) { if (e && e.name !== 'AbortError') toast('Sharing failed. Use Save audio, then attach the file in WhatsApp.', 'err'); }
     return;
   }
   const d = await _audioShare('link');
@@ -1126,15 +1063,124 @@ async function whatsappAudio() {
     return;
   }
   // Step 1 (phone): fetch the MP3, then ask for a second tap (phones only allow sharing straight after a tap).
-  btn.textContent = 'Preparing\u2026'; btn.disabled = true;
+  label.textContent = 'Preparing…'; btn.disabled = true;
   try {
     const r = await fetch(d.downloadUrl);
     if (!r.ok) throw new Error('fetch failed');
     const blob = await r.blob();
     _waFile = { title: currentSummary.title, file: new File([blob], d.name, { type: blob.type || 'audio/mpeg' }) };
-    btn.textContent = 'Tap again to share';
+    label.textContent = 'Tap again to share';
   } catch (e) {
-    btn.textContent = label; alert('Could not prepare the audio. Try again.');
+    label.textContent = 'WhatsApp'; toast('Could not prepare the audio. Try again.', 'err');
   }
   btn.disabled = false;
 }
+
+// ── Pro: summarise a book that is not in the library yet ──────────────────────
+function openNewBookModal(prefillTitle) {
+  const m = KUI.modal(
+    '<h3>Summarise a new book</h3>' +
+    '<p class="sub">This writes a fresh summary and uses one of your ' + LIMITS.pro + ' summaries.</p>' +
+    '<label class="label" for="nb-title">Book title</label>' +
+    '<input class="input" id="nb-title" autocomplete="off" placeholder="e.g. Papillon">' +
+    '<div class="suggest" id="nb-suggest" hidden></div>' +
+    '<div style="height:14px"></div>' +
+    '<label class="label" for="nb-author">Author</label>' +
+    '<input class="input" id="nb-author" autocomplete="off" placeholder="e.g. Henri Charrière">' +
+    '<div class="note warn" id="nb-warn" hidden style="margin-top:14px"></div>' +
+    '<div class="modal-actions"><button class="btn" data-cancel type="button">Cancel</button><button class="btn primary" id="nb-go" type="button">Generate summary</button></div>'
+  );
+  const titleIn = m.el.querySelector('#nb-title'), authorIn = m.el.querySelector('#nb-author');
+  const sugg = m.el.querySelector('#nb-suggest'), warn = m.el.querySelector('#nb-warn'), go = m.el.querySelector('#nb-go');
+  m.el.querySelector('[data-cancel]').onclick = m.close;
+  if (prefillTitle) titleIn.value = prefillTitle;
+  let acknowledged = false, timer = null;
+
+  titleIn.addEventListener('input', () => {
+    acknowledged = false; warn.hidden = true; go.textContent = 'Generate summary';
+    clearTimeout(timer);
+    const q = titleIn.value.trim();
+    if (q.length < 3) { sugg.hidden = true; return; }
+    timer = setTimeout(async () => {
+      try {
+        const res = await fetch('https://openlibrary.org/search.json?title=' + encodeURIComponent(q) + '&limit=6&fields=title,author_name,first_publish_year');
+        const data = await res.json();
+        const rows = (data.docs || []).filter(d => d.title && d.author_name && d.author_name.length).slice(0, 5);
+        if (!rows.length || titleIn.value.trim() !== q) { sugg.hidden = true; return; }
+        sugg.innerHTML = rows.map(d => '<button type="button" data-t="' + esc(d.title) + '" data-a="' + esc(d.author_name[0]) + '"><b>' + esc(d.title) + '</b><span>' + esc(d.author_name[0]) + (d.first_publish_year ? ' · ' + d.first_publish_year : '') + '</span></button>').join('');
+        sugg.hidden = false;
+      } catch (e) { sugg.hidden = true; }
+    }, 300);
+  });
+  authorIn.addEventListener('input', () => { acknowledged = false; warn.hidden = true; go.textContent = 'Generate summary'; });
+  sugg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    titleIn.value = b.dataset.t; authorIn.value = b.dataset.a; sugg.hidden = true; acknowledged = true;
+  });
+
+  async function submit() {
+    const title = titleIn.value.trim(), author = authorIn.value.trim();
+    warn.hidden = true;
+    if (!title) { titleIn.focus(); return; }
+    // Already in the library? Open it, no new summary needed.
+    const existing = findInLibrary(title);
+    if (existing) { m.close(); openSummary(existing.title, existing.author || author); return; }
+    if (!author || /^unknown/i.test(author)) { warn.hidden = false; warn.textContent = 'Please enter the author’s name. A summary cannot be written without one.'; authorIn.focus(); return; }
+    if (!acknowledged) {
+      go.disabled = true; go.textContent = 'Checking…';
+      let found = true;
+      try {
+        const res = await fetch('https://openlibrary.org/search.json?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author) + '&limit=3&fields=title,author_name', { signal: AbortSignal.timeout(8000) });
+        if (res.ok) {
+          const data = await res.json();
+          found = !!(data.docs && data.docs.some(d => d.title && d.title.toLowerCase().includes(title.toLowerCase().slice(0, 15))));
+        }
+      } catch (e) { found = true; } // could not check (timeout, offline): do not block
+      go.disabled = false;
+      if (!found) {
+        acknowledged = true;
+        warn.hidden = false;
+        warn.textContent = 'We could not find this book in Open Library. Generating anyway may produce an inaccurate summary. Carry on only if the title and author are right.';
+        go.textContent = 'Generate anyway';
+        return;
+      }
+    }
+    m.close();
+    openSummary(title, author, { isNew: true });
+  }
+  go.onclick = submit;
+  [titleIn, authorIn].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
+}
+
+// ── Wire up ───────────────────────────────────────────────────────────────────
+function wire() {
+  KUI.popover($('acct-btn'), $('acct-menu'));
+  $('menu-signout').addEventListener('click', handleSignOut);
+  $('reader-close').addEventListener('click', closeReader);
+  $('reader').addEventListener('scroll', onReaderScroll, { passive: true });
+  $('genre').addEventListener('scroll', onGenreScroll, { passive: true });
+  $('play-btn').addEventListener('click', togglePlay);
+  $('mini-play').addEventListener('click', togglePlay);
+  $('mini-up').addEventListener('click', () => $('reader').scrollTo({ top: 0, behavior: 'smooth' }));
+  $('mini-track').addEventListener('click', e => {
+    if (!audioEl || !audioEl.duration) return;
+    const r = $('mini-track').getBoundingClientRect();
+    audioEl.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * audioEl.duration;
+    updateScrubUI();
+  });
+  $('speed-btn').addEventListener('click', cycleSpeed);
+  $('skip-back').addEventListener('click', () => skipAudio(-10));
+  $('skip-fwd').addEventListener('click', () => skipAudio(10));
+  $('send-kindle-btn').addEventListener('click', showKindleModal);
+  $('print-btn').addEventListener('click', printSummary);
+  $('save-audio-btn').addEventListener('click', saveAudio);
+  $('email-audio-btn').addEventListener('click', emailAudio);
+  $('wa-audio-btn').addEventListener('click', whatsappAudio);
+  wireLibrary();
+  initScrubEvents();
+  resetScrubUI();
+  setAudioState('idle');
+}
+try { localStorage.removeItem('kernl_v2'); } catch (e) { /* old local summary cache: the server is the only source of truth now */ }
+wire();
+initAuth();
