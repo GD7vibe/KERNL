@@ -6,8 +6,9 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "jszip": "3.10.1",
     "node-fetch": "2.6.9",
-    "ws": "8.18.0",
-    "jszip": "3.10.1"
+    "ws": "8.18.0"
   }
 }
