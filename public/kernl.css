@@ -7,6 +7,7 @@
   --text:#1b1533; --text-2:#675f82; --text-3:#9a93b3;
   --accent:#238a83; --accent-hover:#1b726c; --accent-ink:#ffffff; --accent-soft:rgba(35,138,131,.11);
   --accent-2:#a98cf0; --ink:#17122b;
+  --edge:rgba(40,24,80,.30); --edge-d:rgba(40,24,80,.17); --lift:0 16px 28px -10px rgba(40,20,90,.30);
   --ok:#23805a; --ok-soft:#e3f5ec; --err:#b3261e; --err-soft:#fdeceb; --warn:#9a5b0c; --warn-soft:#fdf2df;
   --shadow-sm:0 1px 2px rgba(40,24,80,.06); --shadow:0 10px 30px rgba(60,36,120,.12); --shadow-lg:0 22px 70px rgba(40,20,90,.28);
   --r-sm:14px; --r:20px; --r-lg:28px; --r-pill:999px;
@@ -21,6 +22,7 @@ html.dark{
   --text:#f0ebff; --text-2:#aba3cd; --text-3:#7d759f;
   --accent:#5fd4c9; --accent-hover:#82e2d9; --accent-ink:#0b2a27; --accent-soft:rgba(95,212,201,.15);
   --accent-2:#b9a2f5;
+  --edge:rgba(235,228,255,.26); --edge-d:rgba(0,0,0,.5); --lift:0 16px 28px -10px rgba(0,0,0,.6);
   --ok:#62d29b; --ok-soft:#173528; --err:#ff8f86; --err-soft:#35191a; --warn:#f0b35a; --warn-soft:#352711;
   --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow:0 10px 30px rgba(0,0,0,.4); --shadow-lg:0 22px 70px rgba(0,0,0,.6);
   color-scheme:dark;
@@ -92,7 +94,7 @@ button:disabled{cursor:not-allowed}
 .badge.ok{background:var(--ok-soft);color:var(--ok)}
 
 /* ── Cards, forms ───────────────────────────────────────────────────────── */
-.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-sm)}
+.card{background:var(--surface);border:1.5px solid var(--edge);border-radius:var(--r);box-shadow:0 4px 0 var(--edge-d),var(--lift)}
 .card.pad{padding:24px}
 @media(max-width:560px){.card.pad{padding:18px}}
 .card-title{font-family:var(--serif);font-size:1.15rem;font-weight:600;margin-bottom:14px}
@@ -145,7 +147,7 @@ button:disabled{cursor:not-allowed}
 @keyframes kslide{from{transform:translateY(100%)}to{transform:none}}
 
 /* ── Menu (popover) ─────────────────────────────────────────────────────── */
-.menu{position:absolute;right:0;top:calc(100% + 8px);z-index:80;min-width:230px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-lg);padding:6px;animation:krise .14s ease}
+.menu{position:absolute;right:0;top:calc(100% + 8px);z-index:80;min-width:230px;background:var(--surface);border:1.5px solid var(--edge);border-radius:var(--r);box-shadow:0 4px 0 var(--edge-d),var(--shadow-lg);padding:6px;animation:krise .14s ease}
 .menu-item{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:10px;font-size:.92rem;color:var(--text);text-align:left;text-decoration:none!important}
 .menu-item:hover:not(:disabled){background:var(--accent-soft);color:var(--accent)}
 .menu-item:disabled{opacity:.4}
@@ -184,3 +186,22 @@ html.dark .toast.err,html.dark .toast.ok{color:#14110f}
 @media print{
   .topbar,.footer,.toasts{display:none!important}
 }
+
+/* ── Book rows (shelves, search, library): the synopsis opens as a row scrolls to the middle ── */
+.brow{display:block;width:100%;text-align:left;padding:12px 4px;border-bottom:1px solid var(--line)}
+.brow .hd{display:flex;align-items:center;gap:14px}
+.brow .tile{width:54px;height:54px;border-radius:15px;flex-shrink:0;background:var(--g);overflow:hidden;color:var(--ink);border:1.5px solid rgba(23,18,43,.5);box-shadow:0 3px 0 rgba(23,18,43,.22)}
+.brow .tile svg{width:100%;height:100%;display:block}
+.brow .tx{min-width:0;flex:1}
+.brow .tt{font-weight:700;font-size:1rem;line-height:1.25;letter-spacing:-.01em}
+.brow .au{font-size:.85rem;color:var(--text-2);margin-top:2px}
+.brow .syn{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .45s cubic-bezier(.2,.8,.2,1),opacity .35s ease,margin .35s ease;margin-left:68px}
+.brow .syn>div{overflow:hidden;min-height:0}
+.brow .syn p{font-size:.9rem;line-height:1.5;color:var(--text-2);padding-top:2px}
+.brow.on .syn{grid-template-rows:1fr;opacity:1;margin-top:6px;margin-bottom:6px}
+.brow.on .tt{color:var(--accent)}
+.brow-wrap{position:relative}
+.brow-wrap .rm{position:absolute;right:2px;top:14px;width:34px;height:34px;border-radius:50%;color:var(--text-3);display:flex;align-items:center;justify-content:center}
+.brow-wrap .rm:hover{background:var(--err-soft);color:var(--err)}
+.brow-wrap .rm .icon{width:16px;height:16px}
+.brow-wrap .brow .tx{padding-right:34px}
