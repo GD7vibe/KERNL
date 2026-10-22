@@ -72,11 +72,17 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
 .l-back{position:fixed;top:max(12px,env(safe-area-inset-top));left:14px;z-index:120;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.55);color:var(--ink);display:flex;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .l-back .icon{width:22px;height:22px}
 .l-art{position:sticky;top:0;height:34vh;min-height:230px;display:flex;align-items:center;justify-content:center;padding:62px 0 40px;color:var(--ink);will-change:transform,opacity}
+.genre .l-art{justify-content:flex-end;padding-right:6vw}
 .l-art svg{height:100%;width:auto;max-width:70vw}
-.l-art h2{position:absolute;left:22px;bottom:64px;font-size:clamp(1.7rem,6vw,2.4rem);font-weight:800;letter-spacing:-.02em;line-height:1.05;max-width:60%}
+.l-art h2{position:absolute;left:22px;bottom:64px;font-size:clamp(1.7rem,6vw,2.4rem);font-weight:800;letter-spacing:-.02em;line-height:1.05;max-width:46%}
 .l-sheet{position:relative;margin-top:-30px;min-height:70vh;background:var(--bg);border-radius:30px 30px 0 0;padding:22px 20px calc(80px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(40,20,90,.12)}
 .l-sheet::before{content:'';display:block;width:42px;height:5px;border-radius:9px;background:var(--line-strong);margin:0 auto 14px}
 .l-sheet .wrapin{max-width:640px;margin:0 auto}
+.subs{display:flex;gap:8px;overflow-x:auto;margin:0 -20px 8px;padding:2px 20px 10px;scrollbar-width:none}
+.subs::-webkit-scrollbar{display:none}
+.subs .sub{flex-shrink:0;height:38px;padding:0 16px;border-radius:99px;background:var(--surface);color:var(--text-2);font-size:.85rem;font-weight:600;box-shadow:var(--shadow-sm);transition:background .15s,color .15s}
+.subs .sub i{font-style:normal;opacity:.55;font-weight:500;margin-left:3px}
+.subs .sub.on{background:var(--accent);color:var(--accent-ink)}
 .brow{display:block;width:100%;text-align:left;padding:12px 4px;border-bottom:1px solid var(--line)}
 .brow .hd{display:flex;align-items:center;gap:14px}
 .brow .tile{width:54px;height:54px;border-radius:15px;flex-shrink:0;background:var(--g);overflow:hidden;color:var(--ink)}
@@ -218,7 +224,7 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
 <section class="layer genre" id="genre" hidden aria-label="Shelf">
   <button class="l-back" id="genre-close" type="button" aria-label="Back"><span data-icon="back"></span></button>
   <div class="l-art" id="genre-art"></div>
-  <div class="l-sheet"><div class="wrapin" id="genre-list"></div></div>
+  <div class="l-sheet"><div class="subs" id="genre-chips"></div><div class="wrapin" id="genre-list"></div></div>
 </section>
 
 <!-- Search layer -->
