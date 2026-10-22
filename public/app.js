@@ -246,7 +246,7 @@ function findInLibrary(title) {
 
 function renderGenres() {
   const counts = {};
-  _allBooks.forEach(b => { counts[b._g] = (counts[b._g] || 0) + 1; });
+  SCENES.GROUPS.forEach(g => { counts[g.key] = _allBooks.filter(b => b._cats.some(c => g.cats.indexOf(c) !== -1)).length; });
   const box = $('genres');
   box.className = 'genres';
   box.innerHTML = SCENES.DISPLAY.filter(k => counts[k]).map(k => {
@@ -259,17 +259,19 @@ function renderGenres() {
 }
 
 // Shelf layer: one genre's books. A book's one-line synopsis opens as it scrolls to the middle of the screen.
-let _shelfBooks = [], _shelfShown = 0, _shelfKey = '', _rowObs = null, _moreObs = null;
+let _shelfBooks = [], _shelfShown = 0, _shelfKey = '', _shelfCat = 'All', _rowObs = null, _moreObs = null;
 const SHELF_PAGE = 60;
 
 function openShelf(key) {
   const g = SCENES.byKey(key);
   _shelfKey = key;
-  _shelfBooks = _allBooks.filter(b => b._g === key);
+  _shelfCat = 'All';
+  _shelfBooks = shelfFilter();
   _shelfShown = 0;
   const layer = $('genre');
   layer.style.setProperty('--g', g.bg);
   $('genre-art').innerHTML = SCENES.svg(key) + '<h2>' + esc(g.name) + '</h2>';
+  renderShelfChips();
   $('genre-list').innerHTML = '';
   layer.scrollTop = 0;
   layer.hidden = false;
@@ -279,6 +281,29 @@ function openShelf(key) {
   appendShelfRows();
   _genreOpen = true;
   pushLayer('genre');
+}
+// A shelf holds every book in any of its categories; the chips narrow it to one category.
+function shelfFilter() {
+  const g = SCENES.byKey(_shelfKey);
+  const cats = _shelfCat === 'All' ? g.cats : [_shelfCat];
+  return _allBooks.filter(b => b._cats.some(c => cats.indexOf(c) !== -1));
+}
+function renderShelfChips() {
+  const g = SCENES.byKey(_shelfKey);
+  const n = c => _allBooks.filter(b => b._cats.indexOf(c) !== -1).length;
+  const all = _allBooks.filter(b => b._cats.some(c => g.cats.indexOf(c) !== -1)).length;
+  $('genre-chips').innerHTML = ['All'].concat(g.cats).map(c => {
+    const label = c === 'All' ? 'All' : c.replace('Fiction \u2014 ', '');
+    return '<button class="sub' + (c === _shelfCat ? ' on' : '') + '" type="button" data-c="' + esc(c) + '">' + esc(label) + ' <i>' + (c === 'All' ? all : n(c)).toLocaleString() + '</i></button>';
+  }).join('');
+}
+function setShelfCat(c) {
+  _shelfCat = c;
+  _shelfBooks = shelfFilter();
+  _shelfShown = 0;
+  renderShelfChips();
+  $('genre-list').innerHTML = '';
+  appendShelfRows();
 }
 function appendShelfRows() {
   const list = $('genre-list');
@@ -405,6 +430,7 @@ function wireLibrary() {
     const b = _shelfBooks[Number(r.dataset.i)]; if (b) openSummary(b.title, b.author || '');
   });
   $('genre-close').addEventListener('click', closeTop);
+  $('genre-chips').addEventListener('click', e => { const c = e.target.closest('.sub'); if (c) setShelfCat(c.dataset.c); });
   $('pro-add').addEventListener('click', () => openNewBookModal(''));
 }
 
