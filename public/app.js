@@ -253,8 +253,8 @@ function renderGenres() {
     const g = SCENES.byKey(k);
     return '<button class="gcard" type="button" data-g="' + k + '" style="--g:' + g.bg + '">' +
       '<span class="art">' + SCENES.svg(k) + '</span>' +
-      '<span class="ct">' + counts[k].toLocaleString() + (counts[k] === 1 ? ' book' : ' books') + '</span>' +
-      '<span class="nm">' + esc(g.name) + '</span></button>';
+      '<span class="meta"><span class="ct">' + counts[k].toLocaleString() + (counts[k] === 1 ? ' book' : ' books') + '</span>' +
+      '<span class="nm">' + esc(g.name) + '</span></span></button>';
   }).join('');
 }
 
