@@ -513,7 +513,6 @@ function showSummary(title, author, html, plain, words, opts) {
   $('s-author').textContent = author ? 'by ' + author : '';
   $('summary-body').innerHTML = clean;
   $('buy-btn').href = makeAmazonUrl(title, author);
-  $('player-title').textContent = title;
   resetScrubUI();
   setSpeed(1);
 
@@ -553,9 +552,9 @@ function openReader() {
   r.scrollTop = 0;
   $('r-cover').style.transform = '';
   $('r-art').style.opacity = '';
-  $('player').hidden = false;
   document.body.style.overflow = 'hidden';
   _readerOpen = true;
+  watchCard();
   pushLayer('reader');
 }
 
@@ -564,9 +563,31 @@ function hideReader() {
   _readerOpen = false;
   stopAudio();
   setAudioState('idle');
-  $('player').hidden = true;
+  $('mini').classList.remove('show');
+  if (_cardObs) _cardObs.disconnect();
   document.body.style.overflow = _genreOpen ? 'hidden' : '';
   hideLayer('reader', () => { currentSummary = null; _waFile = null; });
+}
+
+// Mini player: shown at the top while the full player card is scrolled out of sight.
+let _cardObs = null, _cardGone = false;
+function watchCard() {
+  if (_cardObs) _cardObs.disconnect();
+  _cardGone = false;
+  _cardObs = new IntersectionObserver(es => {
+    const e = es[es.length - 1];
+    _cardGone = !e.isIntersecting && e.boundingClientRect.top < 0;
+    updateMini();
+  }, { root: $('reader'), rootMargin: '-64px 0px 0px 0px', threshold: 0 });
+  _cardObs.observe($('player'));
+  updateMini();
+}
+function updateMini() {
+  const can = !$('play-btn').disabled;
+  const show = _readerOpen && _cardGone && can;
+  $('mini').classList.toggle('show', show);
+  $('mini').setAttribute('aria-hidden', show ? 'false' : 'true');
+  $('mini-play').disabled = !can;
 }
 
 function closeReader() { if (_readerOpen) closeTop(); }
@@ -611,7 +632,7 @@ function applyAudioStateToUI() {
       _setPlayBtn(true); _setSeekControls(true); _setSpeedBtn(true); _setPrintKindle(true); break;
   }
 }
-function _setPlayBtn(enabled) { $('play-btn').disabled = !enabled; $('play-btn').style.opacity = enabled ? '' : '.4'; }
+function _setPlayBtn(enabled) { $('play-btn').disabled = !enabled; $('play-btn').style.opacity = enabled ? '' : '.4'; updateMini(); }
 function _setSeekControls(enabled) {
   $('scrub-row').classList.toggle('disabled', !enabled);
   $('skip-back').disabled = !enabled;
@@ -661,6 +682,7 @@ async function checkAudioAvailability() {
 function setPlayerState(playing, subText) {
   isPlaying = playing;
   $('play-icon').innerHTML = icon(playing ? 'pause' : 'play');
+  $('mini-icon').innerHTML = icon(playing ? 'pause' : 'play');
   $('play-btn').setAttribute('aria-label', playing ? 'Pause' : 'Play');
   if (subText) setSub(subText);
   setScrubActive(playing);
@@ -678,6 +700,9 @@ function resetScrubUI() {
   $('scrub-remaining').textContent = '−0:00';
   $('scrub-track').setAttribute('aria-valuenow', '0');
   $('play-icon').innerHTML = icon('play');
+  $('mini-icon').innerHTML = icon('play');
+  $('mini-fill').style.width = '0%';
+  $('mini-time').textContent = '';
   setScrubActive(false);
 }
 function updateScrubUI() {
@@ -688,6 +713,8 @@ function updateScrubUI() {
   $('scrub-track').setAttribute('aria-valuenow', String(Math.round(pct)));
   $('scrub-elapsed').textContent = fmtTime(audioEl.currentTime);
   $('scrub-remaining').textContent = '−' + fmtTime(audioEl.duration - audioEl.currentTime);
+  $('mini-fill').style.width = pct + '%';
+  $('mini-time').textContent = '−' + fmtTime(audioEl.duration - audioEl.currentTime);
 }
 function initScrubEvents() {
   const track = $('scrub-track');
@@ -1135,6 +1162,14 @@ function wire() {
   $('reader').addEventListener('scroll', onReaderScroll, { passive: true });
   $('genre').addEventListener('scroll', onGenreScroll, { passive: true });
   $('play-btn').addEventListener('click', togglePlay);
+  $('mini-play').addEventListener('click', togglePlay);
+  $('mini-up').addEventListener('click', () => $('reader').scrollTo({ top: 0, behavior: 'smooth' }));
+  $('mini-track').addEventListener('click', e => {
+    if (!audioEl || !audioEl.duration) return;
+    const r = $('mini-track').getBoundingClientRect();
+    audioEl.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * audioEl.duration;
+    updateScrubUI();
+  });
   $('speed-btn').addEventListener('click', cycleSpeed);
   $('skip-back').addEventListener('click', () => skipAudio(-10));
   $('skip-fwd').addEventListener('click', () => skipAudio(10));
