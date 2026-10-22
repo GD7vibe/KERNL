@@ -34,7 +34,7 @@ body{overflow-x:hidden}
 .big{font-size:clamp(1.9rem,8.4vw,3rem);line-height:1.05;white-space:nowrap;letter-spacing:-.025em;font-weight:300;margin:14px 0 26px}
 .big b{font-weight:800}
 .hero-card{position:relative;display:flex;align-items:center;min-height:150px;padding:24px 26px;border-radius:var(--r-lg);background:var(--accent);color:var(--accent-ink);overflow:hidden;border:2px solid rgba(8,40,38,.55);box-shadow:0 6px 0 rgba(8,40,38,.35),0 22px 32px -10px rgba(8,60,56,.55);text-decoration:none!important;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s}
-.hero-card:hover{transform:translateY(-4px) rotate(-.5deg);box-shadow:0 10px 0 rgba(8,40,38,.35),0 28px 36px -10px rgba(8,60,56,.55)}
+.hero-card:hover{transform:translateY(-4px);box-shadow:0 10px 0 rgba(8,40,38,.35),0 28px 36px -10px rgba(8,60,56,.55)}
 .hero-card:active{transform:translateY(2px);box-shadow:0 3px 0 rgba(8,40,38,.35),0 10px 20px -8px rgba(8,60,56,.5)}
 .hc-go{position:absolute;left:26px;bottom:14px;z-index:2;font-size:.78rem;font-weight:700;opacity:.85;letter-spacing:.02em}
 .hc-text{position:relative;z-index:2;max-width:62%}
@@ -55,7 +55,7 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
 .genres{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;padding-bottom:8px}
 @media(min-width:640px){.genres{grid-template-columns:repeat(4,1fr)}}
 .gcard{position:relative;display:block;text-align:left;aspect-ratio:1/1.08;border-radius:var(--r);background:var(--g);overflow:hidden;color:var(--ink);padding:16px;border:2px solid rgba(23,18,43,.6);transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s;box-shadow:0 6px 0 rgba(23,18,43,.3),0 20px 28px -10px rgba(23,18,43,.4)}
-.gcard:hover{transform:translateY(-4px) rotate(-.4deg);box-shadow:0 10px 0 rgba(23,18,43,.3),0 26px 32px -10px rgba(23,18,43,.4)}
+.gcard:hover{transform:translateY(-4px);box-shadow:0 10px 0 rgba(23,18,43,.3),0 26px 32px -10px rgba(23,18,43,.4)}
 .gcard:active{transform:translateY(2px);box-shadow:0 3px 0 rgba(23,18,43,.3),0 8px 16px -8px rgba(23,18,43,.4)}
 .gcard .art{position:absolute;left:50%;top:6%;width:62%;transform:translateX(-50%)}
 .gcard .art svg{width:100%;height:auto;display:block}
