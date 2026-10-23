@@ -427,7 +427,8 @@ function wireLibrary() {
   $('genres').addEventListener('click', e => { const c = e.target.closest('.gcard'); if (c) openShelf(c.dataset.g); });
   $('genre-list').addEventListener('click', e => {
     const r = e.target.closest('.brow'); if (!r) return;
-    const b = _shelfBooks[Number(r.dataset.i)]; if (b) openSummary(b.title, b.author || '');
+    // Open it in the colours of the shelf it was picked from, even when the book also sits on another shelf.
+    const b = _shelfBooks[Number(r.dataset.i)]; if (b) openSummary(b.title, b.author || '', { group: _shelfKey });
   });
   $('genre-close').addEventListener('click', closeTop);
   $('genre-chips').addEventListener('click', e => { const c = e.target.closest('.sub'); if (c) setShelfCat(c.dataset.c); });
@@ -441,6 +442,7 @@ async function openSummary(title, author, opts) {
   if (_opening) return;
   _opening = true;
   const isNew = !!(opts && opts.isNew);
+  const group = (opts && opts.group) || '';
   setBusy(isNew ? 'Writing your summary. This takes about 30 seconds…' : 'Opening…');
   let streamStarted = false;
   try {
@@ -453,7 +455,7 @@ async function openSummary(title, author, opts) {
     if ((res.headers.get('content-type') || '').includes('application/json')) {
       const d = await res.json();
       setBusy('');
-      showSummary(title, author || d.author || '', d.html, d.plain, parseWords(d.words));
+      showSummary(title, author || d.author || '', d.html, d.plain, parseWords(d.words), { group });
       refreshProfile();
       return;
     }
@@ -474,7 +476,7 @@ async function openSummary(title, author, opts) {
         if (msg.error) { serverError = msg.error; continue; }
         if (msg.done) { finalData = msg; continue; }
         if (msg.chunk) {
-          if (!streamStarted) { streamStarted = true; setBusy(''); showSummary(title, author, msg.chunk, '', [], { streaming: true }); }
+          if (!streamStarted) { streamStarted = true; setBusy(''); showSummary(title, author, msg.chunk, '', [], { streaming: true, group }); }
           else updateStreamingBody(msg.chunk);
         }
       }
@@ -482,7 +484,7 @@ async function openSummary(title, author, opts) {
     // Never present a half-written summary as if it were finished.
     if (serverError) throw new Error(serverError);
     if (!finalData) throw new Error('The connection dropped before the summary finished. It may still be saving, so try opening it again in a minute.');
-    showSummary(title, author, finalData.html, finalData.plain, parseWords(finalData.words));
+    showSummary(title, author, finalData.html, finalData.plain, parseWords(finalData.words), { group });
     refreshProfile();
   } catch (err) {
     if (streamStarted && _readerOpen) closeReader();
@@ -505,7 +507,8 @@ function showSummary(title, author, html, plain, words, opts) {
   const clean = sanitizeHtml(stripGenreLine(html));
   currentSummary = { title, author, html: clean, plain: plain || '', words: words || [] };
 
-  const key = groupOfTitle(title);
+  // The shelf it was opened from wins; otherwise (search, library, links) the book's own shelf.
+  const key = (opts.group && SCENES.GROUPS.some(x => x.key === opts.group)) ? opts.group : groupOfTitle(title);
   const g = SCENES.byKey(key);
   $('reader').style.setProperty('--g', g.bg);
   $('r-cover').innerHTML = SCENES.svg(key);
