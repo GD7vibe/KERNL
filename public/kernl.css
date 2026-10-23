@@ -205,3 +205,23 @@ html.dark .toast.err,html.dark .toast.ok{color:#14110f}
 .brow-wrap .rm:hover{background:var(--err-soft);color:var(--err)}
 .brow-wrap .rm .icon{width:16px;height:16px}
 .brow-wrap .brow .tx{padding-right:34px}
+
+/* ── Dark mode: white outlines and a pale solid edge, so boxes pop and read as 3D ──
+   Light mode draws a dark outline with a darker slab underneath. On a near-black page that slab vanishes,
+   so in dark mode the outline turns white and the slab becomes a light grey. Light mode is unchanged. */
+html.dark{
+  --edge:rgba(255,255,255,.62); --edge-d:rgba(214,206,240,.30);
+  --pop:rgba(255,255,255,.82); --pop-d:rgba(220,212,245,.40);
+}
+/* Coloured tiles (home shelves, row tiles, library tiles, usage card, reader buttons) */
+html.dark .gcard{border-color:var(--pop);box-shadow:0 6px 0 var(--pop-d),0 20px 28px -10px rgba(0,0,0,.7)}
+html.dark .gcard:hover{box-shadow:0 10px 0 var(--pop-d),0 26px 32px -10px rgba(0,0,0,.75)}
+html.dark .gcard:active{box-shadow:0 3px 0 var(--pop-d),0 8px 16px -8px rgba(0,0,0,.7)}
+html.dark .hero-card{border-color:var(--pop);box-shadow:0 6px 0 var(--pop-d),0 22px 32px -10px rgba(0,0,0,.7)}
+html.dark .hero-card:hover{box-shadow:0 10px 0 var(--pop-d),0 28px 36px -10px rgba(0,0,0,.75)}
+html.dark .hero-card:active{box-shadow:0 3px 0 var(--pop-d),0 10px 20px -8px rgba(0,0,0,.7)}
+html.dark .hc-art{border:2px solid var(--pop);box-shadow:0 4px 0 var(--pop-d)}
+html.dark .brow .tile,html.dark .lib-sec .tile{border-color:var(--pop);box-shadow:0 3px 0 var(--pop-d)}
+html.dark .act .c{border-color:var(--pop);box-shadow:0 4px 0 var(--pop-d),0 12px 18px -6px rgba(0,0,0,.6)}
+html.dark .r-cover{border:2px solid var(--pop);box-shadow:0 6px 0 var(--pop-d),0 20px 44px rgba(0,0,0,.6)}
+html.dark .mini{border:1.5px solid var(--edge);box-shadow:0 3px 0 var(--edge-d),0 10px 24px rgba(0,0,0,.5)}
