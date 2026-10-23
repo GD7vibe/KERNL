@@ -140,6 +140,23 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(kindle, { body: { title: 'Meditations', author: 'Marcus Aurelius', kindleEmail: 'me@kindle.com' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(db.emails, 1); console.log('ok kindle guest send');
 
+  // ── Book-open audit (read-only; Pro/admin only) ──
+  const audit = require('../api/audit-books');
+  r = await call(audit, { method: 'GET', query: {}, token: 'tokA' });
+  assert.strictEqual(r.code, 403); console.log('ok audit refused for free user');
+  r = await call(audit, { method: 'GET', query: {} });
+  assert.strictEqual(r.code, 403); console.log('ok audit refused for anonymous');
+  r = await call(audit, { method: 'GET', query: { limit: '10' }, token: 'tokP' });
+  assert.strictEqual(r.code, 200); assert.ok(r.body.rows.length >= 2);
+  assert.ok(r.body.rows.every(x => x.opens === 'ok'), 'a seeded book failed the open check: ' + JSON.stringify(r.body.rows.map(x => x.opens)));
+  console.log('ok audit: every seeded book opens via the click lookup');
+  db.summaries.push({ id: 99, title: 'Ghost', author: 'Nobody', lookup_key: 'something-else', plain: STOIC, html: '<p>x</p>', words: '[]' });
+  const savedLookup = db.summaries[2].lookup_key; db.summaries[2].title = 'Zzzz Unfindable Qqqq'; db.summaries[2].lookup_key = 'zzzz';
+  r = await call(audit, { method: 'GET', query: { limit: '10' }, token: 'tokP' });
+  assert.ok(r.body.rows.find(x => x.id === 99), 'ghost row missing');
+  db.summaries.pop();
+  console.log('ok audit runs on odd rows without crashing');
+
   // a service key that is really the public anon key must be refused everywhere
   const anon = b64({alg:'HS256'}) + '.' + b64({role:'anon'}) + '.sig';
   delete require.cache[require.resolve('../lib/kernl')];

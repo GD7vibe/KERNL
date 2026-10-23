@@ -620,6 +620,21 @@ let isPlaying = false, audioEl = null, playbackRate = 1;
 let streamingAudioContext = null, streamingSources = [];
 let _audioState = 'idle';
 
+// Single-voice guarantee. Three things work together so two narrations can never run at once:
+//  1. _playToken: every stop bumps it, so any start still waiting on the network sees it is cancelled and gives up.
+//  2. _starting: while a start is under way a second tap cannot launch another one.
+//  3. _liveAudio: every <audio> element we ever make is tracked, so silenceAll() can always find and stop it.
+let _playToken = 0, _starting = false, _lastStart = 0;
+const _liveAudio = new Set();
+const _tabId = Math.random().toString(36).slice(2);
+let _audioChannel = null;
+try {
+  _audioChannel = new BroadcastChannel('kernl-audio');
+  // Another KERNL tab began playing: pause this one so the two tabs never talk over each other.
+  _audioChannel.onmessage = e => { if (e.data && e.data.playing && e.data.tab !== _tabId && (isPlaying || _starting)) pauseAudio(); };
+} catch (e) { /* older browsers: single-tab protection still applies */ }
+function _announcePlaying() { try { if (_audioChannel) _audioChannel.postMessage({ playing: true, tab: _tabId }); } catch (e) { /* ignore */ } }
+
 function setAudioState(state) { _audioState = state; applyAudioStateToUI(); }
 
 function applyAudioStateToUI() {
@@ -754,21 +769,37 @@ function registerMediaSession(title, author) {
   navigator.mediaSession.setActionHandler('seekbackward', () => skipAudio(-10));
   navigator.mediaSession.setActionHandler('seekforward', () => skipAudio(10));
 }
+// Stops every sound source without touching the token (used when about to start a fresh one).
+function killNodes() {
+  _liveAudio.forEach(a => { try { a.pause(); a.removeAttribute('src'); a.load(); } catch (e) { /* ignore */ } });
+  _liveAudio.clear();
+  audioEl = null;
+  streamingSources.forEach(s => { try { s.stop(); } catch (e) { /* ignore */ } });
+  streamingSources = [];
+  if (streamingAudioContext) { try { if (streamingAudioContext.state !== 'closed') streamingAudioContext.close(); } catch (e) { /* ignore */ } }
+  streamingAudioContext = null;
+}
+// Silences everything AND cancels any start still waiting on the network.
+function silenceAll() { _playToken++; _starting = false; killNodes(); }
 function stopAudio() {
-  if (audioEl) { try { audioEl.pause(); audioEl.src = ''; } catch (e) { /* ignore */ } audioEl = null; }
-  if (streamingSources.length) { streamingSources.forEach(s => { try { s.stop(); } catch (e) { /* ignore */ } }); streamingSources = []; }
-  if (streamingAudioContext && streamingAudioContext.state !== 'closed') { try { streamingAudioContext.close(); } catch (e) { /* ignore */ } streamingAudioContext = null; }
+  silenceAll();
   setPlayerState(false, null);
   resetScrubUI();
 }
 function pauseAudio() {
+  // Pausing while a start is still being set up cancels it, so it cannot begin playing a moment later.
+  if (_starting) { stopAudio(); setSub('Press play to listen'); return; }
   if (audioEl && !audioEl.paused) audioEl.pause();
   if (streamingAudioContext && streamingAudioContext.state === 'running') streamingAudioContext.suspend();
   setPlayerState(false, 'Paused');
 }
 function resumeAudio() {
-  if (streamingAudioContext && streamingAudioContext.state === 'suspended') { streamingAudioContext.resume(); setPlayerState(true, 'Now playing'); return true; }
-  if (audioEl && audioEl.paused && audioEl.src) { audioEl.play(); setPlayerState(true, 'Now playing'); return true; }
+  if (streamingAudioContext && streamingAudioContext.state === 'suspended') { streamingAudioContext.resume(); setPlayerState(true, 'Now playing'); _announcePlaying(); return true; }
+  if (audioEl && audioEl.paused && audioEl.src) {
+    const p = audioEl.play();
+    if (p && p.catch) p.catch(err => { console.warn('resume failed:', err.message); setPlayerState(false, 'Tap play to listen'); });
+    setPlayerState(true, 'Now playing'); _announcePlaying(); return true;
+  }
   return false;
 }
 async function checkAudioCache() {
@@ -782,151 +813,190 @@ async function checkAudioCache() {
 function isSafari() { return /^((?!chrome|android).)*safari/i.test(navigator.userAgent); }
 
 async function startTTS() {
-  if (!currentSummary) return;
-  const cachedUrl = await checkAudioCache();
-  if (cachedUrl) { setAudioState('cached'); playSingleAudio(cachedUrl, null); return; }
-  if (!isPro()) { setAudioState('audio-prep'); setSub('Audio for this book is a Pro feature'); return; }
-
-  if (isSafari()) {
-    // Safari can't play the live stream: wait for the file to be built, then play it.
-    setAudioState('audio-prep');
-    const pollTitle = currentSummary.title, pollAuthor = currentSummary.author;
-    const pollForAudio = async attempt => {
-      if (!currentSummary || currentSummary.title !== pollTitle) return;
-      setSub('Audio preparing… ' + (attempt * 5) + 's');
-      try {
-        const res = await fetch('/api/tts', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title: pollTitle, author: pollAuthor }) });
-        if (res.ok) { const d = await res.json(); if (d.url) { setAudioState('cached'); playSingleAudio(d.url, null); return; } }
-      } catch (e) { console.warn('Poll error:', e.message); }
-      if (attempt < 42) setTimeout(() => pollForAudio(attempt + 1), 5000);
-      else { setSub('Audio unavailable. Tap play to retry'); setAudioState('cached'); }
-    };
-    try { fetch('/api/generate-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: pollTitle, author: pollAuthor, voice: 'female' }) }).catch(() => {}); } catch (e) { /* ignore */ }
-    pollForAudio(1);
-    return;
-  }
-
-  setAudioState('streaming');
-  setSpeed(1);
-  setPlayerState(true, 'Connecting…');
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  let audioContext;
+  if (!currentSummary || _starting) return;
+  silenceAll();                                   // never start on top of anything already sounding
+  const token = _playToken;
+  const title = currentSummary.title, author = currentSummary.author;
+  // Still the request that is wanted? False if the user stopped, left the book, or started another one meanwhile.
+  const alive = () => token === _playToken && !!currentSummary && currentSummary.title === title;
+  _starting = true; _lastStart = Date.now();
+  // The button shows "pause" straight away, so a second tap cancels instead of launching a second copy.
+  setPlayerState(true, 'Starting…');
   try {
-    audioContext = new AudioCtx();
-    if (audioContext.state === 'suspended') await audioContext.resume();
-  } catch (e) {
-    console.warn('AudioContext failed:', e);
-    setAudioState('audio-prep');
-    setPlayerState(false, 'Audio unavailable. Tap play to retry');
-    return;
-  }
-  streamingAudioContext = audioContext;
-  streamingSources = [];
-  let nextStartTime = audioContext.currentTime + 0.1;
-  let started = false;
-  let mp3Buffer = new Uint8Array(0);
-  const scheduleChunk = async base64chunk => {
-    const binary = atob(base64chunk);
-    const newBytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) newBytes[i] = binary.charCodeAt(i);
-    const combined = new Uint8Array(mp3Buffer.length + newBytes.length);
-    combined.set(mp3Buffer); combined.set(newBytes, mp3Buffer.length);
-    mp3Buffer = combined;
-    try {
-      const decoded = await audioContext.decodeAudioData(mp3Buffer.slice(0).buffer);
-      const source = audioContext.createBufferSource();
-      source.buffer = decoded;
-      source.playbackRate.value = playbackRate;
-      source.connect(audioContext.destination);
-      const when = Math.max(nextStartTime, audioContext.currentTime);
-      source.start(when);
-      streamingSources.push(source);
-      nextStartTime = when + decoded.duration;
-      mp3Buffer = new Uint8Array(0);
-      if (!started) {
-        started = true;
-        setPlayerState(true, 'Now playing');
-        registerMediaSession(currentSummary.title, currentSummary.author);
-        initScrubEvents();
-      }
-    } catch (e) { /* not enough data yet */ }
-  };
-  try {
-    const res = await fetch('/api/tts-stream', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title: currentSummary.title, author: currentSummary.author }) });
-    if (!res.ok) throw new Error('Stream failed: ' + res.status);
-    if ((res.headers.get('content-type') || '').includes('application/json')) {
-      const j = await res.json();
-      try { audioContext.close(); } catch (ex) { /* ignore */ }
-      streamingAudioContext = null; streamingSources = [];
-      if (j.url) { setAudioState('cached'); playSingleAudio(j.url, null); return; }
-      throw new Error('No audio');
-    }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let sseBuffer = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      sseBuffer += decoder.decode(value, { stream: true });
-      const lines = sseBuffer.split('\n');
-      sseBuffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
+    const cachedUrl = await checkAudioCache();
+    if (!alive()) return;
+    if (cachedUrl) { setAudioState('cached'); playSingleAudio(cachedUrl, null); return; }
+    if (!isPro()) { _starting = false; setAudioState('audio-prep'); setPlayerState(false, 'Audio for this book is a Pro feature'); return; }
+
+    if (isSafari()) {
+      // Safari can't play the live stream: wait for the file to be built, then play it.
+      setAudioState('audio-prep');
+      setPlayerState(false);
+      const pollForAudio = async attempt => {
+        if (!alive()) return;
+        setSub('Audio preparing… ' + (attempt * 5) + 's');
         try {
-          const msg = JSON.parse(line.slice(6));
-          if (msg.mp3) await scheduleChunk(msg.mp3);
-          if (msg.done) {
-            setAudioState('cached');
-            if (streamingSources.length) {
-              const last = streamingSources[streamingSources.length - 1];
-              last.onended = () => {
-                try { audioContext.close(); } catch (e) { /* ignore */ }
-                streamingAudioContext = null; streamingSources = []; isPlaying = false;
-                setPlayerState(false, 'Finished. Press play to replay');
-                setAudioState('cached');
-              };
-            }
-          }
-        } catch (e) { /* ignore */ }
+          const res = await fetch('/api/tts', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title, author }) });
+          if (!alive()) return;
+          if (res.ok) { const d = await res.json(); if (d.url && alive()) { setAudioState('cached'); playSingleAudio(d.url, null); return; } }
+        } catch (e) { console.warn('Poll error:', e.message); }
+        if (!alive()) return;
+        if (attempt < 42) setTimeout(() => pollForAudio(attempt + 1), 5000);
+        else { _starting = false; setPlayerState(false, 'Audio unavailable. Tap play to retry'); setAudioState('cached'); }
+      };
+      try { fetch('/api/generate-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title, author, voice: 'female' }) }).catch(() => {}); } catch (e) { /* ignore */ }
+      pollForAudio(1);
+      return;
+    }
+
+    setAudioState('streaming');
+    setSpeed(1);
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioContext;
+    try {
+      audioContext = new AudioCtx();
+      if (audioContext.state === 'suspended') await audioContext.resume();
+    } catch (e) {
+      console.warn('AudioContext failed:', e);
+      if (alive()) { _starting = false; setAudioState('audio-prep'); setPlayerState(false, 'Audio unavailable. Tap play to retry'); }
+      return;
+    }
+    if (!alive()) { try { audioContext.close(); } catch (e) { /* ignore */ } return; }
+    streamingAudioContext = audioContext;
+    streamingSources = [];
+    let nextStartTime = audioContext.currentTime + 0.1;
+    let started = false;
+    let mp3Buffer = new Uint8Array(0);
+    const scheduleChunk = async base64chunk => {
+      const binary = atob(base64chunk);
+      const newBytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) newBytes[i] = binary.charCodeAt(i);
+      const combined = new Uint8Array(mp3Buffer.length + newBytes.length);
+      combined.set(mp3Buffer); combined.set(newBytes, mp3Buffer.length);
+      mp3Buffer = combined;
+      try {
+        const decoded = await audioContext.decodeAudioData(mp3Buffer.slice(0).buffer);
+        if (!alive() || streamingAudioContext !== audioContext) return;   // cancelled while decoding
+        const source = audioContext.createBufferSource();
+        source.buffer = decoded;
+        source.playbackRate.value = playbackRate;
+        source.connect(audioContext.destination);
+        const when = Math.max(nextStartTime, audioContext.currentTime);
+        source.start(when);
+        streamingSources.push(source);
+        nextStartTime = when + decoded.duration;
+        mp3Buffer = new Uint8Array(0);
+        if (!started) {
+          started = true; _starting = false;
+          setPlayerState(true, 'Now playing');
+          _announcePlaying();
+          registerMediaSession(title, author);
+          initScrubEvents();
+        }
+      } catch (e) { /* not enough data yet */ }
+    };
+    try {
+      const res = await fetch('/api/tts-stream', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title, author }) });
+      if (!alive()) { try { audioContext.close(); } catch (ex) { /* ignore */ } return; }
+      if (!res.ok) throw new Error('Stream failed: ' + res.status);
+      if ((res.headers.get('content-type') || '').includes('application/json')) {
+        const j = await res.json();
+        if (!alive()) return;
+        killNodes();
+        if (j.url) { setAudioState('cached'); playSingleAudio(j.url, null); return; }
+        throw new Error('No audio');
       }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sseBuffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (!alive()) { try { reader.cancel(); } catch (ex) { /* ignore */ } return; }
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const msg = JSON.parse(line.slice(6));
+            if (msg.mp3) await scheduleChunk(msg.mp3);
+            if (!alive()) { try { reader.cancel(); } catch (ex) { /* ignore */ } return; }
+            if (msg.done) {
+              setAudioState('cached');
+              if (streamingSources.length) {
+                const last = streamingSources[streamingSources.length - 1];
+                last.onended = () => {
+                  if (streamingAudioContext !== audioContext) return;   // a newer playback owns the player now
+                  try { audioContext.close(); } catch (e) { /* ignore */ }
+                  streamingAudioContext = null; streamingSources = []; isPlaying = false;
+                  setPlayerState(false, 'Finished. Press play to replay');
+                  setAudioState('cached');
+                };
+              }
+            }
+          } catch (e) { /* ignore */ }
+        }
+      }
+      if (alive() && !started) throw new Error('Stream ended with no audio');
+    } catch (e) {
+      console.warn('TTS stream error:', e.message);
+      if (!alive()) return;
+      killNodes();
+      _starting = false;
+      setAudioState('audio-prep');
+      setPlayerState(false, 'Audio unavailable. Tap play to retry');
     }
   } catch (e) {
-    console.warn('TTS stream error:', e.message);
-    try { audioContext.close(); } catch (ex) { /* ignore */ }
-    streamingAudioContext = null; streamingSources = [];
-    setAudioState('audio-prep');
-    setPlayerState(false, 'Audio unavailable. Tap play to retry');
+    // Safety net: an unexpected error must never leave the button stuck on "Starting…".
+    console.warn('startTTS error:', e && e.message);
+    if (token === _playToken) { killNodes(); _starting = false; setAudioState('audio-prep'); setPlayerState(false, 'Audio unavailable. Tap play to retry'); }
   }
 }
 
-function _attachAudioHandlers(blobUrl) {
-  if (!audioEl) return;
-  audioEl.addEventListener('timeupdate', updateScrubUI);
-  audioEl.addEventListener('ended', () => {
-    $('scrub-fill').style.width = '100%';
+function _attachAudioHandlers(el, blobUrl) {
+  // Every handler first checks that this element is still THE player. A stale element can never touch the UI
+  // or clear the reference to a newer one.
+  el.addEventListener('timeupdate', () => { if (audioEl === el) updateScrubUI(); });
+  el.addEventListener('ended', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
+    _liveAudio.delete(el);
+    if (audioEl !== el) return;
+    $('scrub-fill').style.width = '100%';
     setPlayerState(false, 'Finished. Press play to replay');
     audioEl = null;
   });
-  audioEl.addEventListener('error', e => {
-    console.error('Audio error:', e.target.error);
+  el.addEventListener('error', e => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
-    audioEl = null;
+    _liveAudio.delete(el);
+    if (audioEl !== el) return;
+    console.error('Audio error:', e.target.error);
+    audioEl = null; _starting = false;
     setPlayerState(false, 'Audio unavailable. Tap play to retry');
   });
+  // Last line of defence: if anything other than the current player ever starts, stop it on the spot.
+  el.addEventListener('play', () => { if (audioEl !== el) { try { el.pause(); } catch (e) { /* ignore */ } } });
 }
 function playSingleAudio(audioUrl, blobUrl) {
-  audioEl = new Audio(audioUrl);
-  audioEl.playbackRate = playbackRate;
-  _attachAudioHandlers(blobUrl);
-  const p = audioEl.play();
-  if (p) p.catch(err => { console.warn('play() failed:', err.message); setPlayerState(false, 'Tap play to listen'); });
+  killNodes();                                   // there is only ever one voice: remove any other before making this one
+  const el = new Audio(audioUrl);
+  _liveAudio.add(el);
+  audioEl = el;
+  _starting = false;
+  el.playbackRate = playbackRate;
+  _attachAudioHandlers(el, blobUrl);
+  const p = el.play();
+  if (p) p.catch(err => { if (audioEl !== el) return; console.warn('play() failed:', err.message); setPlayerState(false, 'Tap play to listen'); });
   setPlayerState(true, 'Now playing');
+  _announcePlaying();
   initScrubEvents();
   if (currentSummary) registerMediaSession(currentSummary.title, currentSummary.author);
 }
 function togglePlay() {
   if (!currentSummary) return;
+  // A double-tap must not start and then immediately cancel: ignore a second tap right after a start.
+  if (_starting && Date.now() - _lastStart < 700) return;
+  if (_starting) { stopAudio(); setSub('Press play to listen'); return; }
   if (isPlaying) { pauseAudio(); return; }
   if (streamingAudioContext && streamingAudioContext.state === 'suspended') { resumeAudio(); return; }
   if (audioEl && audioEl.paused && audioEl.src) { resumeAudio(); return; }

@@ -452,3 +452,6 @@ module.exports = async (req, res) => {
     }
   }
 };
+
+// Exposed for api/audit-books.js so the audit runs the exact lookup a book click runs.
+module.exports.findCached = findCached;
