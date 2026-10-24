@@ -1,6 +1,32 @@
 const K = require('../lib/kernl');
 const { buildEpub, renderCover } = require('../lib/epub');
 
+// First publication year from Open Library (the same free service the app uses for new-book suggestions).
+// Only trusted when the author matches; anything slow, missing or implausible means no year on the cover.
+async function lookupYear(title, author) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 3000);
+  try {
+    const url = 'https://openlibrary.org/search.json?title=' + encodeURIComponent(title) + (author ? '&author=' + encodeURIComponent(author) : '') + '&limit=5&fields=title,author_name,first_publish_year';
+    const r = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': 'KERNL (kernlbooks.com)' } });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const now = new Date().getFullYear();
+    for (const doc of (d && d.docs) || []) {
+      const y = Number(doc.first_publish_year);
+      if (!(y >= 1450 && y <= now)) continue;
+      const names = doc.author_name || [];
+      if (author && !names.some(n => K.authorMatches(n, author))) continue;
+      return y;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function safe(s) {
   return String(s).replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').slice(0,60);
 }
@@ -36,7 +62,8 @@ module.exports = async (req, res) => {
 
   try {
     // Build EPUB: valid XHTML, full metadata, and a cover image carrying the title and author
-    const cover = renderCover(title, author);
+    const year = await lookupYear(title, author);
+    const cover = renderCover(title, author, year);
     const epubBuffer = await buildEpub({ title, author, html, cover });
     const filename = safe(title) + '_KERNL.epub';
     const epubBase64 = epubBuffer.toString('base64');

@@ -17,6 +17,14 @@ const E = require('../lib/epub');
   assert.deepStrictEqual(E.splitTitle('Sapiens: A Brief History of Humankind'), { main: 'Sapiens', sub: 'A Brief History of Humankind' });
   assert.deepStrictEqual(E.splitTitle('Meditations'), { main: 'Meditations', sub: '' }); console.log('ok title splits into main + subtitle');
 
+  // Long single word is never split; year shown only when given; K drawn behind the text.
+  const svgM = E.coverSvg('Meditations', 'Marcus Aurelius', null);
+  assert.ok(svgM.includes('>Meditations</text>'), 'Meditations was split'); assert.ok(!/>\d{4}<\/text>/.test(svgM), 'year drawn when none given');
+  const svgW = E.coverSvg('The Coming Wave', 'Mustafa Suleyman', 2023);
+  assert.ok(svgW.includes('>2023</text>')); assert.ok(svgW.includes('>Mustafa Suleyman</text>')); assert.ok((svgW.match(/<path d=/g) || []).length >= 12, 'K not drawn');
+  assert.ok(E.renderCover('The Coming Wave', 'Mustafa Suleyman', 2023).length > 1000);
+  console.log('ok cover: no split words, author + year, embossed K');
+
   // The EPUB itself.
   const buf = await E.buildEpub({ title: 'Tom & Jerry: "Cat" <and> Mouse', author: 'A. N. Author', html: '<h2>One</h2><p>Text & more.</p>', cover: png });
   const zip = await JSZip.loadAsync(buf);
