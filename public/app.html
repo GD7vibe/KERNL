@@ -46,8 +46,9 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
 .hc-bar i{display:block;height:100%;width:0;border-radius:9px;background:currentColor;transition:width .5s}
 .hc-note{position:relative;z-index:2;margin-top:12px;font-size:.88rem;line-height:1.45;max-width:30rem}
 .hc-note a{color:inherit;font-weight:700;text-decoration:underline}
-.hc-art{position:absolute;right:22px;top:50%;transform:translateY(-50%);width:124px;aspect-ratio:1;border-radius:30px;background:var(--g,#f5c04a);overflow:hidden;color:var(--ink);box-shadow:0 8px 20px rgba(0,0,0,.18)}
-.hc-art svg{width:100%;height:100%;display:block}
+/* KERNL K: a quiet embossed tint of the card colour (light and dark), not a coloured tile */
+.hc-art{position:absolute;right:30px;top:50%;transform:translateY(-50%);width:112px;aspect-ratio:1;pointer-events:none;color:inherit}
+.hc-art svg{width:100%;height:100%;display:block;overflow:visible;fill:color-mix(in srgb,currentColor 20%,transparent);filter:drop-shadow(-1.5px -1.5px 0 color-mix(in srgb,#fff 30%,transparent)) drop-shadow(2px 3px 1.5px rgba(0,0,0,.20))}
 .hc-add{position:relative;z-index:2;margin-top:14px}
 .btn.onacc{background:rgba(255,255,255,.2);border-color:transparent;color:inherit}
 .btn.onacc:hover:not(:disabled){background:rgba(255,255,255,.32);color:inherit;border-color:transparent}
@@ -217,12 +218,12 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
       <div class="hc-bar"><i id="meter-fill"></i></div>
     </div>
     <div class="hc-go">My library &rsaquo;</div>
-    <div class="hc-art" id="hero-art"></div>
+    <div class="hc-art" id="hero-art"><svg viewBox="150 202 626 626" aria-hidden="true" focusable="false"><path d="M587.1 796.1L585.9 796.7L568 803.8L549.7 809.9L531 814.7L512.1 818.4L493 820.9L473.7 822.1L454.5 822.2L435.2 821L416.1 818.7L403 816.2L403 658L463.2 576.6Z M587.1 796.1"/><path d="M673.6 292.3L679.5 297.8L692.7 311.8L705.1 326.6L716.4 342.1L726.8 358.4L736.2 375.3L744.4 392.7L751.6 410.6L757.6 428.9L762.4 447.6L766.1 466.5L768.6 485.6L769.9 504.8L769.9 524.1L768.8 543.4L766.4 562.5L762.9 581.4L758.1 600.1L752.2 618.5L745.2 636.4L737 653.9L727.8 670.8L717.5 687.1L706.2 702.8L694 717.7L687.7 724.4L543.1 468.6Z M673.6 292.3"/><path d="M403 214.7L414.2 212.5L433.3 210L452.6 208.7L471.8 208.7L491.1 209.8L510.2 212.2L529.2 215.7L547.9 220.5L566.2 226.4L568.9 227.4L403 451.6Z M403 214.7"/><path d="M259.5 285.9L274.3 273.5L280.2 269.2L280.2 761.7L275.8 758.5L260.9 746.2L246.8 733.1L233.6 719.1L221.3 704.3L209.9 688.7L199.5 672.5L190.2 655.6L181.9 638.2L174.7 620.3L168.7 602L163.9 583.3L160.2 564.4L157.7 545.2L156.5 526L156.4 506.7L157.6 487.5L159.9 468.4L163.5 449.4L168.2 430.7L174.1 412.4L181.1 394.4L189.3 377L198.5 360L208.8 343.7L220.1 328.1L232.3 313.2L245.5 299.1Z M259.5 285.9"/></svg></div>
   </a>
   <p class="hc-note" id="limit-note" hidden style="color:var(--text-2);margin-top:12px"></p>
   <div id="pro-add-wrap" class="pro-wrap" hidden><button class="btn sm" id="pro-add" type="button"><span data-icon="sparkle"></span>Summarise a new book</button></div>
 
-  <h2 class="sec-title">Pick a shelf</h2>
+  <h2 class="sec-title">Pick a Genre</h2>
   <div class="genres skel-genres" id="genres"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
 </main>
 

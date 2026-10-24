@@ -220,7 +220,6 @@ html.dark .gcard:active{box-shadow:0 3px 0 var(--pop-d),0 8px 16px -8px rgba(0,0
 html.dark .hero-card{border-color:var(--pop);box-shadow:0 6px 0 var(--pop-d),0 22px 32px -10px rgba(0,0,0,.7)}
 html.dark .hero-card:hover{box-shadow:0 10px 0 var(--pop-d),0 28px 36px -10px rgba(0,0,0,.75)}
 html.dark .hero-card:active{box-shadow:0 3px 0 var(--pop-d),0 10px 20px -8px rgba(0,0,0,.7)}
-html.dark .hc-art{border:2px solid var(--pop);box-shadow:0 4px 0 var(--pop-d)}
 html.dark .brow .tile,html.dark .lib-sec .tile{border-color:var(--pop);box-shadow:0 3px 0 var(--pop-d)}
 html.dark .act .c{border-color:var(--pop);box-shadow:0 4px 0 var(--pop-d),0 12px 18px -6px rgba(0,0,0,.6)}
 html.dark .r-cover{border:2px solid var(--pop);box-shadow:0 6px 0 var(--pop-d),0 20px 44px rgba(0,0,0,.6)}
