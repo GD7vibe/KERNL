@@ -165,11 +165,6 @@ function renderUser() {
   $('meter-of').textContent = 'of ' + limit;
   $('meter-fill').style.width = (100 - pct) + '%';
   $('pro-add-wrap').hidden = !isPro();
-  if (!$('hero-art').firstChild) {
-    const keys = SCENES.DISPLAY, k = keys[new Date().getDate() % keys.length];
-    $('hero-art').style.setProperty('--g', SCENES.byKey(k).bg);
-    $('hero-art').innerHTML = SCENES.svg(k);
-  }
 
   // Limit note
   const note = $('limit-note');
