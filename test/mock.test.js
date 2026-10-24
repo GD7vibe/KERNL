@@ -21,6 +21,7 @@ global.fetch = async (url, o = {}) => {
   const u = new URL(url); const m = o.method || 'GET'; const q = u.searchParams;
   if (u.host === 'api.x.ai') { db.xai++; return J({}); }
   if (u.host === 'api.resend.com') { db.emails++; return J({ id: 'e' }); }
+  if (u.host === 'openlibrary.org') { db.ol = (db.ol || 0) + 1; return J({ docs: [{ title: 'Meditations', author_name: ['Marcus Aurelius'], first_publish_year: 1634 }] }); }
   if (u.pathname === '/auth/v1/user') {
     const t = (o.headers.Authorization || '').slice(7); return users[t] ? J(users[t]) : J({}, 401);
   }
@@ -139,6 +140,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(r.code, 401); console.log('ok kindle non-guest anon blocked');
   r = await call(kindle, { body: { title: 'Meditations', author: 'Marcus Aurelius', kindleEmail: 'me@kindle.com' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(db.emails, 1); console.log('ok kindle guest send');
+  assert.strictEqual(db.ol, 1, 'year lookup not called once'); console.log('ok kindle send looks up the year');
 
   // ── Book-open audit (read-only; Pro/admin only) ──
   const audit = require('../api/audit-books');
