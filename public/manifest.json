@@ -1,11 +1,11 @@
 {
   "name": "KERNL — Book Summaries",
   "short_name": "KERNL",
-  "description": "AI-powered book summaries you can read or listen to.",
+  "description": "Read less. Know more. The big ideas from great books, to read or listen to.",
   "start_url": "/app.html",
   "display": "standalone",
-  "background_color": "#faf7f2",
-  "theme_color": "#8B4513",
+  "background_color": "#f3ecfb",
+  "theme_color": "#f3ecfb",
   "icons": [
     {
       "src": "/icon-192.png",
