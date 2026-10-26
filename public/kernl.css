@@ -64,6 +64,9 @@ button:disabled{cursor:not-allowed}
 .brand small{display:none;font-family:var(--sans);font-size:.62rem;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3);margin-left:12px;font-weight:500}
 @media(min-width:760px){.brand small{display:inline}}
 .topbar-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+/* Narrow phones: "Back to the library" becomes "Back" so every header button fits */
+@media(max-width:440px){.topbar .long{display:none}}
+@media(max-width:370px){.topbar-actions{gap:2px}.topbar .btn.sm{padding:0 10px}}
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 18px;border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font-weight:500;font-size:.92rem;line-height:1;white-space:nowrap;transition:background .15s,border-color .15s,color .15s,transform .08s,box-shadow .15s;text-decoration:none!important}
