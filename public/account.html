@@ -52,7 +52,7 @@ details.fold>.inner{margin-top:14px}
 <body>
 <header class="topbar">
   <div class="wrap">
-    <a class="brand" href="/" aria-label="KERNL home">K<b>E</b>RNL<small>for the curious</small></a>
+    <a class="brand" href="/" aria-label="KERNL home">K<b>E</b>RNL<small>Read less. Know more.</small></a>
     <div class="topbar-actions">
       <a class="btn ghost sm" href="/app.html"><span data-icon="back"></span>Back to the library</a>
       <button class="iconbtn" data-theme-toggle type="button"></button>
@@ -82,7 +82,7 @@ details.fold>.inner{margin-top:14px}
   <div style="height:38vh" aria-hidden="true"></div>
 </main>
 
-<footer class="footer"><div class="wrap"><span>&copy; KERNL &mdash; for the curious</span><span><a href="/privacy.html">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms.html">Terms</a></span></div></footer>
+<footer class="footer"><div class="wrap"><span>&copy; KERNL &mdash; Read less. Know more.</span><span><a href="/privacy.html">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms.html">Terms</a></span></div></footer>
 
 <script>
 const SUPABASE_URL      = 'https://peebgzfufyklxzdfnesc.supabase.co';
@@ -184,6 +184,14 @@ async function renderRecs() {
   observeRows($('recs-list'));
 }
 
+// Genres start rolled up. The ones opened during this visit stay open when the list redraws (e.g. after removing a book).
+const _openShelves = new Set();
+document.addEventListener('toggle', e => {
+  const d = e.target;
+  if (!d.classList || !d.classList.contains('lib-sec')) return;
+  if (d.open) _openShelves.add(d.dataset.k); else _openShelves.delete(d.dataset.k);
+}, true);
+
 // Books are filed on the same eight shelves as the library, and the shelves appear as the collection grows.
 function renderLibrary() {
   const c = $('library-container');
@@ -196,7 +204,7 @@ function renderLibrary() {
   _items.forEach((it, i) => { const s = it.summaries || {}; const k = SCENES.groupFor(catsOf(s)); (by[k] = by[k] || []).push(i); });
   c.innerHTML = SCENES.DISPLAY.filter(k => by[k]).map(k => {
     const g = SCENES.byKey(k);
-    return '<details class="fold lib-sec" open style="--g:' + g.bg + '"><summary><span class="tile">' + SCENES.svg(k, { slice: true }) + '</span><span class="grow"><span class="nm">' + esc(g.name) + '</span><span class="ct">' + by[k].length + '</span></span><span>' + icon('chevron') + '</span></summary>' +
+    return '<details class="fold lib-sec" data-k="' + k + '"' + (_openShelves.has(k) ? ' open' : '') + ' style="--g:' + g.bg + '"><summary><span class="tile">' + SCENES.svg(k, { slice: true }) + '</span><span class="grow"><span class="nm">' + esc(g.name) + '</span><span class="ct">' + by[k].length + '</span></span><span>' + icon('chevron') + '</span></summary>' +
       '<div class="inner">' + by[k].map(i => { const it = _items[i], s = it.summaries || {}; return rowHtml(s.title || '', s.author, s.synopsis, k, i, !_guest); }).join('') + '</div></details>';
   }).join('');
   observeRows(c);
