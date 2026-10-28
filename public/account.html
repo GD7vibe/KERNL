@@ -67,11 +67,11 @@ details.fold>.inner{margin-top:14px}
   <div class="stack">
     <div class="card pad" id="tier-card"><div class="loadingline"><div class="spinner"></div>Cargando&hellip;</div></div>
     <details class="card pad fold" id="portrait-card" hidden>
-      <summary><span class="grow">Your reading portrait</span><span data-icon="chevron"></span></summary>
+      <summary><span class="grow">Tu retrato de lector</span><span data-icon="chevron"></span></summary>
       <div class="inner" id="portrait-body"></div>
     </details>
     <div class="card pad" id="recs-card" hidden>
-      <div class="sec-h">Suggested for you</div>
+      <div class="sec-h">Sugeridos para ti</div>
       <div id="recs-list"></div>
     </div>
     <div class="card pad">
@@ -133,8 +133,8 @@ async function init() {
   if (_guest) profile = { tier: 'guest', downloads_used: _items.length };
   renderTierCard(profile);
   renderLibrary();
-  // The reading portrait and suggestions are English-only for now, so they stay hidden in the Spanish edition.
-  $('portrait-card').hidden = true; $('recs-card').hidden = true;
+  if (_guest) { $('portrait-card').hidden = true; $('recs-card').hidden = true; }
+  else loadPortraitAndRecs(_items);
 }
 
 function renderTierCard(profile) {
@@ -150,7 +150,7 @@ function renderTierCard(profile) {
   if (tier === 'guest') cta = '<a class="btn primary" href="/login.html#signup">Crear cuenta gratis</a>';
   $('tier-card').innerHTML =
     '<div class="plan-row"><div><div class="label">Plan actual</div><div class="plan-name">' + name +
-    (tier === 'pro' ? ' <span class="badge pro">&pound;20 al año</span>' : '') + '</div></div>' + cta + '</div>' +
+    (tier === 'pro' ? ' <span class="badge pro">US$20 al año</span>' : '') + '</div></div>' + cta + '</div>' +
     (tier === 'guest' ? '<p class="muted" style="margin-top:14px;line-height:1.55">Eres invitado. Una cuenta gratis conserva tus libros en todos tus dispositivos y sube tu límite de 12 a 36.</p>' : '') +
     '<div class="usage"><div class="usage-top"><span>Resúmenes usados</span><b>' + used + ' de ' + limit + '</b></div>' +
     '<div class="bar"><div style="width:' + pct + '%;background:' + color + '"></div></div>' +
@@ -164,19 +164,19 @@ async function loadPortraitAndRecs(library) {
   card.hidden = false;
   if (n < PORTRAIT_THRESHOLD) {
     const need = PORTRAIT_THRESHOLD - n;
-    body.innerHTML = '<p class="muted" style="line-height:1.6">Read ' + need + ' more book' + (need !== 1 ? 's' : '') + ' and KERNL will write you a short portrait of your reading, with suggestions. ' + n + ' of ' + PORTRAIT_THRESHOLD + ' so far.</p>';
+    body.innerHTML = '<p class="muted" style="line-height:1.6">Lee ' + need + ' libro' + (need !== 1 ? 's' : '') + ' más y KERNL te escribirá un breve retrato de tus lecturas, con sugerencias. Llevas ' + n + ' de ' + PORTRAIT_THRESHOLD + '.</p>';
     return;
   }
-  body.innerHTML = '<div class="loadingline"><div class="spinner"></div>Writing your portrait&hellip;</div>';
+  body.innerHTML = '<div class="loadingline"><div class="spinner"></div>Escribiendo tu retrato&hellip;</div>';
   try {
     const res = await fetch('/api/generate-portrait', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + _session.access_token }, body: '{}' });
     if (!res.ok) throw new Error('API error ' + res.status);
     const data = await res.json();
-    body.innerHTML = data.portrait ? '<div class="portrait">' + esc(data.portrait) + '</div><div class="portrait-foot">Based on your library. Updates every 10 books.</div>' : '<p class="muted">No portrait yet.</p>';
+    body.innerHTML = data.portrait ? '<div class="portrait">' + esc(data.portrait) + '</div><div class="portrait-foot">Basado en tu biblioteca. Se actualiza cada 10 libros.</div>' : '<p class="muted">Aún no hay retrato.</p>';
     _recs = (data.recommendations || []).slice(0, 3);
     if (_recs.length) await renderRecs();
   } catch (e) {
-    body.innerHTML = '<p class="muted">Could not load your portrait just now. Refresh to try again.</p>';
+    body.innerHTML = '<p class="muted">No se pudo cargar tu retrato por ahora. Actualiza la página para intentarlo de nuevo.</p>';
   }
 }
 async function renderRecs() {
@@ -184,7 +184,7 @@ async function renderRecs() {
   let cats = {};
   try {
     const list = _recs.map(r => '"' + String(r.title).replace(/"/g, '\\"') + '"').join(',');
-    const res = await fetch(SUPABASE_URL + '/rest/v1/summaries?select=title,categories&title=in.(' + encodeURIComponent(list) + ')', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } });
+    const res = await fetch(SUPABASE_URL + '/rest/v1/summaries_es?select=title,categories&title=in.(' + encodeURIComponent(list) + ')', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } });
     if (res.ok) (await res.json()).forEach(b => { cats[b.title] = catsOf(b); });
   } catch (e) { /* fall back to a default icon */ }
   $('recs-list').innerHTML = _recs.map((r, i) => rowHtml(r.title, r.author, r.synopsis, SCENES.groupFor(cats[r.title] || []), i, false)).join('');

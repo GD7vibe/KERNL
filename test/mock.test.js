@@ -80,9 +80,9 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(r.code, 200); assert.strictEqual(r.body.source, 'cache'); console.log('ok summarise anon guest cache');
   // Spanish edition: a book that is not in the library is never written on request, whoever asks.
   r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' } });
-  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok summarise anon cannot generate');
+  assert.strictEqual(r.code, 401); assert.strictEqual(r.body.code, 'auth_required'); console.log('ok summarise anon cannot generate');
   r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokB' });
-  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok summarise over-limit cannot generate');
+  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok summarise over-limit cannot generate');
   r = await call(sum, { body: { patchWords: true, title: 'Dune' }, token: 'tokA' });
   assert.strictEqual(r.code, 403); console.log('ok patchWords admin-only');
 
@@ -94,9 +94,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: 'tokH' });
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok guest stopped at 12');
   r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokG' });
-  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok guest cannot generate new summaries');
-  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokP' });
-  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok even Pro cannot write new books in the Spanish edition');
+  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'signup_required'); console.log('ok guest cannot generate new summaries');
   r = await call(kindle, { body: { title: 'Dune', author: 'Frank Herbert', kindleEmail: 'me@kindle.com' }, token: 'tokG' });
   assert.strictEqual(r.code, 403); assert.strictEqual(db.emails, 0); console.log('ok guest cannot use kindle');
 

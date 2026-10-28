@@ -1,5 +1,8 @@
 const K = require('../lib/kernl');
 const SUPABASE_URL = K.SUPABASE_URL;
+const ES = require('../lib/es-translate');
+// A new book is always written in English first (that row gives the book its id), then translated into the edition's language.
+const GEN_TABLE = K.LANG === 'en' ? K.SUMMARIES_TABLE : 'summaries';
 
 // ── String helpers ────────────────────────────────────────────────────────────
 function norm(s) {
@@ -78,7 +81,7 @@ async function checkForDuplicate(title, author, newKey) {
   try {
     const nTitle = norm(title);
     const rows = await supabaseGet(
-      SUPABASE_URL + '/rest/v1/'+K.SUMMARIES_TABLE+'?title=ilike.' + encodeURIComponent('%' + nTitle + '%') +
+      SUPABASE_URL + '/rest/v1/'+GEN_TABLE+'?title=ilike.' + encodeURIComponent('%' + nTitle + '%') +
       '&select=id,title,author,lookup_key&limit=20'
     );
     if (!rows) return;
@@ -100,13 +103,13 @@ async function checkForDuplicate(title, author, newKey) {
 // Returns the new row's id (or the existing row's id if a concurrent request saved the same book first).
 async function saveToSupabase(title, author, key, html, plain, words) {
   await checkForDuplicate(title, author, key);
-  const r = await K.sb('/rest/v1/'+K.SUMMARIES_TABLE, {
+  const r = await K.sb('/rest/v1/'+GEN_TABLE, {
     method: 'POST', prefer: 'return=representation',
     body: { title, author, lookup_key: key, html, plain, words: JSON.stringify(words) }
   });
   if (r.ok && Array.isArray(r.data) && r.data[0]) return r.data[0].id;
   console.error('Supabase insert failed:', r.status, JSON.stringify(r.data).slice(0, 200));
-  const again = await K.sb('/rest/v1/'+K.SUMMARIES_TABLE+'?select=id&lookup_key=eq.' + encodeURIComponent(key) + '&limit=1');
+  const again = await K.sb('/rest/v1/'+GEN_TABLE+'?select=id&lookup_key=eq.' + encodeURIComponent(key) + '&limit=1');
   return again.ok && again.data && again.data[0] ? again.data[0].id : null;
 }
 
@@ -189,19 +192,20 @@ async function generateSynopsis(title, author, plain) {
 }
 
 // ── Cache lookup — robust multi-level with combined title+author scoring ───────
-async function findCached(title, author) {
+async function findCached(title, author, table) {
+  table = table || K.SUMMARIES_TABLE;
   const nAuthor = norm(author || '');
   const exactKey = makeKey(title, author);
 
-  let rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+K.SUMMARIES_TABLE+'?lookup_key=eq.'+encodeURIComponent(exactKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
+  let rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+table+'?lookup_key=eq.'+encodeURIComponent(exactKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
   if (rows) { console.log('Cache hit L1'); return rows[0]; }
 
   const oldSpoilersKey = norm(title)+'||'+norm(author)+'||spoilers';
-  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+K.SUMMARIES_TABLE+'?lookup_key=eq.'+encodeURIComponent(oldSpoilersKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
+  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+table+'?lookup_key=eq.'+encodeURIComponent(oldSpoilersKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
   if (rows) { console.log('Cache hit L1b'); return rows[0]; }
 
   const titleKey = norm(title)+'||nospoilers';
-  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+K.SUMMARIES_TABLE+'?lookup_key=eq.'+encodeURIComponent(titleKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
+  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+table+'?lookup_key=eq.'+encodeURIComponent(titleKey)+'&select=id,html,plain,words,lookup_key,title,author&limit=1');
   if (rows) { console.log('Cache hit L2'); return rows[0]; }
 
   function pickBest(candidates, minCombined) {
@@ -214,23 +218,23 @@ async function findCached(title, author) {
   }
 
   const nTitle = norm(title);
-  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+K.SUMMARIES_TABLE+'?title=ilike.'+encodeURIComponent('%'+nTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+  rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+table+'?title=ilike.'+encodeURIComponent('%'+nTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
   if (rows) { const m = pickBest(rows, 0.82); if (m) { console.log('Cache hit L3'); return m; } }
 
   const ntTitle = normTitle(title);
   if (ntTitle !== nTitle) {
-    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+K.SUMMARIES_TABLE+'?title=ilike.'+encodeURIComponent('%'+ntTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+table+'?title=ilike.'+encodeURIComponent('%'+ntTitle+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
     if (rows) { const m = pickBest(rows, 0.82); if (m) { console.log('Cache hit L3b'); return m; } }
   }
 
   const word = getDistinctiveWord(title);
   if (word && word.length >= 5) {
-    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+K.SUMMARIES_TABLE+'?title=ilike.'+encodeURIComponent('%'+word+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+table+'?title=ilike.'+encodeURIComponent('%'+word+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
     if (rows) { const m = pickBest(rows, 0.85); if (m) { console.log('Cache hit L4'); return m; } }
   }
 
   if (nAuthor && nAuthor.length > 2) {
-    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+K.SUMMARIES_TABLE+'?author=ilike.'+encodeURIComponent('%'+nAuthor+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
+    rows = await supabaseGet(SUPABASE_URL+'/rest/v1/'+table+'?author=ilike.'+encodeURIComponent('%'+nAuthor+'%')+'&select=id,html,plain,words,lookup_key,title,author&limit=20');
     if (rows) { const m = pickBest(rows, 0.80); if (m) { console.log('Cache hit L5'); return m; } }
   }
 
@@ -247,6 +251,102 @@ function htmlToPlain(html) { return html.replace(/<h2[^>]*>/gi, '\n\n').replace(
 
 function parseWords(row) {
   try { return row.words ? JSON.parse(row.words) : []; } catch (e) { return []; }
+}
+
+
+// ── Spanish edition: a Pro reader asks for a book that is not in the Spanish library yet ─────────────────────────
+// 1. work out the book's original (English) title and author, whatever language the reader typed
+// 2. use the English summary if the library has one, otherwise write it
+// 3. translate it into Latin American Spanish (title, synopsis, text, 21 Spanish Mega Words), save, charge once
+async function canonicalise(title, author) {
+  try {
+    const prompt = 'A reader typed a book title (any language) and maybe an author. Return the book\'s original title in English (or its original language if it was never published in English, as it is usually known) and its author, as ONLY a JSON object: {"title":"...","author":"..."}. If you do not recognise a real book, return {"title":"' + title.replace(/"/g, '') + '","author":"' + (author || '').replace(/"/g, '') + '"}.\n\nTitle: ' + title + '\nAuthor: ' + (author || '(not given)');
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 150, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!r.ok) return { title, author };
+    const d = await r.json();
+    const o = JSON.parse(d.content[0].text.replace(/```json|```/g, '').trim());
+    return { title: K.cleanText(o.title, 200) || title, author: K.cleanText(o.author, 200) || author };
+  } catch (e) { return { title, author }; }
+}
+
+async function writeEnglish(title, author) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 5000, messages: [{ role: 'user', content: buildPrompt(title, author) }] })
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((d.error && d.error.message) || 'Anthropic API error');
+  let raw = ((d.content && d.content[0] && d.content[0].text) || '').trim();
+  const first = raw.split('\n')[0].trim();
+  if (first.toUpperCase().startsWith('GENRE:')) raw = raw.slice(first.length).trim();
+  const words = parseWordsBlock(raw);
+  const html = stripWordsBlock(raw);
+  const plain = htmlToPlain(html);
+  const problems = K.summaryProblems(plain, html);
+  if (d.stop_reason !== 'end_turn' || problems.includes('too_short') || problems.includes('abrupt_end')) return null;
+  const id = await saveToSupabase(title, author, makeKey(title, author), html, plain, words);
+  if (!id) return null;
+  try {
+    const [categories, synopsis] = await Promise.all([categoriseBook(title, author, plain), generateSynopsis(title, author, plain)]);
+    const patch = {};
+    if (categories && categories.length) patch.categories = JSON.stringify(categories);
+    if (synopsis) patch.synopsis = synopsis;
+    if (Object.keys(patch).length) await K.sb('/rest/v1/' + GEN_TABLE + '?id=eq.' + id, { method: 'PATCH', prefer: 'return=minimal', body: patch });
+  } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
+  return id;
+}
+
+async function spanishNewBook(req, res, ctx, title, author) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  const send = o => res.write('data: ' + JSON.stringify(o) + '\n\n');
+  const beat = setInterval(() => { try { res.write(': ping\n\n'); } catch (e) { /* closed */ } }, 8000);
+  try {
+    send({ status: 'Buscando el libro…' });
+    const canon = await canonicalise(title, author);
+    let en = await findCached(canon.title, canon.author, 'summaries');
+    let enId = en ? en.id : null;
+
+    // Already translated under another spelling of the title? Then it is just a library hit.
+    if (enId) {
+      const have = await ES.spanishById(enId);
+      if (have && have.plain) {
+        const access = await K.authoriseRead(ctx, have);
+        if (!access.ok) { send({ error: (access.body && access.body.error) || 'No disponible.' }); return res.end(); }
+        let w = []; try { w = have.words ? JSON.parse(have.words) : []; } catch (e) { /* none */ }
+        send({ done: true, title: have.title, author: have.author, html: have.html, plain: have.plain, words: w, source: 'cache', quota: access.quota || null });
+        return res.end();
+      }
+    }
+
+    if (!enId) {
+      send({ status: 'Escribiendo el resumen… (1 de 2)' });
+      enId = await writeEnglish(canon.title, canon.author);
+      if (!enId) { send({ error: 'El resumen se cortó, así que no se guardó. Inténtalo de nuevo.' }); return res.end(); }
+    }
+
+    send({ status: 'Traduciendo al español… (2 de 2)' });
+    const t = await ES.translate(enId, false);
+    if (!t.ok) { send({ error: 'No se pudo crear el resumen en español. Inténtalo de nuevo en un momento.' }); return res.end(); }
+    const es = await ES.spanishById(enId);
+    if (!es || !es.plain) { send({ error: 'No se pudo guardar el resumen. Inténtalo de nuevo.' }); return res.end(); }
+
+    let quota = null;
+    try { const acc = await K.accessBook(ctx, enId); quota = acc.quota || null; } catch (e) { console.warn('accessBook failed:', e.message); }
+    let words = []; try { words = es.words ? JSON.parse(es.words) : []; } catch (e) { /* none */ }
+    send({ done: true, title: es.title, author: es.author, book: { title: es.title, author: es.author, synopsis: es.synopsis, categories: es.categories }, html: es.html, plain: es.plain, words, source: 'generated', quota });
+    return res.end();
+  } catch (e) {
+    console.error('[summarise es] failed:', e.message);
+    try { send({ error: 'Algo salió mal al crear el resumen. Inténtalo de nuevo.' }); res.end(); } catch (x) { /* closed */ }
+  } finally { clearInterval(beat); }
 }
 
 module.exports = async (req, res) => {
@@ -294,25 +394,25 @@ module.exports = async (req, res) => {
     return res.status(503).json({ error: 'La biblioteca no está disponible por ahora. Inténtalo de nuevo.' });
   }
 
-  // ── Spanish edition: the library is built by the translation pipeline, never by a reader's request ──
-  if (K.LANG !== 'en') return res.status(404).json({ code: 'not_in_library', error: 'Este libro todavía no está en la biblioteca en español.' });
-
   // ── Not cached: generating costs money, so it needs a signed-in user with allowance left ──
-  if (!ctx) return res.status(401).json({ code: 'auth_required', error: 'Please sign in to generate a new summary.' });
+  if (!ctx) return res.status(401).json({ code: 'auth_required', error: 'Inicia sesión para crear un resumen nuevo.' });
   if (ctx.tier === 'guest') {
-    return res.status(403).json({ code: 'signup_required', error: 'That book is not in the library yet. Create a free account to request new summaries.' });
+    return res.status(403).json({ code: 'signup_required', error: 'Ese libro todavía no está en la biblioteca. Crea una cuenta gratis para pedir resúmenes nuevos.' });
   }
   if (!ctx.admin) {
     const profile = await K.getProfile(ctx.user.id);
     const limit = K.limitFor(ctx.tier);
     const used = profile ? (profile.downloads_used || 0) : 0;
     if (used >= limit) {
-      return res.status(403).json({ code: 'limit', error: 'You have used all ' + limit + ' of your summaries.', quota: { used, limit, tier: ctx.tier } });
+      return res.status(403).json({ code: 'limit', error: 'Has usado tus ' + limit + ' resúmenes.', quota: { used, limit, tier: ctx.tier } });
     }
     if (K.rateLimited('gensum:' + ctx.user.id, 10, 60 * 60 * 1000)) {
-      return res.status(429).json({ error: 'Too many new summaries this hour. Try again later.' });
+      return res.status(429).json({ error: 'Demasiados resúmenes nuevos esta hora. Inténtalo más tarde.' });
     }
   }
+
+    // ── Spanish edition: English first, then translate ───────────────────────
+  if (K.LANG !== 'en') return spanishNewBook(req, res, ctx, title, author);
 
   // ── Not cached — stream from Anthropic ───────────────────────────────────
   const prompt = buildPrompt(title, author);
@@ -413,7 +513,7 @@ module.exports = async (req, res) => {
     const problems = K.summaryProblems(plain, html);
     if (stopReason !== 'end_turn' || problems.includes('too_short') || problems.includes('abrupt_end')) {
       console.error('[summarise] incomplete summary NOT saved:', title, 'stop_reason=' + stopReason, problems.join(','));
-      res.write('data: ' + JSON.stringify({ error: 'The summary was cut short, so it was not saved. Please try again.' }) + '\n\n');
+      res.write('data: ' + JSON.stringify({ error: 'El resumen se cortó, así que no se guardó. Inténtalo de nuevo.' }) + '\n\n');
       return res.end();
     }
 
@@ -430,7 +530,7 @@ module.exports = async (req, res) => {
         if (categories && categories.length > 0) patch.categories = JSON.stringify(categories);
         if (synopsis) patch.synopsis = synopsis;
         if (Object.keys(patch).length > 0) {
-          await K.sb('/rest/v1/'+K.SUMMARIES_TABLE+'?id=eq.' + savedId, { method: 'PATCH', prefer: 'return=minimal', body: patch });
+          await K.sb('/rest/v1/'+GEN_TABLE+'?id=eq.' + savedId, { method: 'PATCH', prefer: 'return=minimal', body: patch });
         }
       } catch (e) { console.warn('Categories/synopsis save failed:', e.message); }
     }

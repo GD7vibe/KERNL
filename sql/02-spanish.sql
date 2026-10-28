@@ -40,6 +40,9 @@ grant select (id, title, author, synopsis, categories) on public.summaries_es to
 drop policy if exists summaries_es_catalogue_read on public.summaries_es;
 create policy summaries_es_catalogue_read on public.summaries_es for select to anon, authenticated using (true);
 
+-- Reading portraits are kept per language, so a reader's Spanish portrait never overwrites their English one.
+alter table public.portraits add column if not exists language text not null default 'en';
+
 commit;
 
 -- ── Check ──────────────────────────────────────────────────────────────────────────────────────
@@ -50,3 +53,4 @@ commit;
 
 -- ── ROLLBACK (removes only the Spanish table) ─────────────────────────────────────────────────
 -- drop table public.summaries_es;
+-- alter table public.portraits drop column language;

@@ -154,6 +154,7 @@ function renderUser() {
   const used = (_userProfile && _userProfile.downloads_used) || 0;
   const limit = LIMITS[t] || LIMITS.free;
   const remaining = Math.max(0, limit - used);
+  $('pro-add-wrap').hidden = !isPro();
   const pct = Math.min(100, (used / limit) * 100);
 
   // Pro-only buttons
@@ -390,7 +391,8 @@ function renderSearch() {
   const top = scored.slice(0, 40).map(x => _allBooks[x[1]]);
   _searchHits = top;
   if (!top.length) {
-    out.innerHTML = '<div class="empty"><b>Nada coincide con “' + esc(raw.trim()) + '”</b>Prueba con otro título o autor. La biblioteca en español está creciendo.</div>';
+    out.innerHTML = '<div class="empty"><b>Nada coincide con “' + esc(raw.trim()) + '”</b>' +
+      (isPro() ? 'Todavía no está en la biblioteca, pero puedes pedir que lo escriban.<div style="margin-top:16px"><button class="btn primary" id="empty-add" type="button">Resumir “' + esc(raw.trim()) + '”</button></div>' : 'Prueba con otro título o autor. Los miembros Pro pueden pedir un resumen de cualquier libro.') + '</div>';
     return;
   }
   out.innerHTML = top.map((b, i) => {
@@ -402,6 +404,7 @@ let _searchHits = [];
 
 function wireLibrary() {
   $('search-btn').addEventListener('click', openSearch);
+  $('pro-add').addEventListener('click', () => openNewBookModal(''));
   $('search-close').addEventListener('click', closeSearch);
   let timer = null;
   $('search-input').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(renderSearch, 80); });
@@ -410,9 +413,11 @@ function wireLibrary() {
       e.preventDefault();
       const b = _searchHits[0];
       if (b && fold($('search-input').value)) { closeSearch(); openSummary(b.title, b.author || ''); }
+      else if (isPro() && $('search-input').value.trim()) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
     }
   });
   $('search-results').addEventListener('click', e => {
+    if (e.target.closest('#empty-add')) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); return; }
     const row = e.target.closest('[data-s]');
     if (row) { const b = _searchHits[Number(row.dataset.s)]; if (b) { closeSearch(); openSummary(b.title, b.author || ''); } return; }
   });
@@ -434,7 +439,7 @@ async function openSummary(title, author, opts) {
   _opening = true;
   const isNew = !!(opts && opts.isNew);
   const group = (opts && opts.group) || '';
-  setBusy(isNew ? 'Escribiendo tu resumen. Tarda unos 30 segundos…' : 'Abriendo…');
+  setBusy(isNew ? 'Escribiendo tu resumen. Tarda un par de minutos…' : 'Abriendo…');
   let streamStarted = false;
   try {
     const res = await fetch('/api/summarise', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title, author }) });
@@ -465,6 +470,7 @@ async function openSummary(title, author, opts) {
         let msg = null;
         try { msg = JSON.parse(line.slice(6).trim()); } catch (e) { continue; }
         if (msg.error) { serverError = msg.error; continue; }
+        if (msg.status) { setBusy(msg.status); continue; }
         if (msg.done) { finalData = msg; continue; }
         if (msg.chunk) {
           if (!streamStarted) { streamStarted = true; setBusy(''); showSummary(title, author, msg.chunk, '', [], { streaming: true, group }); }
@@ -475,7 +481,8 @@ async function openSummary(title, author, opts) {
     // Never present a half-written summary as if it were finished.
     if (serverError) throw new Error(serverError);
     if (!finalData) throw new Error('La conexión se interrumpió antes de terminar el resumen. Puede que aún se esté guardando; vuelve a abrirlo en un minuto.');
-    showSummary(title, author, finalData.html, finalData.plain, parseWords(finalData.words), { group });
+    if (finalData.book) addToCatalogue(finalData.book);
+    showSummary(finalData.title || title, finalData.author || author, finalData.html, finalData.plain, parseWords(finalData.words), { group });
     refreshProfile();
   } catch (err) {
     if (streamStarted && _readerOpen) closeReader();
@@ -1138,6 +1145,93 @@ async function whatsappAudio() {
     label.textContent = 'WhatsApp'; toast('No se pudo preparar el audio. Inténtalo de nuevo.', 'err');
   }
   btn.disabled = false;
+}
+
+// A book written during this visit joins the catalogue straight away, so search and shelves show it without a reload.
+function addToCatalogue(b) {
+  if (!b || !b.title || findInLibrary(b.title)) return;
+  let cats = [];
+  try { cats = JSON.parse(b.categories || '[]'); } catch (e) { cats = []; }
+  b._cats = Array.isArray(cats) ? cats : [];
+  b._g = SCENES.groupFor(b._cats); b._t = fold(b.title); b._a = fold(b.author);
+  _allBooks.push(b);
+  renderGenres();
+}
+
+// ── Pro: summarise a book that is not in the library yet ──────────────────────
+function openNewBookModal(prefillTitle) {
+  const m = KUI.modal(
+    '<h3>Resumir un libro nuevo</h3>' +
+    '<p class="sub">Se escribe un resumen nuevo en español y se descuenta uno de tus ' + LIMITS.pro + ' resúmenes. Tarda un par de minutos.</p>' +
+    '<label class="label" for="nb-title">Título del libro</label>' +
+    '<input class="input" id="nb-title" autocomplete="off" placeholder="p. ej. Papillon">' +
+    '<div class="suggest" id="nb-suggest" hidden></div>' +
+    '<div style="height:14px"></div>' +
+    '<label class="label" for="nb-author">Autor</label>' +
+    '<input class="input" id="nb-author" autocomplete="off" placeholder="p. ej. Henri Charrière">' +
+    '<div class="note warn" id="nb-warn" hidden style="margin-top:14px"></div>' +
+    '<div class="modal-actions"><button class="btn" data-cancel type="button">Cancelar</button><button class="btn primary" id="nb-go" type="button">Crear resumen</button></div>'
+  );
+  const titleIn = m.el.querySelector('#nb-title'), authorIn = m.el.querySelector('#nb-author');
+  const sugg = m.el.querySelector('#nb-suggest'), warn = m.el.querySelector('#nb-warn'), go = m.el.querySelector('#nb-go');
+  m.el.querySelector('[data-cancel]').onclick = m.close;
+  if (prefillTitle) titleIn.value = prefillTitle;
+  let acknowledged = false, timer = null;
+
+  titleIn.addEventListener('input', () => {
+    acknowledged = false; warn.hidden = true; go.textContent = 'Crear resumen';
+    clearTimeout(timer);
+    const q = titleIn.value.trim();
+    if (q.length < 3) { sugg.hidden = true; return; }
+    timer = setTimeout(async () => {
+      try {
+        const res = await fetch('https://openlibrary.org/search.json?title=' + encodeURIComponent(q) + '&limit=6&fields=title,author_name,first_publish_year');
+        const data = await res.json();
+        const rows = (data.docs || []).filter(d => d.title && d.author_name && d.author_name.length).slice(0, 5);
+        if (!rows.length || titleIn.value.trim() !== q) { sugg.hidden = true; return; }
+        sugg.innerHTML = rows.map(d => '<button type="button" data-t="' + esc(d.title) + '" data-a="' + esc(d.author_name[0]) + '"><b>' + esc(d.title) + '</b><span>' + esc(d.author_name[0]) + (d.first_publish_year ? ' · ' + d.first_publish_year : '') + '</span></button>').join('');
+        sugg.hidden = false;
+      } catch (e) { sugg.hidden = true; }
+    }, 300);
+  });
+  authorIn.addEventListener('input', () => { acknowledged = false; warn.hidden = true; go.textContent = 'Crear resumen'; });
+  sugg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    titleIn.value = b.dataset.t; authorIn.value = b.dataset.a; sugg.hidden = true; acknowledged = true;
+  });
+
+  async function submit() {
+    const title = titleIn.value.trim(), author = authorIn.value.trim();
+    warn.hidden = true;
+    if (!title) { titleIn.focus(); return; }
+    // Already in the library? Open it, no new summary needed.
+    const existing = findInLibrary(title);
+    if (existing) { m.close(); openSummary(existing.title, existing.author || author); return; }
+    if (!author || /^(unknown|desconocido)/i.test(author)) { warn.hidden = false; warn.textContent = 'Escribe el nombre del autor. No se puede escribir un resumen sin él.'; authorIn.focus(); return; }
+    if (!acknowledged) {
+      go.disabled = true; go.textContent = 'Comprobando…';
+      let found = true;
+      try {
+        const res = await fetch('https://openlibrary.org/search.json?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author) + '&limit=3&fields=title,author_name', { signal: AbortSignal.timeout(8000) });
+        if (res.ok) {
+          const data = await res.json();
+          found = !!(data.docs && data.docs.some(d => d.title && d.title.toLowerCase().includes(title.toLowerCase().slice(0, 15))));
+        }
+      } catch (e) { found = true; } // could not check (timeout, offline): do not block
+      go.disabled = false;
+      if (!found) {
+        acknowledged = true;
+        warn.hidden = false;
+        warn.textContent = 'No encontramos este libro en Open Library (que indexa sobre todo títulos originales, así que un título en español puede no aparecer). Si el título y el autor son correctos, continúa; si no, el resumen podría ser inexacto.';
+        go.textContent = 'Crear de todos modos';
+        return;
+      }
+    }
+    m.close();
+    openSummary(title, author, { isNew: true });
+  }
+  go.onclick = submit;
+  [titleIn, authorIn].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
 }
 
 // ── Wire up ───────────────────────────────────────────────────────────────────

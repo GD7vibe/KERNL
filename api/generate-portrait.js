@@ -3,6 +3,8 @@
 // - Portrait: Claude Haiku, generated at 10 books then every 10 after. Each saved permanently.
 // - Recommendations: category-matched, no Claude, fresh on every call.
 
+const K = require('../lib/kernl');
+
 const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 
@@ -33,12 +35,14 @@ module.exports = async (req, res) => {
     if (!user || !user.id) return res.status(401).json({ error: 'Invalid session' });
 
     // ── Fetch user library (with categories) ──────────────────────────────────
+    // Spanish edition: this reader's rows for this language only; titles and categories come from summaries_es (same ids as English).
     const libRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_library?select=summaries(title,author,categories)&user_id=eq.${user.id}&order=added_at.asc`,
+      `${SUPABASE_URL}/rest/v1/user_library?select=summary_id&user_id=eq.${user.id}&language=eq.${K.LANG}&order=added_at.asc`,
       { headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${token}` } }
     );
-    const library = await libRes.json();
-    const bookCount = library ? library.length : 0;
+    const libRows = libRes.ok ? await libRes.json() : [];
+    const library = await hydrate(Array.isArray(libRows) ? libRows : [], SUPABASE_KEY);
+    const bookCount = library.length;
 
     if (bookCount < PORTRAIT_THRESHOLD) {
       // Still generate recommendations even if no portrait yet
@@ -54,7 +58,7 @@ module.exports = async (req, res) => {
 
     // ── Fetch all saved portraits for this user ────────────────────────────────
     const portraitsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/portraits?user_id=eq.${user.id}&order=generated_at.asc`,
+      `${SUPABASE_URL}/rest/v1/portraits?user_id=eq.${user.id}&language=eq.${K.LANG}&order=generated_at.asc`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     const allPortraits = await portraitsRes.json() || [];
@@ -69,17 +73,17 @@ module.exports = async (req, res) => {
     if (needsNew) {
       // ── Generate new portrait with Claude Haiku ──────────────────────────────
       const bookList = library
-        .map(item => item.summaries ? `${item.summaries.title} by ${item.summaries.author}` : null)
+        .map(item => item.summaries ? `${item.summaries.title}, de ${item.summaries.author}` : null)
         .filter(Boolean)
         .join('\n');
 
-      const prompt = `You are a perceptive literary companion. A reader has saved these books to their personal library:
+      const prompt = `Eres un compañero literario perceptivo. Un lector ha guardado estos libros en su biblioteca personal:
 
 ${bookList}
 
-Write one paragraph (4-6 sentences, ~100 words) reflecting who this person appears to be intellectually, based purely on their choices. Be specific, warm, and surprising — name particular themes or tensions you notice. Write in second person ("You seem drawn to..."). British English. Do not mention you are analysing a reading list.
+Escribe un párrafo (de 4 a 6 oraciones, unas 100 palabras) que refleje quién parece ser esta persona intelectualmente, basándote solo en sus elecciones. Sé específico, cálido y sorprendente: nombra temas o tensiones concretas que notes. Escribe en segunda persona, con tuteo ("Parece que te atrae..."). Español latinoamericano neutro. No menciones que estás analizando una lista de lecturas.
 
-Reply ONLY with the paragraph, no JSON, no preamble.`;
+Responde SOLO con el párrafo, sin JSON y sin preámbulo.`;
 
       const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -114,6 +118,7 @@ Reply ONLY with the paragraph, no JSON, no preamble.`;
         body: JSON.stringify({
           user_id: user.id,
           portrait: currentPortrait,
+          language: K.LANG,
           book_count_at_generation: bookCount,
           generated_at: new Date().toISOString()
         })
@@ -121,7 +126,7 @@ Reply ONLY with the paragraph, no JSON, no preamble.`;
 
       // Refresh portraits list
       const refreshRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/portraits?user_id=eq.${user.id}&order=generated_at.asc`,
+        `${SUPABASE_URL}/rest/v1/portraits?user_id=eq.${user.id}&language=eq.${K.LANG}&order=generated_at.asc`,
         { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
       );
       const refreshed = await refreshRes.json();
@@ -141,7 +146,7 @@ Reply ONLY with the paragraph, no JSON, no preamble.`;
 
   } catch(e) {
     console.error('generate-portrait error:', e.message);
-    return res.status(500).json({ error: 'Could not generate portrait: ' + e.message });
+    return res.status(500).json({ error: 'No se pudo generar el retrato: ' + e.message });
   }
 };
 
@@ -154,8 +159,7 @@ async function getRecommendations(library, serviceKey) {
 
     library.forEach(item => {
       if (!item.summaries) return;
-      const title = item.summaries.title?.toLowerCase().trim();
-      if (title) readTitles.add(title);
+      if (item.summaries.id !== undefined) readTitles.add(String(item.summaries.id));
       let cats = [];
       try { cats = typeof item.summaries.categories === 'string'
         ? JSON.parse(item.summaries.categories)
@@ -173,14 +177,14 @@ async function getRecommendations(library, serviceKey) {
 
     // Fetch unread books from top categories
     const allRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/summaries?select=title,author,synopsis,categories&limit=500`,
+      `${SUPABASE_URL}/rest/v1/${K.SUMMARIES_TABLE}?select=id,title,author,synopsis,categories&limit=500`,
       { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
     );
     const allBooks = await allRes.json() || [];
 
     // Filter to unread books in user's categories
     const candidates = allBooks.filter(b => {
-      if (!b.title || readTitles.has(b.title.toLowerCase().trim())) return false;
+      if (!b.title || readTitles.has(String(b.id))) return false;
       let cats = [];
       try { cats = typeof b.categories === 'string'
         ? JSON.parse(b.categories)
@@ -199,4 +203,17 @@ async function getRecommendations(library, serviceKey) {
     console.warn('getRecommendations error:', e.message);
     return [];
   }
+}
+
+// Attach each library row's book (id, title, author, categories) from the edition's table, keeping the order the reader added them.
+async function hydrate(rows, serviceKey) {
+  const ids = rows.map(r => r.summary_id).filter(v => v !== null && v !== undefined);
+  if (!ids.length) return [];
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/${K.SUMMARIES_TABLE}?select=id,title,author,categories&id=in.(${ids.map(encodeURIComponent).join(',')})`,
+    { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
+  );
+  const books = r.ok ? await r.json() : [];
+  const byId = {}; (Array.isArray(books) ? books : []).forEach(b => { byId[String(b.id)] = b; });
+  return rows.map(x => ({ summaries: byId[String(x.summary_id)] || null })).filter(x => x.summaries);
 }
