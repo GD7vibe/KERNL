@@ -21,6 +21,7 @@ global.fetch = async (url, o = {}) => {
   const u = new URL(url); const m = o.method || 'GET'; const q = u.searchParams;
   if (u.host === 'api.x.ai') { db.xai++; return J({}); }
   if (u.host === 'api.resend.com') { db.emails++; return J({ id: 'e' }); }
+  if (u.host === 'api.anthropic.com') { db.anthropic = (db.anthropic || 0) + 1; return J({ error: { message: 'mock: no generation' } }, 500); }
   if (u.host === 'openlibrary.org') { db.ol = (db.ol || 0) + 1; return J({ docs: [{ title: 'Meditations', author_name: ['Marcus Aurelius'], first_publish_year: 1634 }] }); }
   if (u.pathname === '/auth/v1/user') {
     const t = (o.headers.Authorization || '').slice(7); return users[t] ? J(users[t]) : J({}, 401);
@@ -78,10 +79,10 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(r.code, 401); console.log('ok summarise anon non-guest blocked');
   r = await call(sum, { body: { title: 'Meditations', author: 'Marcus Aurelius' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(r.body.source, 'cache'); console.log('ok summarise anon guest cache');
-  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' } });
+  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody', generate: true } });
   assert.strictEqual(r.code, 401); console.log('ok summarise anon cannot generate');
-  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokB' });
-  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok summarise over-limit cannot generate');
+  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody', generate: true }, token: 'tokB' });
+  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'pro_required'); console.log('ok summarise free user cannot generate');
   r = await call(sum, { body: { patchWords: true, title: 'Dune' }, token: 'tokA' });
   assert.strictEqual(r.code, 403); console.log('ok patchWords admin-only');
 
@@ -92,7 +93,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   for (let i = 0; i < 12; i++) db.user_library.push({ user_id: 'u5', summary_id: 1000 + i });
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: 'tokH' });
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok guest stopped at 12');
-  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokG' });
+  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody', generate: true }, token: 'tokG' });
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'signup_required'); console.log('ok guest cannot generate new summaries');
   r = await call(kindle, { body: { title: 'Dune', author: 'Frank Herbert', kindleEmail: 'me@kindle.com' }, token: 'tokG' });
   assert.strictEqual(r.code, 403); assert.strictEqual(db.emails, 0); console.log('ok guest cannot use kindle');
@@ -141,6 +142,27 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(kindle, { body: { title: 'Meditations', author: 'Marcus Aurelius', kindleEmail: 'me@kindle.com' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(db.emails, 1); console.log('ok kindle guest send');
   assert.strictEqual(db.ol, 1, 'year lookup not called once'); console.log('ok kindle send looks up the year');
+
+  // ── Library books never trigger a new summary (the Harry Potter fault) ──
+  // A real-looking row whose stored lookup_key came from a differently-typed request, with punctuation
+  // ("Philosopher's", "J.K.") that the text matching strips: a title-only lookup misses it.
+  db.summaries.push({ id: 7, title: "Harry Potter and the Philosopher's Stone", author: 'J.K. Rowling', lookup_key: 'harry potter philosophers stone||j k rowling||nospoilers', plain: STOIC, html: '<p>wizard</p>', words: '[{"word":"wand","definition":"a stick"}]' });
+  const before = db.anthropic || 0;
+  r = await call(sum, { body: { title: "Harry Potter and the Philosopher's Stone", author: 'J.K. Rowling' }, token: 'tokP' });
+  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); assert.strictEqual(db.anthropic || 0, before, 'a library click paid for a new summary');
+  console.log('ok pro clicking a library title never writes a new summary');
+  r = await call(sum, { body: { id: 7, title: "Harry Potter and the Philosopher's Stone", author: 'J.K. Rowling' }, token: 'tokP' });
+  assert.strictEqual(r.code, 200); assert.strictEqual(r.body.html, '<p>wizard</p>'); assert.strictEqual(db.anthropic || 0, before);
+  console.log('ok library click by id opens the exact book');
+  r = await call(sum, { body: { id: 99999, title: 'Nope' }, token: 'tokP' });
+  assert.strictEqual(r.code, 404); assert.strictEqual(db.anthropic || 0, before); console.log('ok unknown id is a 404, never a generation');
+  r = await call(sum, { body: { id: '7; drop table', title: 'x' }, token: 'tokP' });
+  assert.notStrictEqual(r.code, 200); console.log('ok malformed id ignored');
+  r = await call(sum, { body: { title: 'Brand New Book', author: 'Someone', generate: true }, token: 'tokP' });
+  assert.strictEqual(db.anthropic, before + 1, 'pro generate:true should reach the writer'); console.log('ok only pro + generate:true writes a new summary');
+  r = await call(sum, { body: { title: 'Brand New Book', author: 'Someone', generate: true }, token: 'tokA' });
+  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'pro_required'); assert.strictEqual(db.anthropic, before + 1); console.log('ok free user generate:true refused');
+  db.summaries = db.summaries.filter(x => x.id !== 7);
 
   // ── Book-open audit (read-only; Pro/admin only) ──
   const audit = require('../api/audit-books');

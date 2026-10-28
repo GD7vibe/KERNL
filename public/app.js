@@ -140,9 +140,10 @@ async function initAuth() {
   const params = new URLSearchParams(window.location.search);
   const autoTitle = params.get('title');
   const autoAuthor = params.get('author');
+  const autoId = params.get('id');
   if (autoTitle) {
     history.replaceState(null, '', window.location.pathname);
-    openSummary(autoTitle, autoAuthor || '');
+    openSummary(autoTitle, autoAuthor || '', /^\d+$/.test(autoId || '') ? { id: autoId } : undefined);
   }
 }
 
@@ -199,7 +200,7 @@ async function loadLibrary() {
     let all = [], offset = 0;
     while (true) {
       const res = await fetch(
-        SUPABASE_URL + '/rest/v1/summaries?select=title,author,synopsis,categories&limit=1000&offset=' + offset + '&order=title.asc',
+        SUPABASE_URL + '/rest/v1/summaries?select=id,title,author,synopsis,categories&limit=1000&offset=' + offset + '&order=title.asc',
         { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } }
       );
       if (!res.ok) throw new Error('library ' + res.status);
@@ -410,20 +411,20 @@ function wireLibrary() {
     if (e.key === 'Enter') {
       e.preventDefault();
       const b = _searchHits[0];
-      if (b && fold($('search-input').value)) { closeSearch(); openSummary(b.title, b.author || ''); }
+      if (b && fold($('search-input').value)) { closeSearch(); openSummary(b.title, b.author || '', { id: b.id }); }
       else if (isPro() && $('search-input').value.trim()) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
     }
   });
   $('search-results').addEventListener('click', e => {
     const row = e.target.closest('[data-s]');
-    if (row) { const b = _searchHits[Number(row.dataset.s)]; if (b) { closeSearch(); openSummary(b.title, b.author || ''); } return; }
+    if (row) { const b = _searchHits[Number(row.dataset.s)]; if (b) { closeSearch(); openSummary(b.title, b.author || '', { id: b.id }); } return; }
     if (e.target.closest('#empty-add')) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
   });
   $('genres').addEventListener('click', e => { const c = e.target.closest('.gcard'); if (c) openShelf(c.dataset.g); });
   $('genre-list').addEventListener('click', e => {
     const r = e.target.closest('.brow'); if (!r) return;
     // Open it in the colours of the shelf it was picked from, even when the book also sits on another shelf.
-    const b = _shelfBooks[Number(r.dataset.i)]; if (b) openSummary(b.title, b.author || '', { group: _shelfKey });
+    const b = _shelfBooks[Number(r.dataset.i)]; if (b) openSummary(b.title, b.author || '', { group: _shelfKey, id: b.id });
   });
   $('genre-close').addEventListener('click', closeTop);
   $('genre-chips').addEventListener('click', e => { const c = e.target.closest('.sub'); if (c) setShelfCat(c.dataset.c); });
@@ -441,7 +442,11 @@ async function openSummary(title, author, opts) {
   setBusy(isNew ? 'Writing your summary. This takes about 30 seconds…' : 'Opening…');
   let streamStarted = false;
   try {
-    const res = await fetch('/api/summarise', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title, author }) });
+    // A library book is fetched by its id; only the Pro new-book button asks the server to write one (generate:true).
+    const req = { title, author };
+    if (opts && opts.id != null) req.id = opts.id;
+    if (isNew) req.generate = true;
+    const res = await fetch('/api/summarise', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify(req) });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
       if (d.code === 'limit' || d.code === 'ip_limit') refreshProfile();
@@ -1192,7 +1197,7 @@ function openNewBookModal(prefillTitle) {
     if (!title) { titleIn.focus(); return; }
     // Already in the library? Open it, no new summary needed.
     const existing = findInLibrary(title);
-    if (existing) { m.close(); openSummary(existing.title, existing.author || author); return; }
+    if (existing) { m.close(); openSummary(existing.title, existing.author || author, { id: existing.id }); return; }
     if (!author || /^unknown/i.test(author)) { warn.hidden = false; warn.textContent = 'Please enter the author’s name. A summary cannot be written without one.'; authorIn.focus(); return; }
     if (!acknowledged) {
       go.disabled = true; go.textContent = 'Checking…';
