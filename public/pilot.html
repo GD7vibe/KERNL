@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>KERNL — Spanish pilot</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#111;color:#eee;max-width:640px;margin:auto}
+h1{font-size:1.3rem}button{font:inherit;padding:12px 16px;border-radius:10px;border:0;background:#7c5cff;color:#fff;margin:4px 4px 4px 0}
+button.s{background:#444}button:disabled{opacity:.5}
+#log{white-space:pre-wrap;font:13px/1.45 ui-monospace,monospace;background:#000;border-radius:10px;padding:12px;margin-top:12px;min-height:120px}
+.ok{color:#6f6}.bad{color:#f66}.dim{color:#999}a{color:#9cf}
+</style>
+</head>
+<body>
+<h1>KERNL Spanish pilot</h1>
+<p class="dim">Pro account only. Keep this screen awake until it says DONE. If it stops, press Run again: finished books are skipped and cost nothing.</p>
+<div id="who" class="dim">Checking sign-in…</div>
+<div><button id="voice">1. Voice sample</button><button id="run">2. Run the 24 books</button><button id="stop" class="s">Stop</button></div>
+<div id="player"></div>
+<div id="log"></div>
+<script>
+const sb = supabase.createClient('https://peebgzfufyklxzdfnesc.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g');
+const $ = id => document.getElementById(id);
+let stop = false, token = null;
+const log = (t, c) => { const d = document.createElement('div'); if (c) d.className = c; d.textContent = t; $('log').appendChild(d); window.scrollTo(0, document.body.scrollHeight); };
+async function api(body) {
+  const r = await fetch('/api/es-pipeline', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({ ok: false, error: 'bad response ' + r.status }));
+  if (!r.ok) d.ok = false;
+  return d;
+}
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session || session.user.is_anonymous) { $('who').innerHTML = 'Not signed in. <a href="/login.html">Sign in</a> with your Pro account on THIS address, then come back to /pilot.html.'; return; }
+  token = session.access_token; $('who').textContent = 'Signed in as ' + session.user.email;
+})();
+$('stop').onclick = () => { stop = true; log('Stopping after the current step…', 'dim'); };
+$('voice').onclick = async () => {
+  if (!token) return log('Sign in first.', 'bad');
+  log('Making the voice sample…');
+  const d = await api({ action: 'voicetest' });
+  if (!d.ok) return log('Failed: ' + (d.error || JSON.stringify(d)), 'bad');
+  log('Voice sample ready (' + d.chars + ' characters, about $' + d.usd + ').', 'ok');
+  $('player').innerHTML = '<audio controls autoplay style="width:100%;margin-top:10px" src="' + d.url + '"></audio>';
+};
+$('run').onclick = async () => {
+  if (!token) return log('Sign in first.', 'bad');
+  stop = false; $('run').disabled = true;
+  const t0 = Date.now(); let usd = 0, tin = 0, tout = 0, ttsUsd = 0, ok = 0, fail = 0;
+  try {
+    log('Choosing 3 books per shelf…');
+    const p = await api({ action: 'pick' });
+    if (!p.ok && !p.books) throw new Error(p.error || 'pick failed');
+    log(p.count + ' books chosen:', 'ok');
+    p.books.forEach(b => log('  [' + b.shelf + '] ' + b.title + ' — ' + b.author, 'dim'));
+    if (p.skipped && p.skipped.length) log('Skipped candidates: ' + p.skipped.join('; '), 'dim');
+    let n = 0;
+    for (const b of p.books) {
+      if (stop) break; n++;
+      const s0 = Date.now();
+      log('(' + n + '/' + p.count + ') ' + b.title + ': translating…');
+      let t = await api({ action: 'translate', id: b.id });
+      if (!t.ok) { fail++; log('  translate FAILED: ' + (t.error || (t.problems || []).join(',')), 'bad'); continue; }
+      usd += t.usd || 0; tin += t.tokensIn || 0; tout += t.tokensOut || 0;
+      log('  text ' + (t.skipped ? 'already done' : 'done: "' + t.title + '", ' + t.words + ' words, $' + t.usd) + (t.warnings && t.warnings.length ? ' WARN ' + t.warnings.join(',') : ''), 'ok');
+      if (stop) break;
+      log('  making audio…');
+      let a = await api({ action: 'audio', id: b.id });
+      if (!a.ok) { fail++; log('  audio FAILED: ' + (a.error || JSON.stringify(a)), 'bad'); continue; }
+      ttsUsd += a.usd || 0;
+      log('  audio ' + (a.skipped ? 'already done' : 'done: ' + a.chars + ' chars, $' + a.usd) + '  (' + Math.round((Date.now() - s0) / 1000) + 's)', 'ok'); ok++;
+    }
+    const st = await api({ action: 'status', ids: p.books.map(b => b.id) });
+    const full = (st.rows || []).filter(r => r.es && r.words === 21 && r.audioState === 'fresh').length;
+    log('', ''); log('DONE. Books complete (text + 21 words + audio): ' + full + '/' + p.count + '. Failures: ' + fail + '.', fail ? 'bad' : 'ok');
+    log('Text cost $' + usd.toFixed(3) + ' (' + tin + ' in / ' + tout + ' out tokens). Audio cost $' + ttsUsd.toFixed(3) + '. Time ' + Math.round((Date.now() - t0) / 60000) + ' min.', 'ok');
+    log('Open the app to read and listen: /app.html', 'dim');
+  } catch (e) { log('Error: ' + e.message, 'bad'); }
+  $('run').disabled = false;
+};
+</script>
+</body>
+</html>
