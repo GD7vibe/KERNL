@@ -270,7 +270,33 @@ module.exports = async (req, res) => {
 
   const title = K.cleanText(body.title, 200);
   const author = K.cleanText(body.author, 200);
-  if (!title) return res.status(400).json({ error: 'Title is required' });
+  const bookId = /^\d{1,12}$/.test(String(body.id == null ? '' : body.id)) ? String(body.id) : '';
+  // Writing a new summary must be asked for explicitly (the Pro "Summarise a new book" button sends generate:true).
+  // Opening anything from search, a shelf or the library never writes one, even if the lookup misses.
+  const wantsNew = body.generate === true;
+  if (!title && !bookId) return res.status(400).json({ error: 'Title is required' });
+
+  // ── Opened from the library: fetch that exact book by id ───────────────────
+  if (bookId) {
+    try {
+      const r = await K.sb('/rest/v1/summaries?select=id,html,plain,words,lookup_key,title,author&id=eq.' + bookId + '&limit=1');
+      const row = r.ok && Array.isArray(r.data) ? r.data[0] : null;
+      if (!row) return res.status(404).json({ code: 'not_in_library', error: 'That book could not be found in the library.' });
+      const access = await K.authoriseRead(ctx, row);
+      if (!access.ok) return K.fail(res, access);
+      let words = parseWords(row);
+      if (!words || words.length === 0) {
+        try {
+          words = await generateWordsOnly(row.plain, row.title, row.author || '');
+          if (words.length > 0) await patchWordsById(row.id, words);
+        } catch (e) { words = []; }
+      }
+      return res.status(200).json({ html: row.html, plain: row.plain, words, source: 'cache', title: row.title, author: row.author, quota: access.quota || null });
+    } catch (e) {
+      console.error('Library open error:', e.message);
+      return res.status(503).json({ error: 'Library temporarily unavailable. Please try again.' });
+    }
+  }
 
   // ── Cache check ───────────────────────────────────────────────────────────
   try {
@@ -293,10 +319,16 @@ module.exports = async (req, res) => {
     return res.status(503).json({ error: 'Library temporarily unavailable. Please try again.' });
   }
 
-  // ── Not cached: generating costs money, so it needs a signed-in user with allowance left ──
+  // ── Not in the library ──────────────────────────────────────────────────────
+  // Only an explicit "Summarise a new book" request may write one; anything else just reports the miss.
+  if (!wantsNew) return res.status(404).json({ code: 'not_in_library', error: 'That book is not in the library yet.' });
+  // Generating costs money, so it needs a signed-in Pro member with allowance left.
   if (!ctx) return res.status(401).json({ code: 'auth_required', error: 'Please sign in to generate a new summary.' });
   if (ctx.tier === 'guest') {
     return res.status(403).json({ code: 'signup_required', error: 'That book is not in the library yet. Create a free account to request new summaries.' });
+  }
+  if (!K.canGenerateAudio(ctx)) {   // Pro or admin only
+    return res.status(403).json({ code: 'pro_required', error: 'Writing new summaries is a Pro feature.' });
   }
   if (!ctx.admin) {
     const profile = await K.getProfile(ctx.user.id);
