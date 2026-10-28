@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="es-419">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>KERNL &mdash; Read less. Know more.</title>
-<meta name="description" content="The big ideas from great books in ten minutes. Read it or listen to it.">
-<meta property="og:title" content="KERNL &mdash; Read less. Know more.">
-<meta property="og:description" content="The big ideas from great books in ten minutes. Read it or listen to it.">
+<title>KERNL &mdash; Lee menos. Sabe m&aacute;s.</title>
+<meta name="description" content="Las grandes ideas de los mejores libros en diez minutos. L&eacute;elo o escúchalo.">
+<meta property="og:title" content="KERNL &mdash; Lee menos. Sabe m&aacute;s.">
+<meta property="og:description" content="Las grandes ideas de los mejores libros en diez minutos. L&eacute;elo o escúchalo.">
 <meta property="og:url" content="https://kernlbooks.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="KERNL">
 <meta property="og:image" content="https://kernlbooks.com/og-image.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The KERNL K logo">
+<meta property="og:image:alt" content="El logotipo K de KERNL">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://kernlbooks.com/og-image.png?v=2">
 <link rel="manifest" href="/manifest.json">
@@ -194,116 +194,115 @@ html.dark .hc-bar{background:rgba(0,0,0,.2)}
 <body>
 
 <header class="top">
-  <a class="brand" href="/" aria-label="KERNL home">K<b>E</b>RNL</a>
-  <a class="about-link" href="/about.html">About</a>
+  <a class="brand" href="/" aria-label="Inicio de KERNL">K<b>E</b>RNL</a>
+  <a class="about-link" href="/about.html">Acerca de</a>
   <button class="iconbtn" data-theme-toggle type="button"></button>
-  <button class="iconbtn" id="search-btn" type="button" aria-label="Search books"><span data-icon="search"></span></button>
+  <button class="iconbtn" id="search-btn" type="button" aria-label="Buscar libros"><span data-icon="search"></span></button>
   <div class="acct">
-    <button class="iconbtn" id="acct-btn" type="button" aria-label="Menu"><span data-icon="user"></span></button>
+    <button class="iconbtn" id="acct-btn" type="button" aria-label="Menú"><span data-icon="user"></span></button>
     <div class="menu" id="acct-menu" hidden>
       <div class="menu-head" style="padding:10px 12px 6px">
-        <div class="who" id="menu-who" style="font-weight:700;word-break:break-all">Guest</div>
-        <div class="plan" style="display:flex;gap:8px;align-items:center;margin-top:4px"><span class="badge muted" id="menu-tier">Guest</span><span class="faint" id="menu-usage" style="font-size:.8rem"></span></div>
+        <div class="who" id="menu-who" style="font-weight:700;word-break:break-all">Invitado</div>
+        <div class="plan" style="display:flex;gap:8px;align-items:center;margin-top:4px"><span class="badge muted" id="menu-tier">Invitado</span><span class="faint" id="menu-usage" style="font-size:.8rem"></span></div>
       </div>
       <div class="menu-sep"></div>
-      <a class="menu-item" id="menu-books" href="/account.html"><span data-icon="library"></span>My books &amp; account</a>
-      <a class="menu-item" id="menu-signup" href="/login.html#signup" hidden><span data-icon="plus"></span>Create free account</a>
-      <a class="menu-item" id="menu-signin" href="/login.html" hidden><span data-icon="user"></span>Sign in</a>
-      <a class="menu-item" id="menu-upgrade" href="/upgrade.html" hidden><span data-icon="star"></span>Upgrade to Pro</a>
-      <button class="menu-item" id="menu-signout" type="button" hidden><span data-icon="logout"></span>Sign out</button>
+      <a class="menu-item" id="menu-books" href="/account.html"><span data-icon="library"></span>Mis libros y cuenta</a>
+      <a class="menu-item" id="menu-signup" href="/login.html#signup" hidden><span data-icon="plus"></span>Crear cuenta gratis</a>
+      <a class="menu-item" id="menu-signin" href="/login.html" hidden><span data-icon="user"></span>Iniciar sesión</a>
+      <a class="menu-item" id="menu-upgrade" href="/upgrade.html" hidden><span data-icon="star"></span>Pasar a Pro</a>
+      <button class="menu-item" id="menu-signout" type="button" hidden><span data-icon="logout"></span>Cerrar sesión</button>
     </div>
   </div>
 </header>
 
 <main class="home" id="home">
-  <h1 class="big">Your <b>Bookshelf.</b></h1>
+  <h1 class="big">Tu <b>Biblioteca.</b></h1>
 
-  <a class="hero-card" id="meter" href="/account.html" hidden aria-label="Open my library">
+  <a class="hero-card" id="meter" href="/account.html" hidden aria-label="Abrir mi biblioteca">
     <div class="hc-text">
-      <div class="hc-label" id="meter-label">Free books left</div>
+      <div class="hc-label" id="meter-label">Libros gratis restantes</div>
       <div class="hc-num"><span id="meter-num">&ndash;</span> <small id="meter-of"></small></div>
       <div class="hc-bar"><i id="meter-fill"></i></div>
     </div>
-    <div class="hc-go">My library &rsaquo;</div>
+    <div class="hc-go">Mi biblioteca &rsaquo;</div>
     <div class="hc-art" id="hero-art"><svg viewBox="150 202 626 626" aria-hidden="true" focusable="false"><path d="M587.1 796.1L585.9 796.7L568 803.8L549.7 809.9L531 814.7L512.1 818.4L493 820.9L473.7 822.1L454.5 822.2L435.2 821L416.1 818.7L403 816.2L403 658L463.2 576.6Z M587.1 796.1"/><path d="M673.6 292.3L679.5 297.8L692.7 311.8L705.1 326.6L716.4 342.1L726.8 358.4L736.2 375.3L744.4 392.7L751.6 410.6L757.6 428.9L762.4 447.6L766.1 466.5L768.6 485.6L769.9 504.8L769.9 524.1L768.8 543.4L766.4 562.5L762.9 581.4L758.1 600.1L752.2 618.5L745.2 636.4L737 653.9L727.8 670.8L717.5 687.1L706.2 702.8L694 717.7L687.7 724.4L543.1 468.6Z M673.6 292.3"/><path d="M403 214.7L414.2 212.5L433.3 210L452.6 208.7L471.8 208.7L491.1 209.8L510.2 212.2L529.2 215.7L547.9 220.5L566.2 226.4L568.9 227.4L403 451.6Z M403 214.7"/><path d="M259.5 285.9L274.3 273.5L280.2 269.2L280.2 761.7L275.8 758.5L260.9 746.2L246.8 733.1L233.6 719.1L221.3 704.3L209.9 688.7L199.5 672.5L190.2 655.6L181.9 638.2L174.7 620.3L168.7 602L163.9 583.3L160.2 564.4L157.7 545.2L156.5 526L156.4 506.7L157.6 487.5L159.9 468.4L163.5 449.4L168.2 430.7L174.1 412.4L181.1 394.4L189.3 377L198.5 360L208.8 343.7L220.1 328.1L232.3 313.2L245.5 299.1Z M259.5 285.9"/></svg></div>
   </a>
   <p class="hc-note" id="limit-note" hidden style="color:var(--text-2);margin-top:12px"></p>
-  <div id="pro-add-wrap" class="pro-wrap" hidden><button class="btn sm" id="pro-add" type="button"><span data-icon="sparkle"></span>Summarise a new book</button></div>
 
-  <h2 class="sec-title">Pick a Genre</h2>
+  <h2 class="sec-title">Elige un género</h2>
   <div class="genres skel-genres" id="genres"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
 </main>
 
 <!-- Genre layer -->
-<section class="layer genre" id="genre" hidden aria-label="Shelf">
-  <button class="l-back" id="genre-close" type="button" aria-label="Back"><span data-icon="back"></span></button>
+<section class="layer genre" id="genre" hidden aria-label="Estante">
+  <button class="l-back" id="genre-close" type="button" aria-label="Atrás"><span data-icon="back"></span></button>
   <div class="l-art" id="genre-art"></div>
   <div class="l-sheet"><div class="subs" id="genre-chips"></div><div class="wrapin" id="genre-list"></div></div>
 </section>
 
 <!-- Search layer -->
-<section class="layer search" id="search" hidden aria-label="Search">
+<section class="layer search" id="search" hidden aria-label="Buscar">
   <div class="s-wrap">
     <div class="s-bar">
-      <label class="field"><span data-icon="search"></span><input id="search-input" type="search" placeholder="Search by title or author" autocomplete="off" autocapitalize="off" enterkeyhint="search"></label>
-      <button class="iconbtn" id="search-close" type="button" aria-label="Close search"><span data-icon="x"></span></button>
+      <label class="field"><span data-icon="search"></span><input id="search-input" type="search" placeholder="Busca por título o autor" autocomplete="off" autocapitalize="off" enterkeyhint="search"></label>
+      <button class="iconbtn" id="search-close" type="button" aria-label="Cerrar búsqueda"><span data-icon="x"></span></button>
     </div>
     <div id="search-results"></div>
   </div>
 </section>
 
 <!-- Reader -->
-<section class="layer reader" id="reader" hidden aria-label="Summary">
-  <button class="l-back" id="reader-close" type="button" aria-label="Back"><span data-icon="back"></span></button>
+<section class="layer reader" id="reader" hidden aria-label="Resumen">
+  <button class="l-back" id="reader-close" type="button" aria-label="Atrás"><span data-icon="back"></span></button>
   <div class="l-art" id="r-art"><div class="r-cover" id="r-cover"></div></div>
   <div class="r-sheet">
     <div class="r-in">
       <div class="pcard" id="player">
         <div class="pc-top">
-          <button class="p-play" id="play-btn" type="button" aria-label="Play"><span id="play-icon"></span></button>
+          <button class="p-play" id="play-btn" type="button" aria-label="Reproducir"><span id="play-icon"></span></button>
           <div class="pc-id">
             <h1 id="s-title"></h1>
             <div class="by" id="s-author"></div>
             <div class="meta"><span id="s-words"></span> &middot; <span id="s-time"></span></div>
           </div>
-          <button class="speed" id="speed-btn" type="button" aria-label="Playback speed">1&times;</button>
+          <button class="speed" id="speed-btn" type="button" aria-label="Velocidad de reproducción">1&times;</button>
         </div>
         <div class="scrub disabled" id="scrub-row">
           <span class="t" id="scrub-elapsed">0:00</span>
-          <button class="skip" id="skip-back" type="button" aria-label="Back 10 seconds">&minus;10</button>
-          <div class="track" id="scrub-track" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="scrub-fill"></div><div class="thumb" id="scrub-thumb"></div></div>
-          <button class="skip" id="skip-fwd" type="button" aria-label="Forward 10 seconds">+10</button>
+          <button class="skip" id="skip-back" type="button" aria-label="Retroceder 10 segundos">&minus;10</button>
+          <div class="track" id="scrub-track" role="slider" tabindex="0" aria-label="Posición" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="scrub-fill"></div><div class="thumb" id="scrub-thumb"></div></div>
+          <button class="skip" id="skip-fwd" type="button" aria-label="Adelantar 10 segundos">+10</button>
           <span class="t r" id="scrub-remaining">&minus;0:00</span>
         </div>
-        <div class="pc-sub" id="player-sub">Checking audio&hellip;</div>
+        <div class="pc-sub" id="player-sub">Comprobando el audio&hellip;</div>
       </div>
       <div class="acts">
         <button class="act" id="send-kindle-btn" type="button"><span class="c"><span data-icon="send"></span></span>Kindle</button>
-        <button class="act" id="print-btn" type="button"><span class="c"><span data-icon="print"></span></span>Print</button>
-        <a class="act" id="buy-btn" href="#" target="_blank" rel="noopener"><span class="c"><span data-icon="cart"></span></span>Buy</a>
+        <button class="act" id="print-btn" type="button"><span class="c"><span data-icon="print"></span></span>Imprimir</button>
+        <a class="act" id="buy-btn" href="#" target="_blank" rel="noopener"><span class="c"><span data-icon="cart"></span></span>Comprar</a>
         <button class="act pro-audio" id="save-audio-btn" type="button" hidden><span class="c"><span data-icon="download"></span></span>Audio</button>
-        <button class="act pro-audio" id="email-audio-btn" type="button" hidden><span class="c"><span data-icon="mail"></span></span>Email</button>
+        <button class="act pro-audio" id="email-audio-btn" type="button" hidden><span class="c"><span data-icon="mail"></span></span>Correo</button>
         <button class="act pro-audio" id="wa-audio-btn" type="button" hidden><span class="c"><span data-icon="chat"></span></span><span id="wa-label">WhatsApp</span></button>
       </div>
       <div class="r-body prose" id="summary-body"></div>
       <details class="words" id="words" hidden>
-        <summary>Mega Words <small>Interesting words from this book</small><span data-icon="chevron"></span></summary>
+        <summary>Mega Palabras <small>Palabras interesantes de este libro</small><span data-icon="chevron"></span></summary>
         <div class="words-grid" id="megan-words-grid"></div>
       </details>
-      <p class="disclaimer">KERNL summaries are original works that complement the book, not replace it. If you enjoy one, read the full thing and support the author.</p>
+      <p class="disclaimer">Los resúmenes de KERNL son obras originales que complementan el libro, no lo sustituyen. Si disfrutas uno, lee el libro completo y apoya al autor.</p>
     </div>
   </div>
 </section>
 
 <!-- Mini player: appears at the top once the full one has scrolled away -->
 <div class="mini" id="mini" aria-hidden="true">
-  <button class="mini-play" id="mini-play" type="button" aria-label="Play or pause"><span id="mini-icon"></span></button>
+  <button class="mini-play" id="mini-play" type="button" aria-label="Reproducir o pausar"><span id="mini-icon"></span></button>
   <div class="mini-track" id="mini-track"><i id="mini-fill"></i></div>
   <span class="mini-time" id="mini-time"></span>
-  <button class="iconbtn mini-up" id="mini-up" type="button" aria-label="Back to the player"><span data-icon="chevron" style="transform:rotate(180deg)"></span></button>
+  <button class="iconbtn mini-up" id="mini-up" type="button" aria-label="Volver al reproductor"><span data-icon="chevron" style="transform:rotate(180deg)"></span></button>
 </div>
 
-<div class="status" id="status" hidden role="status"><div class="spinner"></div><span id="status-text">Opening&hellip;</span></div>
+<div class="status" id="status" hidden role="status"><div class="spinner"></div><span id="status-text">Abriendo&hellip;</span></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/scenes.js"></script>

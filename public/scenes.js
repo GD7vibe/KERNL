@@ -20,17 +20,28 @@
   };
 
   var GROUPS = [
-    { key: 'crime',    name: 'Crime & Thrillers',   bg: '#f28f8f', cats: ['Crime & True Crime', 'Fiction — Thriller'] },
-    { key: 'fiction',  name: 'Fiction',             bg: '#6cc4bd', cats: ['Fiction — Literary', 'Fiction — Sci-Fi', 'Fiction — Historical'] },
-    { key: 'lives',    name: 'Lives & Adventure',   bg: '#b8a5f3', cats: ['Biography & Memoir', 'Sport'] },
-    { key: 'science',  name: 'Science & Nature',    bg: '#86d9b8', cats: ['Science & Technology', 'Nature & Environment'] },
-    { key: 'history',  name: 'History & Politics',  bg: '#f2a07b', cats: ['History', 'Politics & Society'] },
-    { key: 'business', name: 'Business & Money',    bg: '#f5c04a', cats: ['Business & Entrepreneurship', 'Economics', 'Leadership'] },
-    { key: 'mind',     name: 'Mind & Self',         bg: '#f4a3bf', cats: ['Personal Development', 'Psychology', 'Health & Wellbeing', 'Parenting & Family'] },
-    { key: 'ideas',    name: 'Big Ideas',           bg: '#8ed2f5', cats: ['Philosophy', 'Spirituality'] }
+    { key: 'crime',    name: 'Crimen y suspenso',   bg: '#f28f8f', cats: ['Crime & True Crime', 'Fiction — Thriller'] },
+    { key: 'fiction',  name: 'Ficción',              bg: '#6cc4bd', cats: ['Fiction — Literary', 'Fiction — Sci-Fi', 'Fiction — Historical'] },
+    { key: 'lives',    name: 'Vidas y aventura',   bg: '#b8a5f3', cats: ['Biography & Memoir', 'Sport'] },
+    { key: 'science',  name: 'Ciencia y naturaleza',    bg: '#86d9b8', cats: ['Science & Technology', 'Nature & Environment'] },
+    { key: 'history',  name: 'Historia y política',  bg: '#f2a07b', cats: ['History', 'Politics & Society'] },
+    { key: 'business', name: 'Negocios y dinero',    bg: '#f5c04a', cats: ['Business & Entrepreneurship', 'Economics', 'Leadership'] },
+    { key: 'mind',     name: 'Mente y crecimiento',         bg: '#f4a3bf', cats: ['Personal Development', 'Psychology', 'Health & Wellbeing', 'Parenting & Family'] },
+    { key: 'ideas',    name: 'Grandes ideas',           bg: '#8ed2f5', cats: ['Philosophy', 'Spirituality'] }
   ];
   // Order on the home screen (how people browse), separate from the matching order above.
   var DISPLAY = ['business', 'mind', 'ideas', 'history', 'science', 'lives', 'fiction', 'crime'];
+
+  // Category keys stay English in the data (shared with the English library); this is how they read on screen.
+  var CAT_ES = {
+    'Business & Entrepreneurship': 'Negocios y emprendimiento', 'Personal Development': 'Desarrollo personal', 'Psychology': 'Psicología',
+    'History': 'Historia', 'Science & Technology': 'Ciencia y tecnología', 'Politics & Society': 'Política y sociedad', 'Philosophy': 'Filosofía',
+    'Biography & Memoir': 'Biografías y memorias', 'Fiction \u2014 Literary': 'Literaria', 'Fiction \u2014 Thriller': 'Suspenso',
+    'Fiction \u2014 Sci-Fi': 'Ciencia ficción', 'Fiction \u2014 Historical': 'Histórica', 'Health & Wellbeing': 'Salud y bienestar',
+    'Economics': 'Economía', 'Leadership': 'Liderazgo', 'Nature & Environment': 'Naturaleza y medio ambiente',
+    'Crime & True Crime': 'Crimen y casos reales', 'Sport': 'Deporte', 'Parenting & Family': 'Crianza y familia', 'Spirituality': 'Espiritualidad'
+  };
+  function catName(c) { return CAT_ES[c] || c; }
 
   function byKey(k) { for (var i = 0; i < GROUPS.length; i++) if (GROUPS[i].key === k) return GROUPS[i]; return GROUPS[GROUPS.length - 1]; }
   // A book belongs to the first group (in GROUPS order) that matches any of its categories.
@@ -45,5 +56,5 @@
     o = o || {};
     return '<svg viewBox="0 0 200 200" preserveAspectRatio="' + (o.slice ? 'xMidYMid slice' : 'xMidYMid meet') + '" aria-hidden="true" focusable="false">' + (ART[key] || ART.ideas) + '</svg>';
   }
-  window.SCENES = { GROUPS: GROUPS, DISPLAY: DISPLAY, byKey: byKey, groupFor: groupFor, svg: svg };
+  window.SCENES = { GROUPS: GROUPS, DISPLAY: DISPLAY, byKey: byKey, groupFor: groupFor, svg: svg, catName: catName };
 })();

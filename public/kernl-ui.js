@@ -55,7 +55,7 @@
   }
   function fmtDate(ts) {
     if (!ts) return '';
-    return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return new Date(ts).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   // ── Book covers: a stable colour per title, from a restrained, warm palette ──
@@ -115,7 +115,7 @@
       var done = false;
       var m = modal(
         '<h3>' + esc(title) + '</h3><p class="sub">' + esc(text) + '</p>' +
-        '<div class="modal-actions"><button class="btn" data-no>Cancel</button><button class="btn ' + (opts.danger ? 'danger' : 'primary') + '" data-yes>' + esc(okLabel || 'OK') + '</button></div>',
+        '<div class="modal-actions"><button class="btn" data-no>Cancelar</button><button class="btn ' + (opts.danger ? 'danger' : 'primary') + '" data-yes>' + esc(okLabel || 'OK') + '</button></div>',
         { onClose: function () { if (!done) { done = true; resolve(false); } } }
       );
       m.el.querySelector('[data-no]').onclick = function () { m.close(); };
@@ -142,8 +142,8 @@
     var dark = isDark();
     document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
       b.innerHTML = icon(dark ? 'sun' : 'moon');
-      b.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
-      b.setAttribute('title', dark ? 'Light mode' : 'Dark mode');
+      b.setAttribute('aria-label', dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+      b.setAttribute('title', dark ? 'Modo claro' : 'Modo oscuro');
     });
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', dark ? '#15112a' : '#f3ecfb');

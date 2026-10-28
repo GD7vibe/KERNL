@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="es-419">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KERNL &mdash; Sign In</title>
-<meta name="description" content="Sign in to KERNL &mdash; AI-powered book summaries.">
+<title>KERNL &mdash; Iniciar sesión</title>
+<meta name="description" content="Inicia sesión en KERNL &mdash; resúmenes de libros con IA.">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -79,60 +79,60 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--paper
 <div class="confirm-overlay" id="confirm-overlay" style="display:none">
   <div class="co-logo">K<span>E</span>RNL</div>
   <div class="co-spinner" id="co-spinner"></div>
-  <div class="co-msg" id="confirm-msg">Verifying&hellip;</div>
+  <div class="co-msg" id="confirm-msg">Verificando&hellip;</div>
 </div>
 
 <div class="wrap" id="main-wrap">
   <div class="masthead">
     <div class="logo">K<span class="logo-e">E</span>RNL</div>
-    <div class="tagline">Read less. Know more.</div>
+    <div class="tagline">Lee menos. Sabe más.</div>
   </div>
   <div class="card">
     <div class="tabs">
-      <button class="tab active" id="tab-signin"  onclick="showPanel('signin')">Sign In</button>
-      <button class="tab"        id="tab-signup"  onclick="showPanel('signup')">Create Account</button>
-      <button class="tab"        id="tab-forgot"  onclick="showPanel('forgot')"  style="display:none">Forgot Password</button>
-      <button class="tab"        id="tab-reset"   style="display:none;pointer-events:none">Set New Password</button>
+      <button class="tab active" id="tab-signin"  onclick="showPanel('signin')">Iniciar sesión</button>
+      <button class="tab"        id="tab-signup"  onclick="showPanel('signup')">Crear cuenta</button>
+      <button class="tab"        id="tab-forgot"  onclick="showPanel('forgot')"  style="display:none">Olvidé mi contraseña</button>
+      <button class="tab"        id="tab-reset"   style="display:none;pointer-events:none">Nueva contraseña</button>
     </div>
 
     <!-- Google -->
     <div id="oauth-block">
       <button class="oauth-btn" type="button" onclick="handleGoogle()">
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-        Continue with Google
+        Continuar con Google
       </button>
-      <div class="or-divider">or with email</div>
+      <div class="or-divider">o con correo electrónico</div>
     </div>
 
     <!-- Sign In -->
     <div class="panel active" id="panel-signin">
       <div class="field">
-        <label>Email</label>
-        <input type="email" id="signin-email" placeholder="you@example.com" autocomplete="email" />
+        <label>Correo electrónico</label>
+        <input type="email" id="signin-email" placeholder="tu@ejemplo.com" autocomplete="email" />
       </div>
       <div class="field">
-        <label>Password</label>
+        <label>Contraseña</label>
         <div class="pw-wrap">
-          <input type="password" id="signin-password" placeholder="Your password" autocomplete="current-password" />
+          <input type="password" id="signin-password" placeholder="Tu contraseña" autocomplete="current-password" />
           <button class="pw-eye" type="button" onclick="togglePw('signin-password',this)" tabindex="-1">&#128065;</button>
         </div>
       </div>
-      <div class="forgot"><a href="#" onclick="showPanel('forgot');return false;">Forgot password?</a></div>
-      <button class="btn" id="signin-btn" onclick="handleSignIn()">Sign In &rsaquo;</button>
+      <div class="forgot"><a href="#" onclick="showPanel('forgot');return false;">¿Olvidaste tu contraseña?</a></div>
+      <button class="btn" id="signin-btn" onclick="handleSignIn()">Iniciar sesión &rsaquo;</button>
       <div class="msg" id="signin-msg"></div>
-      <div class="guest-link"><a href="/app.html">Just browsing? Read 12 books free, no account &rsaquo;</a></div>
+      <div class="guest-link"><a href="/app.html">¿Solo quieres echar un vistazo? Lee 12 libros gratis, sin cuenta &rsaquo;</a></div>
     </div>
 
     <!-- Sign Up -->
     <div class="panel" id="panel-signup">
       <div class="field">
-        <label>Email</label>
-        <input type="email" id="signup-email" placeholder="you@example.com" autocomplete="email" />
+        <label>Correo electrónico</label>
+        <input type="email" id="signup-email" placeholder="tu@ejemplo.com" autocomplete="email" />
       </div>
       <div class="field">
-        <label>Password</label>
+        <label>Contraseña</label>
         <div class="pw-wrap">
-          <input type="password" id="signup-password" placeholder="At least 8 characters" autocomplete="new-password"
+          <input type="password" id="signup-password" placeholder="Al menos 8 caracteres" autocomplete="new-password"
             oninput="updateStrength(this.value,'pw-strength-bar','pw-hint')" />
           <button class="pw-eye" type="button" onclick="togglePw('signup-password',this)" tabindex="-1">&#128065;</button>
         </div>
@@ -140,15 +140,15 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--paper
         <div class="pw-hint" id="pw-hint"></div>
       </div>
       <div class="field">
-        <label>Confirm Password</label>
+        <label>Confirmar contraseña</label>
         <div class="pw-wrap">
-          <input type="password" id="signup-confirm" placeholder="Repeat password" autocomplete="new-password" />
+          <input type="password" id="signup-confirm" placeholder="Repite la contraseña" autocomplete="new-password" />
           <button class="pw-eye" type="button" onclick="togglePw('signup-confirm',this)" tabindex="-1">&#128065;</button>
         </div>
       </div>
-      <button class="btn" id="signup-btn" onclick="handleSignUp()">Create Account &rsaquo;</button>
+      <button class="btn" id="signup-btn" onclick="handleSignUp()">Crear cuenta &rsaquo;</button>
       <div class="msg" id="signup-msg"></div>
-      <div class="terms">By creating an account you agree to our <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.</div>
+      <div class="terms">Al crear una cuenta aceptas nuestros <a href="/terms.html">Términos del servicio</a> y nuestra <a href="/privacy.html">Política de privacidad</a> (disponibles en inglés).</div>
     </div>
 
     <!-- Forgot Password -->
@@ -157,13 +157,13 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--paper
         Enter your email and we&rsquo;ll send you a link to reset your password. The link expires after 1 hour.
       </p>
       <div class="field">
-        <label>Email</label>
-        <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email" />
+        <label>Correo electrónico</label>
+        <input type="email" id="forgot-email" placeholder="tu@ejemplo.com" autocomplete="email" />
       </div>
-      <button class="btn" id="forgot-btn" onclick="handleForgot()">Send Reset Link &rsaquo;</button>
+      <button class="btn" id="forgot-btn" onclick="handleForgot()">Enviar enlace &rsaquo;</button>
       <div class="msg" id="forgot-msg"></div>
       <div style="text-align:center;margin-top:1rem">
-        <a href="#" onclick="showPanel('signin');return false;" style="font-size:0.8rem;color:var(--muted);text-decoration:none">&larr; Back to sign in</a>
+        <a href="#" onclick="showPanel('signin');return false;" style="font-size:0.8rem;color:var(--muted);text-decoration:none">&larr; Volver a iniciar sesión</a>
       </div>
     </div>
 
@@ -173,13 +173,13 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--paper
         Enter your email address and choose a new password.
       </p>
       <div class="field">
-        <label>Email</label>
-        <input type="email" id="reset-email" placeholder="you@example.com" autocomplete="email" />
+        <label>Correo electrónico</label>
+        <input type="email" id="reset-email" placeholder="tu@ejemplo.com" autocomplete="email" />
       </div>
       <div class="field">
-        <label>New Password</label>
+        <label>Nueva contraseña</label>
         <div class="pw-wrap">
-          <input type="password" id="reset-password" placeholder="At least 8 characters" autocomplete="new-password"
+          <input type="password" id="reset-password" placeholder="Al menos 8 caracteres" autocomplete="new-password"
             oninput="updateStrength(this.value,'reset-strength-bar','reset-hint')" />
           <button class="pw-eye" type="button" onclick="togglePw('reset-password',this)" tabindex="-1">&#128065;</button>
         </div>
@@ -187,18 +187,18 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--paper
         <div class="pw-hint" id="reset-hint"></div>
       </div>
       <div class="field">
-        <label>Re-enter New Password</label>
+        <label>Repite la nueva contraseña</label>
         <div class="pw-wrap">
-          <input type="password" id="reset-confirm" placeholder="Repeat new password" autocomplete="new-password" />
+          <input type="password" id="reset-confirm" placeholder="Repite la nueva contraseña" autocomplete="new-password" />
           <button class="pw-eye" type="button" onclick="togglePw('reset-confirm',this)" tabindex="-1">&#128065;</button>
         </div>
       </div>
-      <button class="btn" id="reset-btn" onclick="handleResetPassword()">Set New Password &rsaquo;</button>
+      <button class="btn" id="reset-btn" onclick="handleResetPassword()">Guardar nueva contraseña &rsaquo;</button>
       <div class="msg" id="reset-msg"></div>
     </div>
 
   </div>
-  <div class="back-link"><a href="/">&larr; Back to KERNL</a></div>
+  <div class="back-link"><a href="/">&larr; Volver a KERNL</a></div>
 </div>
 
 <script>
@@ -256,7 +256,7 @@ function setMsg(id, type, text) {
 function setLoading(btnId, loading, defaultHtml) {
   const btn    = document.getElementById(btnId);
   btn.disabled = loading;
-  btn.innerHTML = loading ? '<span class="spinner"></span>Please wait\u2026' : defaultHtml;
+  btn.innerHTML = loading ? '<span class="spinner"></span>Espera un momento\u2026' : defaultHtml;
 }
 
 function updateStrength(pw, barId, hintId) {
@@ -271,7 +271,7 @@ function updateStrength(pw, barId, hintId) {
   if (/[^A-Za-z0-9]/.test(pw)) score++;
   const pct    = pw.length === 0 ? 0 : Math.max(20, score * 20);
   const colour = score <= 1 ? '#c0392b' : score <= 2 ? '#e67e22' : score <= 3 ? '#f1c40f' : '#27ae60';
-  const label  = score <= 1 ? 'Weak' : score <= 2 ? 'Fair' : score <= 3 ? 'Good' : 'Strong';
+  const label  = score <= 1 ? 'Débil' : score <= 2 ? 'Regular' : score <= 3 ? 'Buena' : 'Fuerte';
   bar.style.width      = pct + '%';
   bar.style.background = colour;
   hint.textContent     = pw.length > 0 ? label : '';
@@ -353,7 +353,7 @@ function showResetPanel(email) {
       }
     }
 
-    if (!session) throw new Error('Could not verify link. It may have expired.');
+    if (!session) throw new Error('No se pudo verificar el enlace. Puede que haya caducado.');
 
     const isRecovery = tokenType === 'recovery' || (!tokenType && !!code);
 
@@ -361,7 +361,7 @@ function showResetPanel(email) {
       showResetPanel(userEmail);
     } else {
       // Email confirmation — redirect to app
-      document.getElementById('confirm-msg').textContent = '\u2713 Email confirmed! Taking you to KERNL\u2026';
+      document.getElementById('confirm-msg').textContent = '\u2713 ¡Correo confirmado! Te llevamos a KERNL\u2026';
       document.getElementById('co-spinner').style.display = 'none';
       await new Promise(r => setTimeout(r, 800));
       window.location.href = getAppUrl();
@@ -375,11 +375,11 @@ function showResetPanel(email) {
     if (isRecovery) {
       showPanel('forgot');
       setMsg('forgot-msg', 'error',
-        'That reset link has expired or has already been used. Enter your email below to send a fresh one.');
+        'Ese enlace de restablecimiento caducó o ya se usó. Escribe tu correo abajo para recibir uno nuevo.');
     } else {
       showPanel('signin');
       setMsg('signin-msg', 'error',
-        'That confirmation link has expired. Try signing in \u2014 if your email is confirmed you\'ll get straight in.');
+        'Ese enlace de confirmación caducó. Intenta iniciar sesión: si tu correo ya está confirmado, entrarás directamente.');
     }
   }
 })();
@@ -388,14 +388,14 @@ function showResetPanel(email) {
 async function handleSignIn() {
   const email    = document.getElementById('signin-email').value.trim();
   const password = document.getElementById('signin-password').value;
-  if (!email || !password) { setMsg('signin-msg', 'error', 'Please enter your email and password.'); return; }
-  setLoading('signin-btn', true, 'Sign In &rsaquo;');
+  if (!email || !password) { setMsg('signin-msg', 'error', 'Escribe tu correo y tu contraseña.'); return; }
+  setLoading('signin-btn', true, 'Iniciar sesión &rsaquo;');
   const { error } = await sb.auth.signInWithPassword({ email, password });
-  setLoading('signin-btn', false, 'Sign In &rsaquo;');
+  setLoading('signin-btn', false, 'Iniciar sesión &rsaquo;');
   if (error) {
     const msg = error.message.toLowerCase().includes('not confirmed')
-      ? 'Please confirm your email address first \u2014 check your inbox for the confirmation link.'
-      : 'Incorrect email or password.';
+      ? 'Primero confirma tu correo: revisa tu bandeja de entrada para encontrar el enlace de confirmación.'
+      : 'Correo o contraseña incorrectos.';
     setMsg('signin-msg', 'error', msg);
     return;
   }
@@ -419,9 +419,9 @@ async function handleGoogle() {
       console.warn('linkIdentity failed, falling back to sign-in:', error.message);
     }
     const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-    if (error && msgEl) { msgEl.className = 'msg error'; msgEl.textContent = 'Google sign-in is not available right now. ' + error.message; }
+    if (error && msgEl) { msgEl.className = 'msg error'; msgEl.textContent = 'El acceso con Google no está disponible por ahora. ' + error.message; }
   } catch (e) {
-    if (msgEl) { msgEl.className = 'msg error'; msgEl.textContent = 'Google sign-in is not available right now.'; }
+    if (msgEl) { msgEl.className = 'msg error'; msgEl.textContent = 'El acceso con Google no está disponible por ahora.'; }
   }
 }
 
@@ -429,31 +429,31 @@ async function handleSignUp() {
   const email    = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
   const confirm  = document.getElementById('signup-confirm').value;
-  if (!email || !password) { setMsg('signup-msg', 'error', 'Please fill in all fields.'); return; }
-  if (password.length < 8)  { setMsg('signup-msg', 'error', 'Password must be at least 8 characters.'); return; }
-  if (password !== confirm)  { setMsg('signup-msg', 'error', 'Passwords do not match.'); return; }
-  setLoading('signup-btn', true, 'Create Account &rsaquo;');
+  if (!email || !password) { setMsg('signup-msg', 'error', 'Completa todos los campos.'); return; }
+  if (password.length < 8)  { setMsg('signup-msg', 'error', 'La contraseña debe tener al menos 8 caracteres.'); return; }
+  if (password !== confirm)  { setMsg('signup-msg', 'error', 'Las contraseñas no coinciden.'); return; }
+  setLoading('signup-btn', true, 'Crear cuenta &rsaquo;');
   // A guest converts their existing session (so their books carry over); anyone else signs up normally.
   const { error } = (await isGuestSession())
     ? await sb.auth.updateUser({ email, password }, { emailRedirectTo: getAppUrl() })
     : await sb.auth.signUp({ email, password, options: { emailRedirectTo: getLoginUrl() } });
-  setLoading('signup-btn', false, 'Create Account &rsaquo;');
+  setLoading('signup-btn', false, 'Crear cuenta &rsaquo;');
   if (error) { setMsg('signup-msg', 'error', error.message); return; }
   setMsg('signup-msg', 'success',
-    'Welcome to KERNL! Check your inbox for a confirmation email and click the link to activate your account.');
+    '¡Bienvenido a KERNL! Revisa tu bandeja de entrada y haz clic en el enlace del correo de confirmación para activar tu cuenta.');
 }
 
 async function handleForgot() {
   const email = document.getElementById('forgot-email').value.trim();
-  if (!email) { setMsg('forgot-msg', 'error', 'Please enter your email address.'); return; }
-  setLoading('forgot-btn', true, 'Send Reset Link &rsaquo;');
+  if (!email) { setMsg('forgot-msg', 'error', 'Escribe tu correo electrónico.'); return; }
+  setLoading('forgot-btn', true, 'Enviar enlace &rsaquo;');
   const { error } = await sb.auth.resetPasswordForEmail(email, {
     redirectTo: getLoginUrl()
   });
-  setLoading('forgot-btn', false, 'Send Reset Link &rsaquo;');
+  setLoading('forgot-btn', false, 'Enviar enlace &rsaquo;');
   if (error) { setMsg('forgot-msg', 'error', error.message); return; }
   setMsg('forgot-msg', 'success',
-    'Reset link sent \u2014 check your inbox (and spam folder). The link expires after 1 hour.');
+    'Enlace enviado: revisa tu bandeja de entrada (y la carpeta de spam). El enlace caduca en 1 hora.');
 }
 
 async function handleResetPassword() {
@@ -461,29 +461,29 @@ async function handleResetPassword() {
   const password = document.getElementById('reset-password').value;
   const confirm  = document.getElementById('reset-confirm').value;
 
-  if (!email)               { setMsg('reset-msg', 'error', 'Please enter your email address.'); return; }
-  if (!password)            { setMsg('reset-msg', 'error', 'Please enter a new password.'); return; }
-  if (password.length < 8)  { setMsg('reset-msg', 'error', 'Password must be at least 8 characters.'); return; }
-  if (password !== confirm)  { setMsg('reset-msg', 'error', 'Passwords do not match.'); return; }
+  if (!email)               { setMsg('reset-msg', 'error', 'Escribe tu correo electrónico.'); return; }
+  if (!password)            { setMsg('reset-msg', 'error', 'Escribe una nueva contraseña.'); return; }
+  if (password.length < 8)  { setMsg('reset-msg', 'error', 'La contraseña debe tener al menos 8 caracteres.'); return; }
+  if (password !== confirm)  { setMsg('reset-msg', 'error', 'Las contraseñas no coinciden.'); return; }
 
-  setLoading('reset-btn', true, 'Set New Password &rsaquo;');
+  setLoading('reset-btn', true, 'Guardar nueva contraseña &rsaquo;');
 
   const { error } = await sb.auth.updateUser({ password });
 
   if (error) {
-    setLoading('reset-btn', false, 'Set New Password &rsaquo;');
+    setLoading('reset-btn', false, 'Guardar nueva contraseña &rsaquo;');
     const msg = error.message.toLowerCase();
     if (msg.includes('same') || msg.includes('different') || msg.includes('previously') || msg.includes('reuse')) {
-      setMsg('reset-msg', 'error', 'That password has been used before. Please choose a different one.');
+      setMsg('reset-msg', 'error', 'Esa contraseña ya se usó antes. Elige una diferente.');
     } else if (msg.includes('expired') || msg.includes('invalid') || msg.includes('session')) {
-      setMsg('reset-msg', 'error', 'Your reset link has expired. Sending you back to request a new one\u2026');
+      setMsg('reset-msg', 'error', 'Tu enlace de restablecimiento caducó. Te llevamos de vuelta para pedir uno nuevo\u2026');
       setTimeout(() => {
         showPanel('forgot');
-        setMsg('forgot-msg', 'error', 'Your reset link expired. Enter your email to get a new one.');
+        setMsg('forgot-msg', 'error', 'Tu enlace de restablecimiento caducó. Escribe tu correo para recibir uno nuevo.');
       }, 2500);
     } else {
       // Generic fallback — in practice usually means same password was used
-      setMsg('reset-msg', 'error', 'Could not update password. If you\u2019re using your existing password, please choose a different one.');
+      setMsg('reset-msg', 'error', 'No se pudo actualizar la contraseña. Si estás usando tu contraseña actual, elige una diferente.');
     }
     return;
   }
@@ -492,20 +492,20 @@ async function handleResetPassword() {
   const { error: signInError } = await sb.auth.signInWithPassword({ email, password });
 
   if (!signInError) {
-    setMsg('reset-msg', 'success', '\u2713 Password updated! Taking you to KERNL\u2026');
+    setMsg('reset-msg', 'success', '\u2713 ¡Contraseña actualizada! Te llevamos a KERNL\u2026');
     await new Promise(r => setTimeout(r, 900));
     window.location.href = getAppUrl();
     return;
   }
 
   // Sign-in failed for some reason — send to sign-in page anyway
-  setLoading('reset-btn', false, 'Set New Password &rsaquo;');
-  setMsg('reset-msg', 'success', '\u2713 Password updated! Please sign in with your new password.');
+  setLoading('reset-btn', false, 'Guardar nueva contraseña &rsaquo;');
+  setMsg('reset-msg', 'success', '\u2713 ¡Contraseña actualizada! Inicia sesión con tu nueva contraseña.');
   await new Promise(r => setTimeout(r, 1500));
   showPanel('signin');
   const emailInput = document.getElementById('signin-email');
   emailInput.value = email;
-  setMsg('signin-msg', 'success', '\u2713 Password updated \u2014 sign in below with your new password.');
+  setMsg('signin-msg', 'success', '\u2713 Contraseña actualizada: inicia sesión abajo con tu nueva contraseña.');
 }
 
 // ── Enter key ─────────────────────────────────────────────────────────────────
