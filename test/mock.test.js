@@ -7,8 +7,8 @@ process.env.XAI_API_KEY = 'x'; process.env.RESEND_API_KEY = 'r';
 const assert = require('assert');
 
 const db = {
-  summaries: [
-    { id: 1, title: 'Meditations', author: 'Marcus Aurelius', lookup_key: 'meditations||marcus aurelius||nospoilers', plain: STOIC, html: '<p>stoic</p>', words: '[]' },
+  summaries_es: [
+    { id: 1, title: 'Meditaciones', author: 'Marcus Aurelius', lookup_key: 'meditaciones||marcus aurelius||nospoilers', plain: STOIC, html: '<p>stoic</p>', words: '[]' },
     { id: 2, title: 'Dune', author: 'Frank Herbert', lookup_key: 'dune||frank herbert||nospoilers', plain: SPICE, html: '<p>spice</p>', words: '[]' }
   ],
   user_library: [], profiles: [{ id: 'u1', tier: 'free', downloads_used: 0 }, { id: 'u2', tier: 'free', downloads_used: 36 }, { id: 'u3', tier: 'pro', downloads_used: 0 }],
@@ -21,7 +21,7 @@ global.fetch = async (url, o = {}) => {
   const u = new URL(url); const m = o.method || 'GET'; const q = u.searchParams;
   if (u.host === 'api.x.ai') { db.xai++; return J({}); }
   if (u.host === 'api.resend.com') { db.emails++; return J({ id: 'e' }); }
-  if (u.host === 'openlibrary.org') { db.ol = (db.ol || 0) + 1; return J({ docs: [{ title: 'Meditations', author_name: ['Marcus Aurelius'], first_publish_year: 1634 }] }); }
+  if (u.host === 'openlibrary.org') { db.ol = (db.ol || 0) + 1; return J({ docs: [{ title: 'Meditaciones', author_name: ['Marcus Aurelius'], first_publish_year: 1634 }] }); }
   if (u.pathname === '/auth/v1/user') {
     const t = (o.headers.Authorization || '').slice(7); return users[t] ? J(users[t]) : J({}, 401);
   }
@@ -54,7 +54,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   const gs = require('../api/get-summary'), tts = require('../api/tts'), gen = require('../api/generate-audio'), kindle = require('../api/send-to-kindle'), sum = require('../api/summarise');
   let r;
 
-  r = await call(gs, { method: 'GET', query: { title: 'Meditations', author: 'Marcus Aurelius' } });
+  r = await call(gs, { method: 'GET', query: { title: 'Meditaciones', author: 'Marcus Aurelius' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(r.body.plain, STOIC); console.log('ok anon guest read');
 
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' } });
@@ -76,12 +76,13 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   // summarise: cache path + gating + admin-only patchWords
   r = await call(sum, { body: { title: 'Dune', author: 'Frank Herbert' } });
   assert.strictEqual(r.code, 401); console.log('ok summarise anon non-guest blocked');
-  r = await call(sum, { body: { title: 'Meditations', author: 'Marcus Aurelius' } });
+  r = await call(sum, { body: { title: 'Meditaciones', author: 'Marcus Aurelius' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(r.body.source, 'cache'); console.log('ok summarise anon guest cache');
+  // Spanish edition: a book that is not in the library is never written on request, whoever asks.
   r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' } });
-  assert.strictEqual(r.code, 401); console.log('ok summarise anon cannot generate');
+  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok summarise anon cannot generate');
   r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokB' });
-  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok summarise over-limit cannot generate');
+  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok summarise over-limit cannot generate');
   r = await call(sum, { body: { patchWords: true, title: 'Dune' }, token: 'tokA' });
   assert.strictEqual(r.code, 403); console.log('ok patchWords admin-only');
 
@@ -93,52 +94,55 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(gs, { method: 'GET', query: { title: 'Dune', author: 'Frank Herbert' }, token: 'tokH' });
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'limit'); console.log('ok guest stopped at 12');
   r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokG' });
-  assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'signup_required'); console.log('ok guest cannot generate new summaries');
+  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok guest cannot generate new summaries');
+  r = await call(sum, { body: { title: 'Unknown Book', author: 'Nobody' }, token: 'tokP' });
+  assert.strictEqual(r.code, 404); assert.strictEqual(r.body.code, 'not_in_library'); console.log('ok even Pro cannot write new books in the Spanish edition');
   r = await call(kindle, { body: { title: 'Dune', author: 'Frank Herbert', kindleEmail: 'me@kindle.com' }, token: 'tokG' });
   assert.strictEqual(r.code, 403); assert.strictEqual(db.emails, 0); console.log('ok guest cannot use kindle');
 
   // tts / generate-audio
-  r = await call(tts, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
+  r = await call(tts, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.cached, false); console.log('ok tts miss');
 
   r = await call(gen, { body: { title: 'Dune', author: 'Frank Herbert' } });
   assert.strictEqual(r.code, 401); assert.strictEqual(db.xai, 0); console.log('ok generate anon non-guest blocked, no xAI spend');
 
-  r = await call(gen, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
+  r = await call(gen, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'pro_required'); assert.strictEqual(db.xai, 0); console.log('ok anon cannot trigger paid generation');
-  r = await call(gen, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' }, token: 'tokA' });
+  r = await call(gen, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' }, token: 'tokA' });
   assert.strictEqual(r.code, 403); assert.strictEqual(db.xai, 0); console.log('ok free user cannot trigger paid generation');
 
   const [g1, g2] = await Promise.all([
-    call(gen, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female', plain: 'EVIL TEXT' }, token: 'tokP' }),
-    call(gen, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' }, token: 'tokP' })
+    call(gen, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female', plain: 'EVIL TEXT' }, token: 'tokP' }),
+    call(gen, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' }, token: 'tokP' })
   ]);
   assert.strictEqual(g1.code, 200); assert.strictEqual(g2.code, 200);
   assert.strictEqual(db.xai, 1, 'xAI called ' + db.xai + ' times'); console.log('ok concurrent generate = 1 xAI call');
   assert.strictEqual(db.audio_meta.length, 1);
+  assert.ok([...db.storage].every(k => k.endsWith('__es.mp3')), 'Spanish audio must carry the __es suffix: ' + [...db.storage]); assert.strictEqual(db.audio_meta[0].voice_language, 'es'); console.log('ok Spanish audio keys end __es, meta says es');
   assert.strictEqual(db.audio_meta[0].plain_hash, require('../lib/kernl').plainHash(STOIC)); console.log('ok audio_meta written from DB text, client plain ignored');
 
-  r = await call(gen, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
+  r = await call(gen, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.cached, true); assert.strictEqual(db.xai, 1); console.log('ok repeat generate is free');
 
-  r = await call(tts, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
+  r = await call(tts, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.source, 'cache'); console.log('ok tts hit');
 
-  db.summaries[0].plain = STOIC + ' Edited ending.';
-  r = await call(tts, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
+  db.summaries_es[0].plain = STOIC + ' Edited ending.';
+  r = await call(tts, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.reason, 'hash_mismatch'); console.log('ok tts stale detected');
 
   // wrong-book title match no longer collides
-  db.summaries.push({ id: 3, title: 'Meditations on First Philosophy', author: 'Descartes', lookup_key: 'x', plain: 'cogito', html: '', words: '[]' });
-  r = await call(tts, { body: { title: 'Meditations', author: 'Marcus Aurelius', voice: 'female' } });
+  db.summaries_es.push({ id: 3, title: 'Meditaciones metafísicas', author: 'Descartes', lookup_key: 'x', plain: 'cogito', html: '', words: '[]' });
+  r = await call(tts, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', voice: 'female' } });
   assert.strictEqual(r.body.reason, 'hash_mismatch'); console.log('ok similar title does not hijack hash lookup');
 
   // kindle
-  r = await call(kindle, { body: { title: 'Meditations', author: 'Marcus Aurelius', kindleEmail: 'victim@gmail.com' } });
+  r = await call(kindle, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', kindleEmail: 'victim@gmail.com' } });
   assert.strictEqual(r.code, 400); assert.strictEqual(db.emails, 0); console.log('ok kindle relay blocked');
   r = await call(kindle, { body: { title: 'Dune', author: 'Frank Herbert', kindleEmail: 'me@kindle.com' } });
   assert.strictEqual(r.code, 401); console.log('ok kindle non-guest anon blocked');
-  r = await call(kindle, { body: { title: 'Meditations', author: 'Marcus Aurelius', kindleEmail: 'me@kindle.com' } });
+  r = await call(kindle, { body: { title: 'Meditaciones', author: 'Marcus Aurelius', kindleEmail: 'me@kindle.com' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(db.emails, 1); console.log('ok kindle guest send');
   assert.strictEqual(db.ol, 1, 'year lookup not called once'); console.log('ok kindle send looks up the year');
 
@@ -152,11 +156,11 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(r.code, 200); assert.ok(r.body.rows.length >= 2);
   assert.ok(r.body.rows.every(x => x.opens === 'ok'), 'a seeded book failed the open check: ' + JSON.stringify(r.body.rows.map(x => x.opens)));
   console.log('ok audit: every seeded book opens via the click lookup');
-  db.summaries.push({ id: 99, title: 'Ghost', author: 'Nobody', lookup_key: 'something-else', plain: STOIC, html: '<p>x</p>', words: '[]' });
-  const savedLookup = db.summaries[2].lookup_key; db.summaries[2].title = 'Zzzz Unfindable Qqqq'; db.summaries[2].lookup_key = 'zzzz';
+  db.summaries_es.push({ id: 99, title: 'Ghost', author: 'Nobody', lookup_key: 'something-else', plain: STOIC, html: '<p>x</p>', words: '[]' });
+  const savedLookup = db.summaries_es[2].lookup_key; db.summaries_es[2].title = 'Zzzz Unfindable Qqqq'; db.summaries_es[2].lookup_key = 'zzzz';
   r = await call(audit, { method: 'GET', query: { limit: '10' }, token: 'tokP' });
   assert.ok(r.body.rows.find(x => x.id === 99), 'ghost row missing');
-  db.summaries.pop();
+  db.summaries_es.pop();
   console.log('ok audit runs on odd rows without crashing');
 
   // a service key that is really the public anon key must be refused everywhere

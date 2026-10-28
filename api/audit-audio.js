@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 40));
 
-    const r = await K.sb('/rest/v1/summaries?select=id,title,author,plain,html&order=id.asc&offset=' + offset + '&limit=' + limit);
+    const r = await K.sb('/rest/v1/' + K.SUMMARIES_TABLE + '?select=id,title,author,plain,html&order=id.asc&offset=' + offset + '&limit=' + limit);
     if (!r.ok) return res.status(502).json({ error: 'Could not read library' });
     const books = r.data || [];
 

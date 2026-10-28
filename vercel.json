@@ -11,6 +11,7 @@
     "api/generate-audio.js": { "maxDuration": 300 },
     "api/tts-stream.js": { "maxDuration": 300 },
     "api/tts.js": { "maxDuration": 60 },
+    "api/es-pipeline.js": { "maxDuration": 300 },
     "api/send-to-kindle.js": { "maxDuration": 30, "includeFiles": "lib/fonts/**" }
   },
   "headers": [

@@ -12,7 +12,7 @@ async function generate(book, voice, filename) {
   const r = await fetch('https://api.x.ai/v1/tts', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + process.env.XAI_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: book.plain.slice(0, MAX_CHARS), voice_id: voice === 'male' ? 'leo' : 'eve', language: 'en' })
+    body: JSON.stringify({ text: book.plain.slice(0, MAX_CHARS), voice_id: voice === 'male' ? 'leo' : 'eve', language: K.TTS_LANGUAGE })
   });
   if (!r.ok) {
     console.error('[generate-audio] xAI failed:', r.status, (await r.text()).slice(0, 200));
@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
   try {
     const ctx = await K.authenticate(req);
     const book = await K.findBook(title, author);
-    if (!book || !book.plain) return res.status(404).json({ ok: false, error: 'Summary not found' });
+    if (!book || !book.plain) return res.status(404).json({ ok: false, error: 'Resumen no encontrado' });
 
     const access = await K.authoriseAudioRead(ctx, book);
     if (!access.ok) return K.fail(res, access);
@@ -55,11 +55,11 @@ module.exports = async (req, res) => {
     }
 
     if (K.isIncomplete(book.plain, book.html)) {
-      return res.status(422).json({ ok: false, code: 'incomplete_text', error: 'This summary looks incomplete, so no audio was made.' });
+      return res.status(422).json({ ok: false, code: 'incomplete_text', error: 'Este resumen parece incompleto, así que no se creó el audio.' });
     }
 
     if (!K.canGenerateAudio(ctx)) {
-      return res.status(403).json({ ok: false, code: 'pro_required', error: 'Audio generation is a Pro feature.' });
+      return res.status(403).json({ ok: false, code: 'pro_required', error: 'Crear audio nuevo es una función Pro.' });
     }
 
     // Someone on this instance is already generating it: wait for that instead of paying twice.
@@ -71,7 +71,7 @@ module.exports = async (req, res) => {
 
     const who = ctx && ctx.user ? ctx.user.id : K.clientIp(req);
     if (!(ctx && ctx.admin) && K.rateLimited('gen:' + who, 12, 60 * 60 * 1000)) {
-      return res.status(429).json({ ok: false, error: 'Too many audio requests. Try again later.' });
+      return res.status(429).json({ ok: false, error: 'Demasiadas solicitudes de audio. Inténtalo más tarde.' });
     }
 
     const job = generate(book, voice, filename);

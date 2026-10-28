@@ -9,7 +9,7 @@ const K = require('../lib/kernl');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  if (K.rateLimited('tts:' + K.clientIp(req), 60, 60 * 1000)) return res.status(429).json({ error: 'Too many requests' });
+  if (K.rateLimited('tts:' + K.clientIp(req), 60, 60 * 1000)) return res.status(429).json({ error: 'Demasiadas solicitudes' });
 
   const body = req.body || {};
   const voice = K.normVoice(body.voice);

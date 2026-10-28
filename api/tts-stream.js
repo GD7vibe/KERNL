@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
   try {
     const ctx = await K.authenticate(req);
     book = await K.findBook(title, author);
-    if (!book || !book.plain) return res.status(404).json({ error: 'Summary not found' });
+    if (!book || !book.plain) return res.status(404).json({ error: 'Resumen no encontrado' });
 
     const access = await K.authoriseAudioRead(ctx, book);
     if (!access.ok) return K.fail(res, access);
@@ -41,14 +41,14 @@ module.exports = async (req, res) => {
     }
 
     if (K.isIncomplete(book.plain, book.html)) {
-      return res.status(422).json({ code: 'incomplete_text', error: 'This summary looks incomplete, so no audio was made. It needs regenerating first.' });
+      return res.status(422).json({ code: 'incomplete_text', error: 'Este resumen parece incompleto, así que no se creó el audio. Hay que regenerarlo primero.' });
     }
 
     // Cache miss from here on. Generating new audio costs money: Pro and admin only.
     // (Checked after the in-flight wait below so a free user can still pick up a file a Pro user just made.)
     const pending0 = K.inflight.get(filename);
     if (!pending0 && !K.canGenerateAudio(ctx)) {
-      return res.status(403).json({ code: 'pro_required', error: 'Audio generation is a Pro feature.' });
+      return res.status(403).json({ code: 'pro_required', error: 'Crear audio nuevo es una función Pro.' });
     }
 
     // A generate-audio call for the same file is already running on this instance: wait, then serve it.
@@ -57,12 +57,12 @@ module.exports = async (req, res) => {
       try { await pending; } catch (e) { /* fall through to stream it ourselves */ }
       const again = await K.findCachedAudio(keys);
       if (again) return res.status(200).json({ cached: true, url: again.url });
-      if (!K.canGenerateAudio(ctx)) return res.status(403).json({ code: 'pro_required', error: 'Audio generation is a Pro feature.' });
+      if (!K.canGenerateAudio(ctx)) return res.status(403).json({ code: 'pro_required', error: 'Crear audio nuevo es una función Pro.' });
     }
 
     const who = ctx && ctx.user ? ctx.user.id : K.clientIp(req);
     if (!(ctx && ctx.admin) && K.rateLimited('gen:' + who, 12, 60 * 60 * 1000)) {
-      return res.status(429).json({ error: 'Too many audio requests. Try again later.' });
+      return res.status(429).json({ error: 'Demasiadas solicitudes de audio. Inténtalo más tarde.' });
     }
   } catch (e) {
     console.error('[tts-stream] setup failed:', e.message);
@@ -77,7 +77,7 @@ module.exports = async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  const wsUrl = 'wss://api.x.ai/v1/tts?language=en&voice=' + (voice === 'male' ? 'leo' : 'eve') + '&codec=mp3&sample_rate=24000';
+  const wsUrl = 'wss://api.x.ai/v1/tts?language=' + encodeURIComponent(K.TTS_LANGUAGE) + '&voice=' + (voice === 'male' ? 'leo' : 'eve') + '&codec=mp3&sample_rate=24000';
   const allChunks = [];
   let browserConnected = true;
   res.on('close', () => { browserConnected = false; });
