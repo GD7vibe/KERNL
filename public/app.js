@@ -682,18 +682,49 @@ async function checkAudioAvailability() {
   if (cached) { setAudioState('cached'); setSub('Press play to listen'); return; }
   if (!pro) { setAudioState('audio-prep'); setSub('Audio for this book is a Pro feature'); return; }
 
-  // Pro: make the audio now. The server answers once the file exists.
+  // Pro: make the audio now. The request that makes it can take minutes and phones often drop or freeze a
+  // connection that long, so readiness is never taken from that request alone: the page also asks the quick
+  // cache check every few seconds, and again the moment the phone comes back to the page.
   setAudioState('audio-prep');
-  setSub('Preparing audio… about a minute');
-  try {
-    const res = await fetch('/api/generate-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: currentSummary.title, author: currentSummary.author, voice: 'female' }) });
-    const d = await res.json().catch(() => ({}));
+  const myAuthor = currentSummary.author;
+  const started = Date.now();
+  const LIMIT_MS = 8 * 60 * 1000;
+  let finished = false, timer = null;
+  const done = msg => {
+    if (finished) return;
+    finished = true; clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onVisible);
     if (!stillHere()) return;
-    if (res.ok && d.ok) { setAudioState('cached'); setSub('Press play to listen'); }
-    else setSub(d.error || 'Audio unavailable right now');
-  } catch (e) {
-    if (stillHere()) setSub('Audio unavailable right now');
-  }
+    if (msg) setSub(msg); else { setAudioState('cached'); setSub('Press play to listen'); }
+  };
+  const isReady = async () => {
+    try {
+      const res = await fetch('/api/tts', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ voice: 'female', title: mine, author: myAuthor, checkOnly: true }) });
+      if (res.ok) { const d = await res.json(); return !!d.url; }
+    } catch (e) { /* offline for a moment: try again next round */ }
+    return false;
+  };
+  const tick = async () => {
+    if (finished) return;
+    if (!stillHere()) { done(); return; }
+    const secs = Math.round((Date.now() - started) / 1000);
+    setSub('Preparing audio… ' + (secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm ' + String(secs % 60).padStart(2, '0') + 's') + ' (usually 1–3 minutes)');
+    if (await isReady()) { done(); return; }
+    if (Date.now() - started > LIMIT_MS) { done('Audio is taking longer than usual. It will be here when you next open this book.'); return; }
+    timer = setTimeout(tick, 6000);
+  };
+  const onVisible = () => { if (document.visibilityState === 'visible' && !finished) { clearTimeout(timer); tick(); } };
+  document.addEventListener('visibilitychange', onVisible);
+  tick();
+
+  try {
+    const res = await fetch('/api/generate-audio', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({ title: mine, author: myAuthor, voice: 'female' }) });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.ok) done();
+    // A definite refusal (incomplete text, not allowed, too many requests) ends the wait with its reason.
+    else if (res.status >= 400 && res.status < 500) done(d.error || 'Audio unavailable right now');
+    // Anything else (timeout, dropped connection, server error): keep checking; the file may still arrive.
+  } catch (e) { /* connection dropped: the checks above carry on */ }
 }
 
 // ── Player ────────────────────────────────────────────────────────────────────
