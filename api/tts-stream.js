@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
           }
           try { ws.close(); } catch (e) { /* already closed */ }
           if (allChunks.length > 0 && await K.uploadAudio(filename, Buffer.concat(allChunks))) {
-            await K.saveAudioMeta(book, voice, filename, book.plain);
+            if (!(await K.saveAudioMeta(book, voice, filename, book.plain))) await K.logSyncError(book, voice, 'audio_meta_save_failed', 'Streamed audio saved but its text record could not be. Key: ' + filename);
           }
           finish();
         }

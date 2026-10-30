@@ -35,10 +35,16 @@ global.fetch = async (url, o = {}) => {
       if (rows.find(r => r.user_id === b.user_id && r.summary_id === b.summary_id)) return J([]);
       rows.push(b); return J([b], 201);
     }
-    if (table === 'audio_meta') { const i = rows.findIndex(r => r.audio_key === b.audio_key); i >= 0 ? rows[i] = b : rows.push(b); return J([], 201); }
+    // Like the real table: audio_key is unique and the primary key is a separate id, so a plain POST of an
+    // existing audio_key is refused (merge-duplicates without on_conflict only merges on the primary key).
+    if (table === 'audio_meta') { if (rows.find(r => r.audio_key === b.audio_key)) return J({ code: '23505', message: 'duplicate key value violates unique constraint' }, 409); rows.push(b); return J([], 201); }
     rows.push(b); return J([b], 201);
   }
-  if (m === 'PATCH') { const id = q.get('id').replace('eq.', ''); const r = rows.find(r => String(r.id) === id); Object.assign(r, JSON.parse(o.body)); return J([]); }
+  if (m === 'PATCH') {
+    const hit = rows.filter(r => [...q].every(([k, v]) => ['select'].includes(k) || !v.startsWith('eq.') || String(r[k]) === v.slice(3)));
+    hit.forEach(r => Object.assign(r, JSON.parse(o.body)));
+    return J(((o.headers && o.headers.Prefer) || '').includes('return=representation') ? hit : []);
+  }
   let out = rows.slice();
   for (const [k, v] of q) {
     if (['select', 'limit', 'order', 'offset', 'on_conflict'].includes(k)) continue;
@@ -142,6 +148,33 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   r = await call(kindle, { body: { title: 'Meditations', author: 'Marcus Aurelius', kindleEmail: 'me@kindle.com' } });
   assert.strictEqual(r.code, 200); assert.strictEqual(db.emails, 1); console.log('ok kindle guest send');
   assert.strictEqual(db.ol, 1, 'year lookup not called once'); console.log('ok kindle send looks up the year');
+
+  // ── Re-made audio must re-stamp its record (the Harry Potter audio fault) ──
+  // Audio exists from an older text; the library text changes (e.g. a duplicate was removed); the audio is
+  // re-made. The record must now match the new text, or every later check calls it stale and nothing plays.
+  {
+    const K = require('../lib/kernl');
+    const NEW = 'New wizard text. '.repeat(400).trim();
+    const hp = { id: 8, title: 'Wizard Book', author: 'J.K. Rowling', lookup_key: 'wizard book||jk rowling||nospoilers', plain: STOIC, html: '<h2>a</h2><h2>b</h2><h2>c</h2>', words: '[]' };
+    db.summaries.push(hp); db.user_library.push({ user_id: 'u3', summary_id: 8 });
+    const key = K.audioKey(hp.title, hp.author, 'female');
+    r = await call(gen, { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
+    assert.strictEqual(r.code, 200); assert.ok(db.storage.has(key));
+    hp.plain = NEW;                                            // text changes after the audio was made
+    r = await call(tts, { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
+    assert.strictEqual(r.body.reason, 'hash_mismatch');
+    r = await call(gen, { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
+    assert.strictEqual(r.code, 200, 'regeneration should report success only if the record was updated');
+    assert.strictEqual(db.audio_meta.filter(m => m.audio_key === key).length, 1, 'one record per audio file');
+    assert.strictEqual(db.audio_meta.find(m => m.audio_key === key).plain_hash, K.plainHash(NEW), 'record must match the new text');
+    r = await call(tts, { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
+    assert.ok(r.body.url, 'after re-making, the audio must be served');
+    const paid = db.xai;
+    r = await call(gen, { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
+    assert.strictEqual(db.xai, paid, 'opening again must not pay to re-make it');
+    db.summaries = db.summaries.filter(x => x.id !== 8);
+    console.log('ok re-made audio is re-stamped, served, and not paid for again');
+  }
 
   // ── Library books never trigger a new summary (the Harry Potter fault) ──
   // A real-looking row whose stored lookup_key came from a differently-typed request, with punctuation
