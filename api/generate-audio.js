@@ -21,7 +21,10 @@ async function generate(book, voice, filename) {
   const buffer = Buffer.from(await r.arrayBuffer());
   if (!buffer.length) { const e = new Error('xAI returned empty audio'); e.status = 502; throw e; }
   if (!(await K.uploadAudio(filename, buffer))) { const e = new Error('Upload failed'); e.status = 502; throw e; }
-  await K.saveAudioMeta(book, voice, filename, book.plain);
+  if (!(await K.saveAudioMeta(book, voice, filename, book.plain))) {
+    await K.logSyncError(book, voice, 'audio_meta_save_failed', 'Audio uploaded but its text record could not be saved. Key: ' + filename);
+    const e = new Error('Audio was made but could not be recorded. Please try again.'); e.status = 502; throw e;
+  }
 }
 
 module.exports = async (req, res) => {
