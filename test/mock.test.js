@@ -172,8 +172,17 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
     const paid = db.xai;
     r = await call(gen, { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
     assert.strictEqual(db.xai, paid, 'opening again must not pay to re-make it');
-    db.summaries = db.summaries.filter(x => x.id !== 8);
     console.log('ok re-made audio is re-stamped, served, and not paid for again');
+    // Hard cap: the text changes yet again the same day; this would be the third paid attempt, so it is refused.
+    hp.plain = 'Third version of the text. '.repeat(300).trim();
+    const paid2 = db.xai;
+    r = await call(gen, { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
+    assert.strictEqual(r.code, 429); assert.strictEqual(r.body.code, 'audio_daily_cap'); assert.strictEqual(db.xai, paid2, 'paid beyond the daily cap');
+    assert.ok(db.sync_errors.some(e => e.error_type === 'audio_cap_reached'));
+    r = await call(require('../api/tts-stream'), { body: { title: hp.title, author: hp.author, voice: 'female' }, token: 'tokP' });
+    assert.strictEqual(r.code, 429); assert.strictEqual(db.xai, paid2, 'stream path paid beyond the daily cap');
+    console.log('ok never pays more than twice a day for one book, on either path');
+    db.summaries = db.summaries.filter(x => x.id !== 8);
   }
 
   // ── Library books never trigger a new summary (the Harry Potter fault) ──

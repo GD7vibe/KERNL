@@ -68,7 +68,8 @@ module.exports = async (req, res) => {
     // Someone on this instance is already generating it: wait for that instead of paying twice.
     const pending = K.inflight.get(filename);
     if (pending) {
-      await pending;
+      try { await pending; }
+      catch (e) { return res.status(e.status || 502).json({ ok: false, code: e.code, error: e.message }); }
       return res.status(200).json({ ok: true, filename, cached: true });
     }
 
@@ -77,9 +78,16 @@ module.exports = async (req, res) => {
       return res.status(429).json({ ok: false, error: 'Too many audio requests. Try again later.' });
     }
 
-    const job = generate(book, voice, filename);
+    // Mark the file as in progress BEFORE any waiting, so a second request at the same moment waits for this
+    // one instead of paying again. The spending guard runs inside the job, before xAI is called.
+    const job = (async () => {
+      const spend = await K.reserveAudioSpend(book, voice, filename);
+      if (!spend.ok) { const f = K.audioSpendRefusal(spend); const e = new Error(f.body.error); e.status = f.status; e.code = f.body.code; throw e; }
+      await generate(book, voice, filename);
+    })();
     K.inflight.set(filename, job);
-    await job;
+    try { await job; }
+    catch (e) { if (e.code) return res.status(e.status).json({ ok: false, code: e.code, error: e.message }); throw e; }
     return res.status(200).json({ ok: true, filename });
   } catch (e) {
     console.error('[generate-audio] error:', e.message);
