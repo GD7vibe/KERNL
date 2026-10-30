@@ -64,6 +64,9 @@ module.exports = async (req, res) => {
     if (!(ctx && ctx.admin) && K.rateLimited('gen:' + who, 12, 60 * 60 * 1000)) {
       return res.status(429).json({ error: 'Too many audio requests. Try again later.' });
     }
+
+    const spend = await K.reserveAudioSpend(book, voice, filename);
+    if (!spend.ok) { const f = K.audioSpendRefusal(spend); return res.status(f.status).json(f.body); }
   } catch (e) {
     console.error('[tts-stream] setup failed:', e.message);
     return res.status(e.status || 500).json({ error: e.message });
