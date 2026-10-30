@@ -11,8 +11,12 @@
     "api/generate-audio.js": { "maxDuration": 300 },
     "api/tts-stream.js": { "maxDuration": 300 },
     "api/tts.js": { "maxDuration": 60 },
-    "api/send-to-kindle.js": { "maxDuration": 30, "includeFiles": "lib/fonts/**" }
+    "api/send-to-kindle.js": { "maxDuration": 30, "includeFiles": "lib/fonts/**" },
+    "api/dedupe.js": { "maxDuration": 60 }
   },
+  "crons": [
+    { "path": "/api/dedupe", "schedule": "0 4 * * 1" }
+  ],
   "headers": [
     {
       "source": "/(app|index|library|summary|kernl-ui|scenes).js",
