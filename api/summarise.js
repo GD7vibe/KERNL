@@ -238,7 +238,7 @@ async function findCached(title, author) {
 
 // Each summary is written on its own, so "vary your opening" alone does nothing: the model can't see the other
 // summaries and falls back on the same safe line ("X stands as one of the most influential..."). So each new
-// summary is handed one opening approach at random, and the stock phrases are named as off limits.
+// summary is handed one opening approach at random.
 const OPENING_STYLES = [
   'Open with the central question or problem the book wrestles with, put to the reader directly.',
   'Open in the middle of a vivid moment, scene or image from the book, then pull back to say what the book is about.',
@@ -253,7 +253,7 @@ const OPENING_STYLES = [
 ];
 function openingInstruction() {
   const style = OPENING_STYLES[Math.floor(Math.random() * OPENING_STYLES.length)];
-  return ' OPENING: ' + style + ' Do NOT begin with the title followed by a verdict, and avoid these stock phrases anywhere in the opening: "stands as", "is widely regarded", "is considered one of", "is a seminal", "is a landmark", "is a masterpiece", "remains one of the most", "In [title], [author]...". Make the first sentence specific to this book, so it could not open a summary of any other book.';
+  return ' OPENING: ' + style;
 }
 
 function buildPrompt(title, author) {
