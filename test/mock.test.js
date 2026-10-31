@@ -209,7 +209,7 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   // ── Summary prompt: varied openings, structure markers intact ──
   {
     const seen = new Set();
-    for (let i = 0; i < 300; i++) { const pr = sum.buildPrompt('Dune', 'Frank Herbert'); assert.ok(pr.includes('GENRE:FICTION') && pr.includes('WORDS_START') && pr.includes('WORDS_END')); seen.add(pr.match(/OPENING: (.*?) Do NOT/)[1]); }
+    for (let i = 0; i < 300; i++) { const pr = sum.buildPrompt('Dune', 'Frank Herbert'); assert.ok(pr.includes('GENRE:FICTION') && pr.includes('WORDS_START') && pr.includes('WORDS_END')); seen.add(pr.match(/OPENING: (.*?) IMPORTANT:/)[1]); }
     assert.strictEqual(seen.size, sum.OPENING_STYLES.length, 'every opening style should come up');
     console.log('ok summary prompt varies its opening and keeps genre/words markers');
   }
