@@ -236,8 +236,28 @@ async function findCached(title, author) {
   console.log('Cache miss'); return null;
 }
 
+// Each summary is written on its own, so "vary your opening" alone does nothing: the model can't see the other
+// summaries and falls back on the same safe line ("X stands as one of the most influential..."). So each new
+// summary is handed one opening approach at random.
+const OPENING_STYLES = [
+  'Open with the central question or problem the book wrestles with, put to the reader directly.',
+  'Open in the middle of a vivid moment, scene or image from the book, then pull back to say what the book is about.',
+  'Open with a striking fact, claim or idea from the book that makes the reader want to know more.',
+  'Open with the world or situation the author was writing into, and what made the book necessary or surprising at the time.',
+  'Open with the main character or central figure and what they want, fear or are up against.',
+  'Open with the book\'s big idea stated plainly in one short, confident sentence, then unpack it.',
+  'Open with a short, telling quotation-style paraphrase of the author\'s own argument (no invented quotes), then explain it.',
+  'Open with what a reader will come away understanding or seeing differently after reading it.',
+  'Open with a tension or contradiction at the heart of the book.',
+  'Open with who the author is and what drove them to write this particular book, in two sentences at most.'
+];
+function openingInstruction() {
+  const style = OPENING_STYLES[Math.floor(Math.random() * OPENING_STYLES.length)];
+  return ' OPENING: ' + style;
+}
+
 function buildPrompt(title, author) {
-  return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. Write a full, comprehensive summary covering all key arguments, themes, insights, plot points, character arcs, and conclusions. Include spoilers where relevant — the reader wants the complete picture. A disclaimer about spoilers will be shown separately so do not add one yourself. IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph introducing the book and its significance - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags - return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide EXACTLY 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: You MUST provide exactly 21 words — not 20, not 22, exactly 21. Every word must be completely unique - no word may appear more than once in the list. Count your words before finalising. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END';
+  return 'Write a comprehensive 1,500-word summary of the book "'+title+'"'+(author?' by '+author:'')+'. Write a full, comprehensive summary covering all key arguments, themes, insights, plot points, character arcs, and conclusions. Include spoilers where relevant — the reader wants the complete picture. A disclaimer about spoilers will be shown separately so do not add one yourself.' + openingInstruction() + ' IMPORTANT: On the very first line of your response, write either GENRE:FICTION or GENRE:NONFICTION so the system knows how to categorise this book. Then continue with the summary on the next line. Structure it with clear sections using HTML formatting: - An opening paragraph that draws the reader in, following the OPENING instruction above - 4-6 sections with <h2> headings covering key themes, characters, and insights - Each section should be 2-3 substantial paragraphs - A closing section on legacy and impact Format rules: - Use <h2> for section headings - Use <p> tags for paragraphs - No <html>, <body>, or <head> tags - return only the inner content - Write in an engaging, intelligent tone - Target exactly 1,500 words. Do not exceed 1,550 words under any circumstances. After the summary, on a new line write: WORDS_START Then provide EXACTLY 21 interesting, unusual, or book-specific words from the book or relevant to its themes. These should be words a teenager might not know but would find fascinating to learn. CRITICAL: You MUST provide exactly 21 words — not 20, not 22, exactly 21. Every word must be completely unique - no word may appear more than once in the list. Count your words before finalising. Format each word as JSON on its own line like this: {"word":"example","definition":"the meaning of the word in plain English"} Then on a new line write: WORDS_END';
 }
 
 function parseWordsBlock(raw) { const wordsStart = raw.indexOf('WORDS_START'); const wordsEnd = raw.indexOf('WORDS_END'); if (wordsStart === -1 || wordsEnd === -1) return []; const wordsBlock = raw.slice(wordsStart + 11, wordsEnd).trim(); const seen = new Set(); return wordsBlock.split('\n').map(line => { try { return JSON.parse(line.trim()); } catch(e) { return null; } }).filter(w => w && w.word && w.definition).filter(w => { const k = w.word.toLowerCase().trim(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 21); }
@@ -487,3 +507,5 @@ module.exports = async (req, res) => {
 
 // Exposed for api/audit-books.js so the audit runs the exact lookup a book click runs.
 module.exports.findCached = findCached;
+module.exports.buildPrompt = buildPrompt;
+module.exports.OPENING_STYLES = OPENING_STYLES;
