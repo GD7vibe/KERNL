@@ -206,6 +206,14 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'pro_required'); assert.strictEqual(db.anthropic, before + 1); console.log('ok free user generate:true refused');
   db.summaries = db.summaries.filter(x => x.id !== 7);
 
+  // ── Summary prompt: varied openings, structure markers intact ──
+  {
+    const seen = new Set();
+    for (let i = 0; i < 300; i++) { const pr = sum.buildPrompt('Dune', 'Frank Herbert'); assert.ok(pr.includes('GENRE:FICTION') && pr.includes('WORDS_START') && pr.includes('WORDS_END')); seen.add(pr.match(/OPENING: (.*?) Do NOT/)[1]); }
+    assert.strictEqual(seen.size, sum.OPENING_STYLES.length, 'every opening style should come up');
+    console.log('ok summary prompt varies its opening and keeps genre/words markers');
+  }
+
   // ── Book-open audit (read-only; Pro/admin only) ──
   const audit = require('../api/audit-books');
   r = await call(audit, { method: 'GET', query: {}, token: 'tokA' });
