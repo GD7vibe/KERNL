@@ -185,11 +185,14 @@ async function renderRecs() {
 }
 
 // Genres start rolled up. The ones opened during this visit stay open when the list redraws (e.g. after removing a book).
-const _openShelves = new Set();
+// Remembered for this browser tab, so coming back from a book restores the same view even if the page reloads.
+const _openShelves = new Set((() => { try { return JSON.parse(sessionStorage.getItem('kernl_lib_open') || '[]'); } catch (e) { return []; } })());
+const saveOpenShelves = () => { try { sessionStorage.setItem('kernl_lib_open', JSON.stringify([..._openShelves])); } catch (e) { /* private mode */ } };
 document.addEventListener('toggle', e => {
   const d = e.target;
   if (!d.classList || !d.classList.contains('lib-sec')) return;
   if (d.open) _openShelves.add(d.dataset.k); else _openShelves.delete(d.dataset.k);
+  saveOpenShelves();
 }, true);
 
 // Books are filed on the same eight shelves as the library, and the shelves appear as the collection grows.
@@ -208,11 +211,15 @@ function renderLibrary() {
       '<div class="inner">' + by[k].map(i => { const it = _items[i], s = it.summaries || {}; return rowHtml(s.title || '', s.author, s.synopsis, k, i, !_guest); }).join('') + '</div></details>';
   }).join('');
   observeRows(c);
+  // Back from a book on a fresh page load: return to the same place in the list.
+  let y = null; try { y = sessionStorage.getItem('kernl_lib_scroll'); sessionStorage.removeItem('kernl_lib_scroll'); } catch (e) { /* ignore */ }
+  if (y) requestAnimationFrame(() => window.scrollTo(0, +y));
 }
 
 function openBook(title, author, id) {
   if (!title) return;
-  window.location.href = '/app.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author || '') + (id != null ? '&id=' + encodeURIComponent(id) : '');
+  try { sessionStorage.setItem('kernl_lib_scroll', String(Math.round(window.scrollY))); } catch (e) { /* private mode */ }
+  window.location.href = '/app.html?title=' + encodeURIComponent(title) + '&author=' + encodeURIComponent(author || '') + (id != null ? '&id=' + encodeURIComponent(id) : '') + '&from=library';
 }
 
 document.addEventListener('click', async e => {
