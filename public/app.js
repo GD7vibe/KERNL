@@ -26,6 +26,7 @@ let currentSummary = null;     // { title, author, html, plain, words }
 let _allBooks = [];            // catalogue: { title, author, synopsis, categories, _cats, _s }
 let _opening = false;
 let _readerOpen = false;
+let _returnToLibrary = false;   // opened from My library: closing the book goes back there
 
 function getSB() {
   if (!_sbClient) _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -142,6 +143,7 @@ async function initAuth() {
   const autoAuthor = params.get('author');
   const autoId = params.get('id');
   if (autoTitle) {
+    _returnToLibrary = params.get('from') === 'library';
     history.replaceState(null, '', window.location.pathname);
     openSummary(autoTitle, autoAuthor || '', /^\d+$/.test(autoId || '') ? { id: autoId } : undefined);
   }
@@ -576,6 +578,13 @@ function hideReader() {
   if (_cardObs) _cardObs.disconnect();
   document.body.style.overflow = _genreOpen ? 'hidden' : '';
   hideLayer('reader', () => { currentSummary = null; _waFile = null; });
+  if (_returnToLibrary) {
+    // Opened from My library: go back to it (one more step back restores it exactly as it was left).
+    // The short pause lets the last progress save leave first.
+    _returnToLibrary = false;
+    const cameFromLibrary = (document.referrer || '').indexOf(window.location.origin + '/account') === 0;
+    setTimeout(() => { if (cameFromLibrary && history.length > 1) history.back(); else window.location.replace('/account.html'); }, 250);
+  }
 }
 
 // Mini player: shown at the top while the full player card is scrolled out of sight.
