@@ -311,7 +311,7 @@ module.exports = async (req, res) => {
           if (words.length > 0) await patchWordsById(row.id, words);
         } catch (e) { words = []; }
       }
-      return res.status(200).json({ html: row.html, plain: row.plain, words, source: 'cache', title: row.title, author: row.author, quota: access.quota || null });
+      return res.status(200).json({ id: row.id, html: row.html, plain: row.plain, words, source: 'cache', title: row.title, author: row.author, quota: access.quota || null });
     } catch (e) {
       console.error('Library open error:', e.message);
       return res.status(503).json({ error: 'Library temporarily unavailable. Please try again.' });
@@ -331,7 +331,7 @@ module.exports = async (req, res) => {
           if (words.length > 0 && cached.id) await patchWordsById(cached.id, words);
         } catch (e) { words = []; }
       }
-      return res.status(200).json({ html: cached.html, plain: cached.plain, words, source: 'cache', quota: access.quota || null });
+      return res.status(200).json({ id: cached.id, html: cached.html, plain: cached.plain, words, source: 'cache', quota: access.quota || null });
     }
   } catch (e) {
     console.error('Cache lookup error:', e.message);
@@ -492,7 +492,7 @@ module.exports = async (req, res) => {
       } catch (e) { console.warn('accessBook failed:', e.message); }
     }
 
-    res.write('data: ' + JSON.stringify({ done: true, html, plain, words, source: 'generated', quota }) + '\n\n');
+    res.write('data: ' + JSON.stringify({ done: true, id: savedId || null, html, plain, words, source: 'generated', quota }) + '\n\n');
     res.end();
 
   } catch(err) {

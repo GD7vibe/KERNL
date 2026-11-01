@@ -214,6 +214,34 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
     console.log('ok summary prompt varies its opening and keeps genre/words markers');
   }
 
+  // ── Listening progress ──
+  {
+    const prog = require('../api/progress');
+    const get = (token, id) => call(prog, { method: 'GET', query: { id: String(id) }, token });
+    const post = (token, body) => call(prog, { method: 'POST', body, token });
+    const lib = db.user_library.find(x => x.user_id === 'u1' && x.summary_id === 2);
+    assert.ok(lib, 'u1 should own Dune from the earlier test');
+    r = await get(null, 2); assert.strictEqual(r.code, 401);
+    r = await get('tokG', 2); assert.strictEqual(r.code, 403); assert.strictEqual(r.body.code, 'signup_required');
+    console.log('ok progress: anonymous refused, guests nudged to sign up');
+    r = await get('tokA', 2); assert.deepStrictEqual(r.body, { pos: 0, dur: null, pct: 0, listens: 0, finished: false });
+    r = await post('tokA', { id: 2, pos: 120, dur: 600 }); assert.strictEqual(r.code, 200); assert.strictEqual(r.body.pct, 20);
+    r = await post('tokA', { id: 2, pos: 60, dur: 600 });                       // jumped back: furthest point kept
+    r = await get('tokA', 2); assert.strictEqual(r.body.pos, 60); assert.strictEqual(r.body.pct, 20); assert.strictEqual(r.body.finished, false);
+    console.log('ok progress: position saved, furthest point kept');
+    r = await post('tokA', { id: 2, pos: 590, dur: 600, done: true });
+    r = await get('tokA', 2); assert.strictEqual(r.body.listens, 1); assert.strictEqual(r.body.finished, true); assert.strictEqual(r.body.pos, 0); assert.strictEqual(r.body.pct, 100);
+    r = await post('tokA', { id: 2, pos: 595, dur: 600, done: true });
+    r = await get('tokA', 2); assert.strictEqual(r.body.listens, 2);
+    console.log('ok progress: finishing counts a listen and restarts from the beginning next time');
+    r = await post('tokA', { id: 1, pos: 10, dur: 600 }); assert.strictEqual(r.code, 404);          // not in their library
+    r = await post('tokA', { id: '2; drop', pos: 10, dur: 600 }); assert.strictEqual(r.code, 400);
+    r = await post('tokA', { id: 2, pos: -5, dur: 600 }); assert.strictEqual(r.code, 400);
+    r = await post('tokB', { id: 2, pos: 10, dur: 600 }); assert.notStrictEqual(r.code, 200);       // someone else's book
+    r = await get('tokA', 2); assert.strictEqual(r.body.listens, 2);
+    console.log('ok progress: only your own library books, bad input refused');
+  }
+
   // ── Book-open audit (read-only; Pro/admin only) ──
   const audit = require('../api/audit-books');
   r = await call(audit, { method: 'GET', query: {}, token: 'tokA' });

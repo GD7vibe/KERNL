@@ -44,6 +44,12 @@ details.fold>.inner{margin-top:14px}
 .lib-sec .tile{width:46px;height:46px;border-radius:14px;flex-shrink:0;background:var(--g);overflow:hidden;color:var(--ink);border:1.5px solid rgba(23,18,43,.5);box-shadow:0 3px 0 rgba(23,18,43,.22)}
 .lib-sec .tile svg{width:100%;height:100%;display:block}
 .lib-sec .nm{font-weight:800}
+.prog{display:flex;align-items:center;gap:8px;margin-top:6px}
+.prog .bar{width:110px;height:4px;border-radius:9px;background:var(--surface-3);overflow:hidden;flex-shrink:0}
+.prog .bar i{display:block;height:100%;border-radius:9px;background:var(--accent)}
+.prog .lbl{font-size:.72rem;font-weight:600;color:var(--text-3);display:inline-flex;align-items:center;gap:4px}
+.prog.done .lbl{color:var(--accent)}
+.prog .lbl .icon{width:13px;height:13px}
 .lib-sec .ct{font-size:.82rem;font-weight:600;color:var(--text-3);margin-left:8px}
 .empty{text-align:center;padding:30px 16px;color:var(--text-2)}
 .loadingline{display:flex;align-items:center;gap:10px;color:var(--text-2);padding:6px 0}
@@ -98,9 +104,17 @@ function observeRows(root) {
   if (!_obs) _obs = new IntersectionObserver(es => es.forEach(e => { const r = e.target.parentElement; if (r) r.classList.toggle('on', e.isIntersecting); }), { rootMargin: '-44% 0px -46% 0px', threshold: 0 });
   (root || document).querySelectorAll('.brow .hd').forEach(h => _obs.observe(h));
 }
-function rowHtml(title, author, synopsis, key, idx, removable) {
+// Listening progress under the author: a thin bar while part-heard, "Finished" once heard to the end.
+function progHtml(it) {
+  if (!it) return '';
+  const pct = Math.max(0, Math.min(100, it.listen_pct || 0)), n = it.listens || 0;
+  if (it.finished_at || n > 0) return '<div class="prog done"><span class="lbl">' + icon('check') + 'Finished' + (n > 1 ? ' · listened ' + n + '\u00d7' : '') + '</span></div>';
+  if (pct >= 1) return '<div class="prog"><span class="bar"><i style="width:' + pct + '%"></i></span><span class="lbl">' + pct + '% listened</span></div>';
+  return '';
+}
+function rowHtml(title, author, synopsis, key, idx, removable, it) {
   const g = SCENES.byKey(key);
-  return '<div class="brow-wrap"><button class="brow" type="button" data-i="' + idx + '" style="--g:' + g.bg + '"><div class="hd"><span class="tile">' + SCENES.svg(key, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(title) + '</div><div class="au">' + esc(author || '') + '</div></span></div>' +
+  return '<div class="brow-wrap"><button class="brow" type="button" data-i="' + idx + '" style="--g:' + g.bg + '"><div class="hd"><span class="tile">' + SCENES.svg(key, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(title) + '</div><div class="au">' + esc(author || '') + '</div>' + progHtml(it) + '</span></div>' +
     '<div class="syn"><div><p>' + esc(synopsis || '') + '</p></div></div></button>' +
     (removable ? '<button class="rm" type="button" data-rm="' + idx + '" aria-label="Remove ' + esc(title) + '">' + icon('x') + '</button>' : '') + '</div>';
 }
@@ -117,9 +131,10 @@ async function init() {
 
   let profile = null;
   if (!_guest) ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single());
-  const { data: library, error } = await sb.from('user_library')
-    .select('id, voice, language, added_at, summaries(id, title, author, synopsis, categories)')
-    .eq('user_id', session.user.id).order('added_at', { ascending: false });
+  const loadLib = cols => sb.from('user_library').select(cols).eq('user_id', session.user.id).order('added_at', { ascending: false });
+  let { data: library, error } = await loadLib('id, voice, language, added_at, listen_pct, listens, finished_at, summaries(id, title, author, synopsis, categories)');
+  // Before the listening-progress columns exist (sql/02-listen-progress.sql), load the library without them.
+  if (error) ({ data: library, error } = await loadLib('id, voice, language, added_at, summaries(id, title, author, synopsis, categories)'));
   if (error) console.warn('library load failed', error.message);
   _items = library || [];
   if (_guest) profile = { tier: 'guest', downloads_used: _items.length };
@@ -205,7 +220,7 @@ function renderLibrary() {
   c.innerHTML = SCENES.DISPLAY.filter(k => by[k]).map(k => {
     const g = SCENES.byKey(k);
     return '<details class="fold lib-sec" data-k="' + k + '"' + (_openShelves.has(k) ? ' open' : '') + ' style="--g:' + g.bg + '"><summary><span class="tile">' + SCENES.svg(k, { slice: true }) + '</span><span class="grow"><span class="nm">' + esc(g.name) + '</span><span class="ct">' + by[k].length + '</span></span><span>' + icon('chevron') + '</span></summary>' +
-      '<div class="inner">' + by[k].map(i => { const it = _items[i], s = it.summaries || {}; return rowHtml(s.title || '', s.author, s.synopsis, k, i, !_guest); }).join('') + '</div></details>';
+      '<div class="inner">' + by[k].map(i => { const it = _items[i], s = it.summaries || {}; return rowHtml(s.title || '', s.author, s.synopsis, k, i, !_guest, it); }).join('') + '</div></details>';
   }).join('');
   observeRows(c);
 }
