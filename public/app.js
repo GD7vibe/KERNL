@@ -256,12 +256,16 @@ function renderGenres() {
 
 // Shelf layer: one genre's books. A book's one-line synopsis opens as it scrolls to the middle of the screen.
 let _shelfBooks = [], _shelfShown = 0, _shelfKey = '', _shelfCat = 'All', _rowObs = null, _moreObs = null;
+// Shelf order: a fresh random order each time a genre is opened, so every book gets its turn near the top.
+// It stays the same for the rest of that visit (sub-category chips, loading more, opening a book and coming back).
+let _shelfRank = new Map();
 const SHELF_PAGE = 60;
 
 function openShelf(key) {
   const g = SCENES.byKey(key);
   _shelfKey = key;
   _shelfCat = 'All';
+  _shelfRank = new Map();
   _shelfBooks = shelfFilter();
   _shelfShown = 0;
   const layer = $('genre');
@@ -282,7 +286,8 @@ function openShelf(key) {
 function shelfFilter() {
   const g = SCENES.byKey(_shelfKey);
   const cats = _shelfCat === 'All' ? g.cats : [_shelfCat];
-  return _allBooks.filter(b => b._cats.some(c => cats.indexOf(c) !== -1));
+  const rank = b => { const k = b.id != null ? b.id : b.title; if (!_shelfRank.has(k)) _shelfRank.set(k, Math.random()); return _shelfRank.get(k); };
+  return _allBooks.filter(b => b._cats.some(c => cats.indexOf(c) !== -1)).sort((x, y) => rank(x) - rank(y));
 }
 function renderShelfChips() {
   const g = SCENES.byKey(_shelfKey);
