@@ -1,0 +1,13 @@
+// Team ID placeholder.
+//
+// After Apple approves the Developer Program enrolment, set your Team ID here.
+// Apple Developer → Membership details → Team ID. It is 10 characters, for example AB12CD34EF.
+// That example is only the shape. Do not invent a Team ID, and do not paste a certificate,
+// a provisioning profile, or an App Store Connect .p8 key into this repository.
+//
+// You can also set the Team in Xcode: target KERNL → Signing & Capabilities → Team.
+// Xcode writes the same DEVELOPMENT_TEAM value. Leave the line empty until you have it.
+
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY = Apple Development

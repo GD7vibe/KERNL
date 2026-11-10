@@ -1,0 +1,22 @@
+#include "Shared.xcconfig"
+#include "Signing.xcconfig"
+
+// Debug runs against the dev branch (staging). Release and Archive stay on kernlbooks.com.
+// To point a Debug run at the live site without editing this file, set the scheme environment
+// variable KERNL_WEB_HOST to the production URL. See ios/README.md.
+KERNL_WEB_HOST = $(KERNL_STAGING_HOST)
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG
+SWIFT_OPTIMIZATION_LEVEL = -Onone
+SWIFT_COMPILATION_MODE = singlefile
+GCC_OPTIMIZATION_LEVEL = 0
+DEBUG_INFORMATION_FORMAT = dwarf
+MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE
+ONLY_ACTIVE_ARCH = YES
+ENABLE_TESTABILITY = YES
+COPY_PHASE_STRIP = NO
+ENABLE_NS_ASSERTIONS = YES
+
+// The simulator can launch before a Team ID exists. A phone and an Archive still sign,
+// and they need the Team ID in Signing.xcconfig.
+CODE_SIGNING_ALLOWED[sdk=iphonesimulator*] = NO
