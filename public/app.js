@@ -52,6 +52,11 @@ function safe(s) { return String(s).replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '
 function countWords(plain) { return String(plain || '').split(/\s+/).filter(Boolean).length; }
 function makeAmazonUrl(title, author) { return 'https://www.amazon.co.uk/s?k=' + encodeURIComponent(title + (author ? ' ' + author : '')) + '&tag=' + AMAZON_TAG; }
 function tier() { return !_currentUser ? 'guest' : _currentUser.is_anonymous ? 'guest' : ((_userProfile && _userProfile.tier) || 'free'); }
+// Same rule as bookId() in lib/kernl.js: live ids are UUIDs, tests use integers.
+function isBookId(v) {
+  const s = String(v == null ? '' : v).trim();
+  return /^\d{1,12}$/.test(s) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
 function isPro() { return tier() === 'pro'; }
 function parseWords(w) {
   if (Array.isArray(w)) return w;
@@ -145,7 +150,7 @@ async function initAuth() {
   if (autoTitle) {
     _returnToLibrary = params.get('from') === 'library';
     history.replaceState(null, '', window.location.pathname);
-    openSummary(autoTitle, autoAuthor || '', /^\d+$/.test(autoId || '') ? { id: autoId } : undefined);
+    openSummary(autoTitle, autoAuthor || '', isBookId(autoId) ? { id: autoId } : undefined);
   }
 }
 
@@ -462,7 +467,7 @@ async function openSummary(title, author, opts) {
     if ((res.headers.get('content-type') || '').includes('application/json')) {
       const d = await res.json();
       setBusy('');
-      showSummary(title, author || d.author || '', d.html, d.plain, parseWords(d.words), { group });
+      showSummary(title, author || d.author || '', d.html, d.plain, parseWords(d.words), { group, id: d.id != null ? d.id : (opts && opts.id) });
       refreshProfile();
       return;
     }
@@ -491,7 +496,7 @@ async function openSummary(title, author, opts) {
     // Never present a half-written summary as if it were finished.
     if (serverError) throw new Error(serverError);
     if (!finalData) throw new Error('The connection dropped before the summary finished. It may still be saving, so try opening it again in a minute.');
-    showSummary(title, author, finalData.html, finalData.plain, parseWords(finalData.words), { group });
+    showSummary(title, author, finalData.html, finalData.plain, parseWords(finalData.words), { group, id: finalData.id });
     refreshProfile();
   } catch (err) {
     if (streamStarted && _readerOpen) closeReader();
@@ -512,7 +517,7 @@ function showSummary(title, author, html, plain, words, opts) {
   opts = opts || {};
   stopAudio();
   const clean = sanitizeHtml(stripGenreLine(html));
-  currentSummary = { title, author, html: clean, plain: plain || '', words: words || [] };
+  currentSummary = { id: opts.id != null ? opts.id : null, title, author, html: clean, plain: plain || '', words: words || [] };
 
   // The shelf it was opened from wins; otherwise (search, library, links) the book's own shelf.
   const key = (opts.group && SCENES.GROUPS.some(x => x.key === opts.group)) ? opts.group : groupOfTitle(title);
@@ -540,6 +545,7 @@ function showSummary(title, author, html, plain, words, opts) {
     $('player-sub').textContent = 'Checking audio…';
     setAudioState('idle');
     checkAudioAvailability();
+    loadProgress();
   }
   if (!_readerOpen) openReader();
 }
@@ -578,11 +584,13 @@ function hideReader() {
   document.body.style.overflow = _genreOpen ? 'hidden' : '';
   hideLayer('reader', () => { currentSummary = null; _waFile = null; });
   if (_returnToLibrary) {
-    // Opened from My library: go back to it (one more step back restores it exactly as it was left).
-    // The short pause lets the last progress save leave first.
+    // Opened from My library. Load that page again, after the last save has finished.
+    // history.back() would show the copy the phone kept in memory, still with the old percentages.
     _returnToLibrary = false;
-    const cameFromLibrary = (document.referrer || '').indexOf(window.location.origin + '/account') === 0;
-    setTimeout(() => { if (cameFromLibrary && history.length > 1) history.back(); else window.location.replace('/account.html'); }, 250);
+    const go = () => { window.location.replace('/account.html'); };
+    const pending = _progSave;
+    if (pending) Promise.race([pending, new Promise(r => setTimeout(r, 1500))]).then(go);
+    else setTimeout(go, 250);
   }
 }
 
@@ -741,6 +749,55 @@ async function checkAudioAvailability() {
   } catch (e) { /* connection dropped: the checks above carry on */ }
 }
 
+// ── Listening progress (signed-in readers; saved on the server so it follows them between devices) ──
+let _prog = null;            // { id, pos, dur, pct, listens, finished, counted, lastSent }
+let _progSave = null;        // the save currently in flight, so leaving can wait for it
+let _guestNudged = false;
+function canTrackProgress() { return tier() !== 'guest'; }
+async function loadProgress() {
+  _prog = null;
+  if (!currentSummary || currentSummary.id == null || !canTrackProgress()) return;
+  const mine = currentSummary.id;
+  try {
+    const r = await fetch('/api/progress?id=' + encodeURIComponent(mine), { headers: await apiHeaders() });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!currentSummary || String(currentSummary.id) !== String(mine)) return;
+    _prog = Object.assign({ id: mine, counted: false, lastSent: 0 }, d);
+    // The book may already be playing: the progress request came back after play was pressed.
+    const at = Number(_prog.pos) || 0;
+    if (audioEl && (audioEl.currentTime || 0) < 1 && at > 5 && (!_prog.dur || at < Number(_prog.dur) - 15)) {
+      try { audioEl.currentTime = at; updateScrubUI(); setSub('Resuming from ' + fmtTime(at)); } catch (e) { /* not seekable yet */ }
+      _prog.lastSent = Date.now();
+    }
+  } catch (e) { /* no progress this time; playback still works */ }
+}
+// done=true: they reached the end (95%+) of this listen; counts one listen and marks the book finished.
+function saveProgress(done) {
+  const el = audioEl;
+  if (!_prog || !el || !el.duration || !isFinite(el.duration)) return null;
+  const body = { id: _prog.id, pos: el.currentTime, dur: el.duration, done: !!done };
+  _prog.lastSent = Date.now();
+  _prog.pos = done ? 0 : body.pos; _prog.dur = body.dur;
+  if (done) { _prog.pct = 100; _prog.listens = (_prog.listens || 0) + 1; _prog.finished = true; }
+  else _prog.pct = Math.max(_prog.pct || 0, Math.min(100, Math.round((Math.min(body.pos, body.dur) / body.dur) * 100)));
+  // My library reads this the moment it is shown, so the card can update before the network round trip.
+  try {
+    sessionStorage.setItem('kernl_listen', JSON.stringify({
+      id: String(_prog.id), pct: _prog.pct || 0, listens: _prog.listens || 0, finished: !!_prog.finished, at: Date.now()
+    }));
+  } catch (e) { /* private mode */ }
+  _progSave = apiHeaders().then(h => fetch('/api/progress', { method: 'POST', headers: h, body: JSON.stringify(body), keepalive: true })).catch(() => {});
+  return _progSave;
+}
+function progressTick(el) {
+  if (!_prog || !el.duration || !isFinite(el.duration) || _prog.counted || el.seeking) return;
+  if (el.currentTime / el.duration >= 0.95) { _prog.counted = true; saveProgress(true); return; }
+  if (Date.now() - _prog.lastSent > 15000) saveProgress(false);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && _prog && !_prog.counted && audioEl) saveProgress(false); });
+document.addEventListener('pagehide', () => { if (_prog && !_prog.counted && audioEl) saveProgress(false); });
+
 // ── Player ────────────────────────────────────────────────────────────────────
 function setPlayerState(playing, subText) {
   isPlaying = playing;
@@ -827,6 +884,7 @@ function killNodes() {
 // Silences everything AND cancels any start still waiting on the network.
 function silenceAll() { _playToken++; _starting = false; killNodes(); }
 function stopAudio() {
+  if (_prog && !_prog.counted && audioEl && audioEl.currentTime > 0) saveProgress(false);
   silenceAll();
   setPlayerState(false, null);
   resetScrubUI();
@@ -836,6 +894,7 @@ function pauseAudio() {
   if (_starting) { stopAudio(); setSub('Press play to listen'); return; }
   if (audioEl && !audioEl.paused) audioEl.pause();
   if (streamingAudioContext && streamingAudioContext.state === 'running') streamingAudioContext.suspend();
+  if (_prog && !_prog.counted && audioEl) saveProgress(false);
   setPlayerState(false, 'Paused');
 }
 function resumeAudio() {
@@ -1002,11 +1061,12 @@ async function startTTS() {
 function _attachAudioHandlers(el, blobUrl) {
   // Every handler first checks that this element is still THE player. A stale element can never touch the UI
   // or clear the reference to a newer one.
-  el.addEventListener('timeupdate', () => { if (audioEl === el) updateScrubUI(); });
+  el.addEventListener('timeupdate', () => { if (audioEl === el) { updateScrubUI(); progressTick(el); } });
   el.addEventListener('ended', () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     _liveAudio.delete(el);
     if (audioEl !== el) return;
+    if (_prog && !_prog.counted) { _prog.counted = true; saveProgress(true); }
     $('scrub-fill').style.width = '100%';
     setPlayerState(false, 'Finished. Press play to replay');
     audioEl = null;
@@ -1022,6 +1082,23 @@ function _attachAudioHandlers(el, blobUrl) {
   // Last line of defence: if anything other than the current player ever starts, stop it on the spot.
   el.addEventListener('play', () => { if (audioEl !== el) { try { el.pause(); } catch (e) { /* ignore */ } } });
 }
+// Jump back to the saved place. The listener has to be in place before play(), because a cached
+// file can finish loading its length before play() returns, and the jump would otherwise be missed.
+function armResume(el, at) {
+  let tries = 0;
+  const jump = () => {
+    if (audioEl !== el || tries > 4) return;
+    if (Math.abs((el.currentTime || 0) - at) < 1.5) { tries = 5; updateScrubUI(); return; }
+    const end = el.seekable && el.seekable.length ? el.seekable.end(el.seekable.length - 1) : Infinity;
+    if (end + 0.25 < at) return;
+    tries += 1;
+    try { el.currentTime = at; updateScrubUI(); setSub('Resuming from ' + fmtTime(at)); } catch (e) { /* not seekable yet */ }
+  };
+  el.addEventListener('loadedmetadata', jump);
+  el.addEventListener('canplay', jump);
+  el.addEventListener('playing', jump);
+  if (el.readyState >= 1) jump();
+}
 function playSingleAudio(audioUrl, blobUrl) {
   killNodes();                                   // there is only ever one voice: remove any other before making this one
   const el = new Audio(audioUrl);
@@ -1030,6 +1107,15 @@ function playSingleAudio(audioUrl, blobUrl) {
   _starting = false;
   el.playbackRate = playbackRate;
   _attachAudioHandlers(el, blobUrl);
+  if (_prog) {
+    _prog.counted = false;          // a new listen
+    _prog.lastSent = Date.now();    // first save after 15 s, never at 0:00 before the jump back to their place
+    const at = Number(_prog.pos) || 0;
+    if (at > 5 && (!_prog.dur || at < Number(_prog.dur) - 15)) armResume(el, at);
+  } else if (!canTrackProgress() && !_guestNudged) {
+    _guestNudged = true;
+    toast('Tip: create a free account and KERNL remembers where you stopped, on every device.', '', 6000);
+  }
   const p = el.play();
   if (p) p.catch(err => { if (audioEl !== el) return; console.warn('play() failed:', err.message); setPlayerState(false, 'Tap play to listen'); });
   setPlayerState(true, 'Now playing');

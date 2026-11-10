@@ -38,7 +38,7 @@ function makeWorld(opts) {
   const ctx = {
     console: { warn() {}, error() {}, log() {} }, Date: { now: () => w.now }, setTimeout, clearTimeout, Promise, URL, atob: s => Buffer.from(s, 'base64').toString('binary'),
     TextDecoder, Uint8Array,
-    $: w.$, icon: n => n, fmtTime: n => String(n), toast() {}, updateMini() {},
+    $: w.$, icon: n => n, fmtTime: n => String(n), toast() {}, updateMini() {}, tier: () => 'free',
     currentSummary: { title: 'Meditations', author: 'Marcus Aurelius' },
     isPro: () => w.pro, apiHeaders: async () => ({}),
     Audio: FakeAudio, BroadcastChannel: class { constructor() { w.channel = this; } postMessage(m) { w.channelPosts.push(m); } },
