@@ -120,6 +120,14 @@ function rowHtml(title, author, synopsis, key, idx, removable, it) {
 }
 function catsOf(s) { try { const c = JSON.parse((s && s.categories) || '[]'); return Array.isArray(c) ? c : []; } catch (e) { return []; } }
 
+async function fetchLibrary() {
+  const loadLib = cols => sb.from('user_library').select(cols).eq('user_id', _session.user.id).order('added_at', { ascending: false });
+  let { data: library, error } = await loadLib('id, voice, language, added_at, listen_pct, listens, finished_at, summaries(id, title, author, synopsis, categories)');
+  // Before the listening-progress columns exist (sql/02-listen-progress.sql), load the library without them.
+  if (error) ({ data: library, error } = await loadLib('id, voice, language, added_at, summaries(id, title, author, synopsis, categories)'));
+  if (error) { console.warn('library load failed', error.message); return null; }
+  return library || [];
+}
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = '/login.html'; return; }
@@ -131,18 +139,22 @@ async function init() {
 
   let profile = null;
   if (!_guest) ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single());
-  const loadLib = cols => sb.from('user_library').select(cols).eq('user_id', session.user.id).order('added_at', { ascending: false });
-  let { data: library, error } = await loadLib('id, voice, language, added_at, listen_pct, listens, finished_at, summaries(id, title, author, synopsis, categories)');
-  // Before the listening-progress columns exist (sql/02-listen-progress.sql), load the library without them.
-  if (error) ({ data: library, error } = await loadLib('id, voice, language, added_at, summaries(id, title, author, synopsis, categories)'));
-  if (error) console.warn('library load failed', error.message);
-  _items = library || [];
+  _items = (await fetchLibrary()) || [];
   if (_guest) profile = { tier: 'guest', downloads_used: _items.length };
   renderTierCard(profile);
   renderLibrary();
   if (_guest) { $('portrait-card').hidden = true; $('recs-card').hidden = true; }
   else loadPortraitAndRecs(_items);
 }
+// Coming back from a book restores this page from memory, which still shows the old percentages.
+// Reload the rows only. The reading portrait is left alone so this never asks for it to be written again.
+window.addEventListener('pageshow', async e => {
+  if (!e.persisted || !_session) return;
+  const rows = await fetchLibrary();
+  if (!rows) return;
+  _items = rows;
+  renderLibrary();
+});
 
 function renderTierCard(profile) {
   const tier = profile ? profile.tier : 'free';

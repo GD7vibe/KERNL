@@ -290,7 +290,7 @@ module.exports = async (req, res) => {
 
   const title = K.cleanText(body.title, 200);
   const author = K.cleanText(body.author, 200);
-  const bookId = /^\d{1,12}$/.test(String(body.id == null ? '' : body.id)) ? String(body.id) : '';
+  const bookId = K.bookId(body.id);
   // Writing a new summary must be asked for explicitly (the Pro "Summarise a new book" button sends generate:true).
   // Opening anything from search, a shelf or the library never writes one, even if the lookup misses.
   const wantsNew = body.generate === true;
