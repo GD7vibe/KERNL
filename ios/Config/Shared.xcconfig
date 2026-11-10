@@ -1,0 +1,44 @@
+// KERNL iOS identity. This file is the one place these values are written.
+// Info.plist substitutes them, and KernlConfig.swift reads them back from the bundle.
+// Do not copy the bundle id or the product id into Swift source.
+
+PRODUCT_NAME = KERNL
+PRODUCT_BUNDLE_IDENTIFIER = com.kernl.books
+MARKETING_VERSION = 1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Auto-renewable subscription, £20 a year. Must match App Store Connect and lib/apple.js.
+KERNL_PRODUCT_ID = com.kernl.pro.annual
+
+// Release builds use the live site. Debug builds use staging. See Debug.xcconfig and Release.xcconfig.
+KERNL_PRODUCTION_HOST = https:/$()/kernlbooks.com
+KERNL_STAGING_HOST = https:/$()/kernl-git-dev-gd7vibes-projects.vercel.app
+
+// Custom scheme used so Google sign-in can return to the app. Not a secret.
+KERNL_OAUTH_SCHEME = kernl
+
+// Supabase project host. The anon key stays in the website; the shell does not need it.
+KERNL_SUPABASE_HOST = peebgzfufyklxzdfnesc.supabase.co
+
+INFOPLIST_FILE = Kernl/Info.plist
+CODE_SIGN_ENTITLEMENTS = Kernl/Kernl.entitlements
+GENERATE_INFOPLIST_FILE = NO
+
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor
+
+TARGETED_DEVICE_FAMILY = 1,2
+IPHONEOS_DEPLOYMENT_TARGET = 17.4
+SDKROOT = iphoneos
+SUPPORTED_PLATFORMS = iphoneos iphonesimulator
+
+SWIFT_VERSION = 5.0
+SWIFT_EMIT_LOC_STRINGS = YES
+ENABLE_USER_SCRIPT_SANDBOXING = YES
+CLANG_ENABLE_MODULES = YES
+CLANG_ENABLE_OBJC_ARC = YES
+ENABLE_STRICT_OBJC_MSGSEND = YES
+GCC_C_LANGUAGE_STANDARD = gnu17
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/Frameworks
+ALWAYS_SEARCH_USER_PATHS = NO
+ENABLE_PREVIEWS = YES

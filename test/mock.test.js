@@ -648,5 +648,44 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   await assert.rejects(() => K2.sb('/rest/v1/summaries'), /not a service-role key/);
   console.log('ok wrong (anon) key as SUPABASE_SERVICE_KEY is refused, no admin bypass');
 
+  // ── iOS shell: one bundle id, Sign in with Apple, no Team ID invented ──
+  {
+    const fs = require('fs');
+    const path = require('path');
+    const root = path.join(__dirname, '..');
+    const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
+    const shared = read('ios/Config/Shared.xcconfig');
+    const signing = read('ios/Config/Signing.xcconfig');
+    const debugCfg = read('ios/Config/Debug.xcconfig');
+    const releaseCfg = read('ios/Config/Release.xcconfig');
+    const login = read('public/login.html');
+    assert.ok(shared.includes('PRODUCT_BUNDLE_IDENTIFIER = com.kernl.books'), 'bundle id lives in Shared.xcconfig');
+    assert.ok(shared.includes('KERNL_PRODUCT_ID = com.kernl.pro.annual'), 'product id lives in Shared.xcconfig');
+    assert.ok(shared.includes('kernlbooks.com'));
+    assert.ok(debugCfg.includes('KERNL_WEB_HOST = $(KERNL_STAGING_HOST)'));
+    assert.ok(releaseCfg.includes('KERNL_WEB_HOST = $(KERNL_PRODUCTION_HOST)'));
+    assert.ok(/^DEVELOPMENT_TEAM =$/m.test(signing), 'Team ID stays blank until enrolment is approved');
+    assert.ok(!/DEVELOPMENT_TEAM = [A-Z0-9]/i.test(signing));
+    assert.ok(read('ios/Kernl/KernlProducts.storekit').includes('com.kernl.pro.annual'));
+    assert.ok(login.includes('Continue with Apple'));
+    assert.ok(login.includes("provider: 'apple'"));
+    assert.ok(login.includes('signInWithIdToken'));
+    assert.ok(login.includes('handleGoogle'));
+    assert.ok(login.includes('signInWithPassword'));
+    const swiftDir = path.join(root, 'ios/Kernl');
+    for (const file of fs.readdirSync(swiftDir).filter(name => name.endsWith('.swift'))) {
+      const text = fs.readFileSync(path.join(swiftDir, file), 'utf8');
+      assert.ok(!text.includes('com.kernl.books'), file + ' must not hard-code the bundle id');
+      assert.ok(!text.includes('com.kernl.pro.annual'), file + ' must not hard-code the product id');
+      assert.ok(!text.includes('kernlbooks.com'), file + ' must not hard-code the website');
+    }
+    const bridge = read('ios/Kernl/KernlBridge.swift');
+    assert.ok(bridge.includes('purchasePro') && bridge.includes('restorePro') && bridge.includes('signInWithApple'));
+    const store = read('ios/Kernl/StoreCoordinator.swift');
+    assert.ok(store.includes('api/apple-verify'));
+    assert.ok(store.includes('signedTransaction') && store.includes('transactionId'));
+    console.log('ok the iOS shell keeps one bundle id, posts the signed transaction, and offers Sign in with Apple');
+  }
+
   console.log('\nALL PASSED');
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

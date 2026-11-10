@@ -1,0 +1,293 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000000000000000000001 /* KernlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* KernlApp.swift */; };
+		B10000000000000000000002 /* KernlConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* KernlConfig.swift */; };
+		B10000000000000000000003 /* KernlBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* KernlBridge.swift */; };
+		B10000000000000000000004 /* WebModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* WebModel.swift */; };
+		B10000000000000000000005 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* SplashView.swift */; };
+		B10000000000000000000006 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* RootView.swift */; };
+		B10000000000000000000007 /* WebShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* WebShellView.swift */; };
+		B10000000000000000000008 /* StoreCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* StoreCoordinator.swift */; };
+		B10000000000000000000009 /* AppleSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000009 /* AppleSignInCoordinator.swift */; };
+		B1000000000000000000000A /* AuthSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000A /* AuthSessionCoordinator.swift */; };
+		B1000000000000000000000B /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000D /* LaunchScreen.storyboard */; };
+		B1000000000000000000000C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* PrivacyInfo.xcprivacy */; };
+		B1000000000000000000000D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F10000000000000000000001 /* KernlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KernlApp.swift; sourceTree = "<group>"; };
+		F10000000000000000000002 /* KernlConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KernlConfig.swift; sourceTree = "<group>"; };
+		F10000000000000000000003 /* KernlBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KernlBridge.swift; sourceTree = "<group>"; };
+		F10000000000000000000004 /* WebModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebModel.swift; sourceTree = "<group>"; };
+		F10000000000000000000005 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		F10000000000000000000006 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		F10000000000000000000007 /* WebShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebShellView.swift; sourceTree = "<group>"; };
+		F10000000000000000000008 /* StoreCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreCoordinator.swift; sourceTree = "<group>"; };
+		F10000000000000000000009 /* AppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCoordinator.swift; sourceTree = "<group>"; };
+		F1000000000000000000000A /* AuthSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionCoordinator.swift; sourceTree = "<group>"; };
+		F1000000000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F1000000000000000000000C /* Kernl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Kernl.entitlements; sourceTree = "<group>"; };
+		F1000000000000000000000D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		F1000000000000000000000E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		F1000000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F10000000000000000000010 /* KernlProducts.storekit */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = KernlProducts.storekit; sourceTree = "<group>"; };
+		F10000000000000000000011 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		F10000000000000000000012 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
+		F10000000000000000000013 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		F10000000000000000000014 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		F10000000000000000000015 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		F10000000000000000000016 /* KERNL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KERNL.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		S10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000002 /* Config */,
+				G10000000000000000000003 /* Kernl */,
+				F10000000000000000000011 /* README.md */,
+				G10000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G10000000000000000000002 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000012 /* Shared.xcconfig */,
+				F10000000000000000000013 /* Debug.xcconfig */,
+				F10000000000000000000014 /* Release.xcconfig */,
+				F10000000000000000000015 /* Signing.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000003 /* Kernl */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000001 /* KernlApp.swift */,
+				F10000000000000000000002 /* KernlConfig.swift */,
+				F10000000000000000000003 /* KernlBridge.swift */,
+				F10000000000000000000004 /* WebModel.swift */,
+				F10000000000000000000005 /* SplashView.swift */,
+				F10000000000000000000006 /* RootView.swift */,
+				F10000000000000000000007 /* WebShellView.swift */,
+				F10000000000000000000008 /* StoreCoordinator.swift */,
+				F10000000000000000000009 /* AppleSignInCoordinator.swift */,
+				F1000000000000000000000A /* AuthSessionCoordinator.swift */,
+				F1000000000000000000000F /* Assets.xcassets */,
+				F1000000000000000000000D /* LaunchScreen.storyboard */,
+				F1000000000000000000000B /* Info.plist */,
+				F1000000000000000000000C /* Kernl.entitlements */,
+				F1000000000000000000000E /* PrivacyInfo.xcprivacy */,
+				F10000000000000000000010 /* KernlProducts.storekit */,
+			);
+			path = Kernl;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000016 /* KERNL.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E10000000000000000000002 /* KERNL */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000002 /* Build configuration list for PBXNativeTarget "KERNL" */;
+			buildPhases = (
+				S10000000000000000000001 /* Sources */,
+				S10000000000000000000003 /* Frameworks */,
+				S10000000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KERNL;
+			productName = KERNL;
+			productReference = F10000000000000000000016 /* KERNL.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					E10000000000000000000002 = {
+						CreatedOnToolsVersion = 16.0;
+						SystemCapabilities = {
+							com.apple.InAppPurchase = {
+								enabled = 1;
+							};
+						};
+					};
+				};
+			};
+			buildConfigurationList = C10000000000000000000001 /* Build configuration list for PBXProject "KERNL" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "en-GB";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"en-GB",
+				en,
+				Base,
+			);
+			mainGroup = G10000000000000000000001;
+			productRefGroup = G10000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E10000000000000000000002 /* KERNL */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		S10000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000000000000000000000D /* Assets.xcassets in Resources */,
+				B1000000000000000000000B /* LaunchScreen.storyboard in Resources */,
+				B1000000000000000000000C /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		S10000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000001 /* KernlApp.swift in Sources */,
+				B10000000000000000000002 /* KernlConfig.swift in Sources */,
+				B10000000000000000000003 /* KernlBridge.swift in Sources */,
+				B10000000000000000000004 /* WebModel.swift in Sources */,
+				B10000000000000000000005 /* SplashView.swift in Sources */,
+				B10000000000000000000006 /* RootView.swift in Sources */,
+				B10000000000000000000007 /* WebShellView.swift in Sources */,
+				B10000000000000000000008 /* StoreCoordinator.swift in Sources */,
+				B10000000000000000000009 /* AppleSignInCoordinator.swift in Sources */,
+				B1000000000000000000000A /* AuthSessionCoordinator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		C10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		C10000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = F10000000000000000000013 /* Debug.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		C10000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = F10000000000000000000014 /* Release.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C10000000000000000000001 /* Build configuration list for PBXProject "KERNL" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C10000000000000000000003 /* Debug */,
+				C10000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C10000000000000000000002 /* Build configuration list for PBXNativeTarget "KERNL" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C10000000000000000000005 /* Debug */,
+				C10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E10000000000000000000001 /* Project object */;
+}

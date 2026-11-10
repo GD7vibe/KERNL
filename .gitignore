@@ -5,3 +5,13 @@ node_modules/
 .env.*
 *.log
 .vercel/
+
+# Xcode. Never commit signing material.
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+DerivedData/
+*.mobileprovision
+*.p12
+*.cer
+*.certSigningRequest
+*.p8

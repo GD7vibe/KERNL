@@ -45,7 +45,7 @@
       <li><span data-icon="check"></span>Audio for every book, made on demand</li>
       <li><span data-icon="check"></span>Share audio by email or WhatsApp</li>
     </ul>
-    <div class="note" style="margin-top:22px">Pro is purchased in the iOS app. This website cannot take payment. If you have already subscribed, open KERNL on your iPhone and restore purchases. The new-title allowance is separate from the 200 library books, and it renews on a rolling 12 months.</div>
+    <div class="note" id="iap-standing" style="margin-top:22px">Pro is purchased in the iOS app. This website cannot take payment. If you have already subscribed, open KERNL on your iPhone and restore purchases. The new-title allowance is separate from the 200 library books, and it renews on a rolling 12 months.</div>
     <div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:10px">
       <button class="btn primary" id="iap-buy" type="button">Get Pro in the iOS app</button>
       <button class="btn" id="iap-restore" type="button">Restore purchases</button>
@@ -66,6 +66,31 @@ function kernlIapNote() {
   note.hidden = false;
   note.textContent = 'Pro is £20 a year in the KERNL iOS app. This page cannot take payment or restore an App Store purchase.';
 }
+function showIapResult(result) {
+  if (!result || typeof result.then !== 'function') return;
+  var buy = document.getElementById('iap-buy');
+  var restore = document.getElementById('iap-restore');
+  var note = document.getElementById('iap-note');
+  note.hidden = false;
+  note.textContent = 'Contacting the App Store…';
+  buy.disabled = true;
+  restore.disabled = true;
+  var done = function (res) {
+    buy.disabled = false;
+    restore.disabled = false;
+    res = res || {};
+    if (res.ok) {
+      note.textContent = res.restored
+        ? 'Purchases restored. Pro is active on this account.'
+        : 'You are on Pro. It renews each year through Apple until you cancel.';
+      setTimeout(function () { window.location.href = '/app.html'; }, 900);
+      return;
+    }
+    if (res.code === 'cancelled') { note.hidden = true; return; }
+    note.textContent = res.error || 'The App Store could not complete that. Please try again.';
+  };
+  result.then(done, function () { done({ error: 'The App Store could not complete that. Please try again.' }); });
+}
 window.KERNL_IAP = {
   productId: 'com.kernl.pro.annual',
   purchase: function () {
@@ -77,8 +102,13 @@ window.KERNL_IAP = {
     kernlIapNote();
   }
 };
-document.getElementById('iap-buy').addEventListener('click', function () { window.KERNL_IAP.purchase(); });
-document.getElementById('iap-restore').addEventListener('click', function () { window.KERNL_IAP.restore(); });
+if (window.KernlNative && typeof window.KernlNative.purchasePro === 'function') {
+  document.getElementById('iap-buy').textContent = 'Subscribe — £20 a year';
+  var standing = document.getElementById('iap-standing');
+  if (standing) standing.textContent = 'Pro is £20 a year, billed by Apple. It renews until you cancel in Settings, then your name, then Subscriptions. The 10 new titles are separate from the 200 library books, and that allowance renews on a rolling 12 months.';
+}
+document.getElementById('iap-buy').addEventListener('click', function () { showIapResult(window.KERNL_IAP.purchase()); });
+document.getElementById('iap-restore').addEventListener('click', function () { showIapResult(window.KERNL_IAP.restore()); });
 </script>
 <footer class="footer"><div class="wrap"><span>&copy; KERNL &mdash; Read less. Know more.</span><span><a href="/privacy.html">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms.html">Terms</a></span></div></footer>
 </body>

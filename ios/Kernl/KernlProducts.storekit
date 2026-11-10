@@ -1,0 +1,103 @@
+{
+  "identifier" : "KERNLOCAL",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_GB",
+    "_storefront" : "GBR",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "KERN_PRO",
+      "localizations" : [
+
+      ],
+      "name" : "KERNL Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "20.00",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "KERN_PRO_ANNUAL",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "200 library books and 10 new titles a year.",
+              "displayName" : "KERNL Pro",
+              "locale" : "en_GB"
+            }
+          ],
+          "productID" : "com.kernl.pro.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "KERNL Pro Annual",
+          "subscriptionGroupID" : "KERN_PRO",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

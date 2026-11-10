@@ -90,4 +90,4 @@ Product id to create in App Store Connect: `com.kernl.pro.annual` (£20 a year).
 - `POST /api/apple-verify` — the iOS app sends the signed transaction after a purchase or restore. The server checks it with Apple, then sets `profiles.tier`.
 - `POST /api/apple-notifications` — App Store Server Notifications V2. Renewal keeps Pro. Refund, revoke and expiry set that subscription back to Free. A hand-granted Pro account with no Apple id is left alone.
 
-Sign in with Apple is not in this change. Google sign-in is already offered, so the App Store build will need Sign in with Apple before submission. Email and password stay as they are.
+Sign in with Apple is on the sign-in page and in the iOS app (`ios/`). Email and password, and Google, stay as they are. Open `ios/README.md` for the Xcode project, the Team ID placeholder, staging versus kernlbooks.com, and the Supabase steps. Do not commit Apple keys, certificates or provisioning profiles.
