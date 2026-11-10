@@ -67,5 +67,27 @@ Then retest sign-up, login, the library grid, Account page, remove-from-library.
   makes a second generation of a finished file a no-op.
 - Removing a book from My Library does not refund the usage counter (same as before).
 - Audio files are in a public bucket; anyone who knows a file URL can play it. Fixing that needs signed URLs — not done here.
-- `/upgrade.html` does not exist (the Upgrade button 404s). No payment flow yet.
+- Pro is £20 a year in the iOS app (`com.kernl.pro.annual`). The website does not take payment. See below.
 - Tests: `npm install && node test/mock.test.js` (mocked Supabase/xAI — it proves the rules, not the live services).
+
+## Pro titles and the App Store
+
+New catalogue titles (the Pro “Summarise a new book” button, `generate: true`) are capped at **10 per rolling 12 months**. That counter is `title_creations`. It is not `downloads_used`, and removing a book does not refund it. The library allowance is unchanged: guest 12, free 36, pro 200.
+
+Run `sql/03-pro-titles-and-apple.sql` yourself in the Supabase SQL editor after this code is on staging. Do not point the app at production until you have run it there too. Until the table exists, new-title requests fail closed.
+
+App Store verification needs these Vercel environment variables (Preview and Production). Do not commit the key:
+
+- `APPLE_BUNDLE_ID` — suggested `com.kernl.books`
+- `APPLE_ISSUER_ID`
+- `APPLE_KEY_ID`
+- `APPLE_PRIVATE_KEY` — contents of the App Store Connect .p8 key
+- `APPLE_ENVIRONMENT` — `Sandbox` or `Production`
+- `APPLE_APP_APPLE_ID` — optional numeric app id; when set, notifications must match it
+
+Product id to create in App Store Connect: `com.kernl.pro.annual` (£20 a year).
+
+- `POST /api/apple-verify` — the iOS app sends the signed transaction after a purchase or restore. The server checks it with Apple, then sets `profiles.tier`.
+- `POST /api/apple-notifications` — App Store Server Notifications V2. Renewal keeps Pro. Refund, revoke and expiry set that subscription back to Free. A hand-granted Pro account with no Apple id is left alone.
+
+Sign in with Apple is not in this change. Google sign-in is already offered, so the App Store build will need Sign in with Apple before submission. Email and password stay as they are.

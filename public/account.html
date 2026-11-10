@@ -79,6 +79,11 @@ details.fold>.inner{margin-top:14px}
   <p class="sub" id="who-sub"></p>
   <div class="stack">
     <div class="card pad" id="tier-card"><div class="loadingline"><div class="spinner"></div>Loading&hellip;</div></div>
+    <div class="card pad" id="delete-card" hidden>
+      <div class="sec-h">Delete account</div>
+      <p class="muted" style="line-height:1.55">This permanently deletes your KERNL account, library and reading portrait. It cannot be undone. If you subscribed to Pro in the iOS app, cancel that subscription in Settings, then Apple ID, then Subscriptions as well, or Apple will keep charging you.</p>
+      <div style="margin-top:14px"><button class="btn danger" id="delete-account" type="button">Delete my account</button></div>
+    </div>
     <details class="card pad fold" id="portrait-card" hidden>
       <summary><span class="grow">Your reading portrait</span><span data-icon="chevron"></span></summary>
       <div class="inner" id="portrait-body"></div>
@@ -104,6 +109,9 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: { fetch: (input, init) => fetch(input, Object.assign({}, init || {}, { cache: 'no-store' })) }
 });
 const PORTRAIT_THRESHOLD = 10;
+// Mirrors LIMITS and TITLE_CREATION_LIMIT in lib/kernl.js and public/app.js. The server enforces both.
+const LIMITS = { guest: 12, free: 36, pro: 200 };
+const TITLE_CREATION_LIMIT = 10;
 const { esc, fmtDate, icon, toast } = KUI;
 const $ = id => document.getElementById(id);
 let _session = null, _guest = false, _items = [], _recs = [], _obs = null;
@@ -201,7 +209,17 @@ async function init() {
   if (!_guest) ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single());
   _items = applyStash((await fetchLibrary()) || []);
   if (_guest) profile = { tier: 'guest', downloads_used: _items.length };
-  renderTierCard(profile);
+  let quota = null;
+  if (!_guest) {
+    try {
+      const res = await fetch('/api/quota', { headers: { Authorization: 'Bearer ' + _session.access_token } });
+      if (res.ok) quota = await res.json();
+    } catch (e) { /* the card says the new-title count could not be loaded */ }
+  }
+  if (quota && quota.library && profile && quota.library.used != null) profile.downloads_used = quota.library.used;
+  if (quota && quota.tier && profile) profile.tier = quota.tier;
+  $('delete-card').hidden = _guest;
+  renderTierCard(profile, quota);
   renderLibrary(false);
   if (_guest) { $('portrait-card').hidden = true; $('recs-card').hidden = true; }
   else loadPortraitAndRecs(_items);
@@ -221,10 +239,10 @@ function onLibraryShow(e) {
 }
 window.addEventListener('pageshow', onLibraryShow);
 
-function renderTierCard(profile) {
+function renderTierCard(profile, quota) {
   const tier = profile ? profile.tier : 'free';
   const used = profile ? (profile.downloads_used || 0) : 0;
-  const limit = tier === 'pro' ? 200 : tier === 'guest' ? 12 : 36;
+  const limit = LIMITS[tier] || LIMITS.free;
   const pct = Math.min(100, (used / limit) * 100);
   const reset = profile && profile.downloads_reset ? fmtDate(profile.downloads_reset) : '';
   const color = pct >= 90 ? 'var(--err)' : pct >= 60 ? 'var(--warn)' : 'var(--ok)';
@@ -232,13 +250,29 @@ function renderTierCard(profile) {
   let cta = '';
   if (tier === 'free') cta = '<a class="btn primary" href="/upgrade.html"><span data-icon="star"></span>See Pro</a>';
   if (tier === 'guest') cta = '<a class="btn primary" href="/login.html#signup">Create free account</a>';
+  let creationsHtml = '';
+  if (tier === 'pro') {
+    const c = quota && quota.creations;
+    const usedC = c ? c.used : null;
+    const limitC = c ? c.limit : TITLE_CREATION_LIMIT;
+    const pctC = usedC == null || !limitC ? 0 : Math.min(100, (usedC / limitC) * 100);
+    const left = usedC == null ? null : Math.max(0, limitC - usedC);
+    creationsHtml = '<div class="usage"><div class="usage-top"><span>New titles</span><b>' +
+      (usedC == null ? 'Could not be loaded' : usedC + ' of ' + limitC) + '</b></div>' +
+      (usedC == null ? '' : '<div class="bar"><div style="width:' + pctC + '%;background:' + (pctC >= 90 ? 'var(--err)' : pctC >= 60 ? 'var(--warn)' : 'var(--ok)') + '"></div></div>') +
+      '<div class="reset">Books you ask KERNL to write, over a rolling 12 months. Opening a book already in the library does not use these.' +
+      (left == null ? '' : ' ' + left + ' left.') + '</div></div>';
+  } else if (tier === 'free') {
+    creationsHtml = '<p class="muted" style="margin-top:14px;line-height:1.55">Writing a book that is not in the library yet is part of Pro (' + TITLE_CREATION_LIMIT + ' new titles a year, bought in the iOS app).</p>';
+  }
   $('tier-card').innerHTML =
     '<div class="plan-row"><div><div class="label">Current plan</div><div class="plan-name">' + name +
     (tier === 'pro' ? ' <span class="badge pro">&pound;20 a year</span>' : '') + '</div></div>' + cta + '</div>' +
     (tier === 'guest' ? '<p class="muted" style="margin-top:14px;line-height:1.55">You are a guest. A free account keeps your books on every device and raises your allowance from 12 to 36.</p>' : '') +
-    '<div class="usage"><div class="usage-top"><span>Summaries used</span><b>' + used + ' of ' + limit + '</b></div>' +
+    '<div class="usage"><div class="usage-top"><span>' + (tier === 'guest' ? 'Free books' : 'Library books') + '</span><b>' + used + ' of ' + limit + '</b></div>' +
     '<div class="bar"><div style="width:' + pct + '%;background:' + color + '"></div></div>' +
-    (reset ? '<div class="reset">Resets on ' + esc(reset) + '</div>' : '') + '</div>';
+    (reset ? '<div class="reset">Resets on ' + esc(reset) + '</div>' : '') + '</div>' +
+    creationsHtml;
   $('tier-card').querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.getAttribute('data-icon')); el.style.display = 'inline-flex'; });
 }
 
@@ -334,6 +368,27 @@ document.addEventListener('click', async e => {
   else { const s = (_items[+row.dataset.i] || {}).summaries || {}; openBook(s.title, s.author, s.id); }
 });
 $('signout').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = '/login.html'; });
+$('delete-account').addEventListener('click', async () => {
+  if (!_session || _guest) return;
+  const ok = await KUI.confirm('Delete your account?', 'This permanently deletes your KERNL account and library. It cannot be undone. If you pay for Pro through Apple, cancel that subscription in your iPhone settings as well, or Apple will keep charging you.', 'Delete account', { danger: true });
+  if (!ok) return;
+  const btn = $('delete-account');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + _session.access_token },
+      body: JSON.stringify({ confirm: 'DELETE' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.error || 'Could not delete the account.', 'err'); btn.disabled = false; return; }
+    await sb.auth.signOut();
+    window.location.href = '/login.html';
+  } catch (e) {
+    toast('Could not delete the account.', 'err');
+    btn.disabled = false;
+  }
+});
 init();
 </script>
 </body>
