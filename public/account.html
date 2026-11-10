@@ -45,11 +45,18 @@ details.fold>.inner{margin-top:14px}
 .lib-sec .tile svg{width:100%;height:100%;display:block}
 .lib-sec .nm{font-weight:800}
 .prog{display:flex;align-items:center;gap:8px;margin-top:6px}
-.prog .bar{width:110px;height:4px;border-radius:9px;background:var(--surface-3);overflow:hidden;flex-shrink:0}
-.prog .bar i{display:block;height:100%;border-radius:9px;background:var(--accent)}
-.prog .lbl{font-size:.72rem;font-weight:600;color:var(--text-3);display:inline-flex;align-items:center;gap:4px}
+.prog .lbl{font-size:.78rem;font-weight:700;color:var(--text-2);display:inline-flex;align-items:center;gap:4px}
 .prog.done .lbl{color:var(--accent)}
-.prog .lbl .icon{width:13px;height:13px}
+.prog .lbl .icon{width:14px;height:14px}
+/* Started books: a light wash of the shelf colour, filled to how far the audio got. */
+#library-container .brow-wrap:has(.brow.heard){margin:5px 0}
+#library-container .brow.heard{
+  border-radius:16px;border-bottom-color:transparent;
+  background-image:linear-gradient(90deg, var(--wash) var(--heard), transparent calc(var(--heard) + 22px));
+}
+#library-container .brow.heard.done{
+  background-image:linear-gradient(90deg, var(--wash), var(--wash));
+}
 .lib-sec .ct{font-size:.82rem;font-weight:600;color:var(--text-3);margin-left:8px}
 .empty{text-align:center;padding:30px 16px;color:var(--text-2)}
 .loadingline{display:flex;align-items:center;gap:10px;color:var(--text-2);padding:6px 0}
@@ -93,7 +100,9 @@ details.fold>.inner{margin-top:14px}
 <script>
 const SUPABASE_URL      = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { fetch: (input, init) => fetch(input, Object.assign({}, init || {}, { cache: 'no-store' })) }
+});
 const PORTRAIT_THRESHOLD = 10;
 const { esc, fmtDate, icon, toast } = KUI;
 const $ = id => document.getElementById(id);
@@ -104,17 +113,32 @@ function observeRows(root) {
   if (!_obs) _obs = new IntersectionObserver(es => es.forEach(e => { const r = e.target.parentElement; if (r) r.classList.toggle('on', e.isIntersecting); }), { rootMargin: '-44% 0px -46% 0px', threshold: 0 });
   (root || document).querySelectorAll('.brow .hd').forEach(h => _obs.observe(h));
 }
-// Listening progress under the author: a thin bar while part-heard, "Finished" once heard to the end.
+// How far this row has been heard. Guests and unstarted books stay blank.
+function listenOf(it) {
+  if (_guest || !it) return null;
+  const pct = Math.max(0, Math.min(100, Math.round(it.listen_pct || 0))), n = it.listens || 0;
+  const done = !!(it.finished_at || n > 0);
+  if (!done && pct < 1) return null;
+  return { pct: done ? 100 : pct, done: done, n: n };
+}
+// 8-digit hex: the shelf colour, pale enough to sit behind the title.
+function washOf(hex, done) {
+  const h = String(hex || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(h) ? h + (done ? '80' : '5c') : 'transparent';
+}
+// The words under the author. The row's own background is the bar.
 function progHtml(it) {
-  if (!it) return '';
-  const pct = Math.max(0, Math.min(100, it.listen_pct || 0)), n = it.listens || 0;
-  if (it.finished_at || n > 0) return '<div class="prog done"><span class="lbl">' + icon('check') + 'Finished' + (n > 1 ? ' · listened ' + n + '\u00d7' : '') + '</span></div>';
-  if (pct >= 1) return '<div class="prog"><span class="bar"><i style="width:' + pct + '%"></i></span><span class="lbl">' + pct + '% listened</span></div>';
-  return '';
+  const L = listenOf(it);
+  if (!L) return '';
+  if (L.done) return '<div class="prog done"><span class="lbl">' + icon('check') + 'Finished' + (L.n > 1 ? ' · listened ' + L.n + '\u00d7' : '') + '</span></div>';
+  return '<div class="prog"><span class="lbl">' + L.pct + '% listened</span></div>';
 }
 function rowHtml(title, author, synopsis, key, idx, removable, it) {
   const g = SCENES.byKey(key);
-  return '<div class="brow-wrap"><button class="brow" type="button" data-i="' + idx + '" style="--g:' + g.bg + '"><div class="hd"><span class="tile">' + SCENES.svg(key, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(title) + '</div><div class="au">' + esc(author || '') + '</div>' + progHtml(it) + '</span></div>' +
+  const L = listenOf(it);
+  const heard = L ? ' heard' + (L.done ? ' done' : '') : '';
+  const style = '--g:' + g.bg + (L ? ';--heard:' + L.pct + '%;--wash:' + washOf(g.bg, L.done) : '');
+  return '<div class="brow-wrap"><button class="brow' + heard + '" type="button" data-i="' + idx + '" style="' + style + '"><div class="hd"><span class="tile">' + SCENES.svg(key, { slice: true }) + '</span><span class="tx"><div class="tt">' + esc(title) + '</div><div class="au">' + esc(author || '') + '</div>' + progHtml(it) + '</span></div>' +
     '<div class="syn"><div><p>' + esc(synopsis || '') + '</p></div></div></button>' +
     (removable ? '<button class="rm" type="button" data-rm="' + idx + '" aria-label="Remove ' + esc(title) + '">' + icon('x') + '</button>' : '') + '</div>';
 }
@@ -128,6 +152,42 @@ async function fetchLibrary() {
   if (error) { console.warn('library load failed', error.message); return null; }
   return library || [];
 }
+// The player writes kernl_listen as it goes, so a row can show the new place even if this
+// page was kept in memory from before the book was opened.
+function applyStash(items) {
+  const list = items || [];
+  let stash = null;
+  try { stash = JSON.parse(sessionStorage.getItem('kernl_listen') || 'null'); } catch (e) { return list; }
+  if (!stash || stash.id == null) return list;
+  let caughtUp = false;
+  const out = list.map(it => {
+    const sid = String((it.summaries || {}).id || '');
+    if (sid.toLowerCase() !== String(stash.id).toLowerCase()) return it;
+    const serverPct = it.listen_pct || 0, serverN = it.listens || 0, serverDone = !!it.finished_at;
+    if (serverPct >= (stash.pct || 0) && serverN >= (stash.listens || 0) && (!stash.finished || serverDone)) caughtUp = true;
+    return Object.assign({}, it, {
+      listen_pct: Math.max(serverPct, stash.pct || 0),
+      listens: Math.max(serverN, stash.listens || 0),
+      finished_at: it.finished_at || (stash.finished ? new Date(stash.at || Date.now()).toISOString() : null)
+    });
+  });
+  if (caughtUp) { try { sessionStorage.removeItem('kernl_listen'); } catch (e) { /* ignore */ } }
+  return out;
+}
+let _refreshing = false;
+async function refreshLibraryRows(keepScroll) {
+  if (!_session || _refreshing) return;
+  _refreshing = true;
+  try {
+    // Paint the place just saved, then confirm it from the database.
+    _items = applyStash(_items);
+    if (_items.length) renderLibrary(keepScroll);
+    const rows = await fetchLibrary();
+    if (!rows) return;
+    _items = applyStash(rows);
+    renderLibrary(keepScroll);
+  } finally { _refreshing = false; }
+}
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = '/login.html'; return; }
@@ -139,22 +199,27 @@ async function init() {
 
   let profile = null;
   if (!_guest) ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single());
-  _items = (await fetchLibrary()) || [];
+  _items = applyStash((await fetchLibrary()) || []);
   if (_guest) profile = { tier: 'guest', downloads_used: _items.length };
   renderTierCard(profile);
-  renderLibrary();
+  renderLibrary(false);
   if (_guest) { $('portrait-card').hidden = true; $('recs-card').hidden = true; }
   else loadPortraitAndRecs(_items);
 }
-// Coming back from a book restores this page from memory, which still shows the old percentages.
-// Reload the rows only. The reading portrait is left alone so this never asks for it to be written again.
-window.addEventListener('pageshow', async e => {
-  if (!e.persisted || !_session) return;
-  const rows = await fetchLibrary();
-  if (!rows) return;
-  _items = rows;
-  renderLibrary();
-});
+// This page is often shown again from the phone's memory, with the percentages from before the book.
+// event.persisted is not set on every phone, so any return visit reloads the rows.
+// The reading portrait is left alone, so this never asks for it to be written again.
+const _booted = Date.now();
+let _leftLibrary = false;
+window.addEventListener('pagehide', () => { _leftLibrary = true; });
+function onLibraryShow(e) {
+  if (!_session) return;
+  const restored = _leftLibrary || !!(e && e.persisted) || (Date.now() - _booted > 2000);
+  if (!restored) return;
+  _leftLibrary = false;
+  refreshLibraryRows(true);
+}
+window.addEventListener('pageshow', onLibraryShow);
 
 function renderTierCard(profile) {
   const tier = profile ? profile.tier : 'free';
@@ -223,8 +288,9 @@ document.addEventListener('toggle', e => {
 }, true);
 
 // Books are filed on the same eight shelves as the library, and the shelves appear as the collection grows.
-function renderLibrary() {
+function renderLibrary(keepScroll) {
   const c = $('library-container');
+  const here = keepScroll ? window.scrollY : null;
   $('lib-count').textContent = _items.length ? _items.length + (_items.length === 1 ? ' book' : ' books') : '';
   if (!_items.length) {
     c.innerHTML = '<div class="empty">Nothing here yet.<div style="margin-top:14px"><a class="btn primary" href="/app.html">Browse the shelves</a></div></div>';
@@ -239,8 +305,9 @@ function renderLibrary() {
   }).join('');
   observeRows(c);
   // Back from a book on a fresh page load: return to the same place in the list.
-  let y = null; try { y = sessionStorage.getItem('kernl_lib_scroll'); sessionStorage.removeItem('kernl_lib_scroll'); } catch (e) { /* ignore */ }
-  if (y) requestAnimationFrame(() => window.scrollTo(0, +y));
+  let y = null; try { y = sessionStorage.getItem('kernl_lib_scroll'); if (y != null) sessionStorage.removeItem('kernl_lib_scroll'); } catch (e) { /* ignore */ }
+  if (y == null && here != null) y = String(here);
+  if (y != null) requestAnimationFrame(() => window.scrollTo(0, +y));
 }
 
 function openBook(title, author, id) {
