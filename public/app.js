@@ -7,6 +7,8 @@ const SUPABASE_URL = 'https://peebgzfufyklxzdfnesc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZWJnemZ1ZnlrbHh6ZGZuZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjIwNDEsImV4cCI6MjA5MDY5ODA0MX0.TXg5ztQsoGvE5j49GRRtaNdTIVM2jS1-LmMNzu7YA5g';
 // guest = anonymous visitor (no email). Mirrors LIMITS in lib/kernl.js; the server is what enforces it.
 const LIMITS = { guest: 12, free: 36, pro: 200 };
+// Pro new catalogue titles per rolling 12 months. Separate from LIMITS. Mirrors lib/kernl.js and account.html.
+const TITLE_CREATION_LIMIT = 10;
 const CATEGORIES = [
   'Business & Entrepreneurship', 'Personal Development', 'Psychology', 'History',
   'Science & Technology', 'Politics & Society', 'Philosophy', 'Biography & Memoir',
@@ -22,6 +24,7 @@ const { esc, icon, toast } = KUI;
 let _sbClient = null;
 let _currentUser = null;
 let _userProfile = null;
+let _creationQuota = null;   // { used, limit, remaining } for Pro, from /api/quota
 let currentSummary = null;     // { title, author, html, plain, words }
 let _allBooks = [];            // catalogue: { title, author, synopsis, categories, _cats, _s }
 let _opening = false;
@@ -58,6 +61,11 @@ function isBookId(v) {
   return /^\d{1,12}$/.test(s) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }
 function isPro() { return tier() === 'pro'; }
+function creationsLeft() {
+  return _creationQuota && typeof _creationQuota.remaining === 'number' ? _creationQuota.remaining : null;
+}
+// Quota not loaded yet: allow the button and let the server decide. A loaded 0 means they are at the cap.
+function proMayCommission() { return isPro() && creationsLeft() !== 0; }
 function parseWords(w) {
   if (Array.isArray(w)) return w;
   if (typeof w === 'string') { try { const p = JSON.parse(w); return Array.isArray(p) ? p : []; } catch (e) { /* fall through */ } }
@@ -98,6 +106,18 @@ function setBusy(text) {
 
 // ── Auth and profile ──────────────────────────────────────────────────────────
 // Own profile is read-only from the browser; the server does all the counting.
+async function refreshCreationQuota() {
+  if (!_currentUser || _currentUser.is_anonymous) { _creationQuota = null; return; }
+  try {
+    const res = await fetch('/api/quota', { headers: await apiHeaders() });
+    if (!res.ok) return;
+    const d = await res.json();
+    _creationQuota = d.creations || null;
+    if (d.tier && _userProfile) _userProfile.tier = d.tier;
+    if (d.library && _userProfile && d.library.used != null) _userProfile.downloads_used = d.library.used;
+  } catch (e) { /* the server still enforces the cap */ }
+}
+
 async function refreshProfile() {
   if (!_currentUser) return;
   try {
@@ -110,6 +130,7 @@ async function refreshProfile() {
       const { data } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
       if (data) _userProfile = data;
     }
+    await refreshCreationQuota();
     renderUser();
   } catch (e) { console.warn('refreshProfile failed:', e.message); }
 }
@@ -138,6 +159,7 @@ async function initAuth() {
   } else {
     const { data: profile } = await sb.from('profiles').select('*').eq('id', _currentUser.id).single();
     _userProfile = profile || { tier: 'free', downloads_used: 0, downloads_reset: null };
+    await refreshCreationQuota();
     renderUser();
   }
   loadLibrary();
@@ -173,15 +195,28 @@ function renderUser() {
   $('meter-of').textContent = 'of ' + limit;
   $('meter-fill').style.width = (100 - pct) + '%';
   $('pro-add-wrap').hidden = !isPro();
+  const leftEl = $('pro-add-left');
+  if (leftEl) {
+    if (!isPro()) leftEl.hidden = true;
+    else {
+      const left = creationsLeft();
+      leftEl.hidden = false;
+      leftEl.textContent = left == null
+        ? 'Up to ' + TITLE_CREATION_LIMIT + ' new titles a year, separate from your library allowance.'
+        : (left === 0
+          ? 'You have used your ' + TITLE_CREATION_LIMIT + ' new titles for this year.'
+          : left + ' of ' + TITLE_CREATION_LIMIT + ' new titles left this year.');
+    }
+  }
 
-  // Limit note
+  // Limit note (the library allowance, not the new-title cap)
   const note = $('limit-note');
   if (remaining <= 0) {
     note.innerHTML = guest
-      ? 'You have used your ' + limit + ' free books. <a href="/login.html#signup"><b>Create a free account</b></a> to keep your library and get ' + LIMITS.free + ' books, or <a href="/upgrade.html"><b>see Pro</b></a> for ' + LIMITS.pro + ' a year.'
+      ? 'You have used your ' + limit + ' free books. <a href="/login.html#signup"><b>Create a free account</b></a> to keep your library and get ' + LIMITS.free + ' books, or <a href="/upgrade.html"><b>see Pro</b></a> (£20 a year in the iOS app).'
       : t === 'pro'
-        ? 'You have reached your ' + limit + ' summaries for this year.'
-        : 'You have used all ' + limit + ' of your summaries. <a href="/upgrade.html"><b>See Pro</b></a> for ' + LIMITS.pro + ' a year.';
+        ? 'You have reached your ' + limit + ' library books for this year.'
+        : 'You have used all ' + limit + ' of your summaries. <a href="/upgrade.html"><b>See Pro</b></a> for ' + LIMITS.pro + ' library books and ' + TITLE_CREATION_LIMIT + ' new titles a year (£20 in the iOS app).';
     note.hidden = false;
   } else {
     note.hidden = true;
@@ -192,7 +227,7 @@ function renderUser() {
   const badge = $('menu-tier');
   badge.textContent = t === 'pro' ? 'Pro' : guest ? 'Guest' : 'Free';
   badge.className = 'badge ' + (t === 'pro' ? 'pro' : 'muted');
-  $('menu-usage').textContent = used + ' / ' + limit + ' used';
+  $('menu-usage').textContent = used + ' / ' + limit + (isPro() && creationsLeft() != null ? ' books · ' + creationsLeft() + ' new titles left' : ' used');
   $('menu-signup').hidden = !guest;
   $('menu-signin').hidden = !guest;
   $('menu-upgrade').hidden = !(t === 'free');
@@ -404,7 +439,7 @@ function renderSearch() {
   _searchHits = top;
   if (!top.length) {
     out.innerHTML = '<div class="empty"><b>Nothing matches “' + esc(raw.trim()) + '”</b>' +
-      (isPro() ? 'It is not in the library yet, but you can have it written.<div style="margin-top:16px"><button class="btn primary" id="empty-add" type="button">Summarise “' + esc(raw.trim()) + '”</button></div>' : 'Try another title or author. Pro members can have a summary written for any book.') + '</div>';
+      (proMayCommission() ? 'It is not in the library yet, but you can have it written.<div style="margin-top:16px"><button class="btn primary" id="empty-add" type="button">Summarise “' + esc(raw.trim()) + '”</button></div>' : (isPro() ? 'It is not in the library yet, and you have used your ' + TITLE_CREATION_LIMIT + ' new titles for this year.' : 'Try another title or author. Pro members can have up to ' + TITLE_CREATION_LIMIT + ' new titles written a year.')) + '</div>';
     return;
   }
   out.innerHTML = top.map((b, i) => {
@@ -424,7 +459,7 @@ function wireLibrary() {
       e.preventDefault();
       const b = _searchHits[0];
       if (b && fold($('search-input').value)) { closeSearch(); openSummary(b.title, b.author || '', { id: b.id }); }
-      else if (isPro() && $('search-input').value.trim()) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
+      else if (proMayCommission() && $('search-input').value.trim()) { const v = $('search-input').value.trim(); closeSearch(); openNewBookModal(v); }
     }
   });
   $('search-results').addEventListener('click', e => {
@@ -461,12 +496,13 @@ async function openSummary(title, author, opts) {
     const res = await fetch('/api/summarise', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify(req) });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
-      if (d.code === 'limit' || d.code === 'ip_limit') refreshProfile();
+      if (d.code === 'limit' || d.code === 'ip_limit' || d.code === 'creation_limit') refreshProfile();
       throw new Error(d.error || 'Something went wrong (' + res.status + '). Please try again.');
     }
     if ((res.headers.get('content-type') || '').includes('application/json')) {
       const d = await res.json();
       setBusy('');
+      if (d.creations) _creationQuota = d.creations;
       showSummary(title, author || d.author || '', d.html, d.plain, parseWords(d.words), { group, id: d.id != null ? d.id : (opts && opts.id) });
       refreshProfile();
       return;
@@ -496,6 +532,7 @@ async function openSummary(title, author, opts) {
     // Never present a half-written summary as if it were finished.
     if (serverError) throw new Error(serverError);
     if (!finalData) throw new Error('The connection dropped before the summary finished. It may still be saving, so try opening it again in a minute.');
+    if (finalData.creations) _creationQuota = finalData.creations;
     showSummary(title, author, finalData.html, finalData.plain, parseWords(finalData.words), { group, id: finalData.id });
     refreshProfile();
   } catch (err) {
@@ -1281,10 +1318,19 @@ async function whatsappAudio() {
 }
 
 // ── Pro: summarise a book that is not in the library yet ──────────────────────
+function newTitleBlurb() {
+  const left = creationsLeft();
+  if (left === 0) return 'You have used your ' + TITLE_CREATION_LIMIT + ' new titles for this year. You can still open any book already in the library.';
+  const leftText = left == null
+    ? 'Pro includes ' + TITLE_CREATION_LIMIT + ' new titles a year.'
+    : 'You have ' + left + ' of ' + TITLE_CREATION_LIMIT + ' new titles left this year.';
+  return 'This writes a new summary for a book that is not in the library yet. ' + leftText + ' It also adds the book to your library, which is counted in your ' + LIMITS.pro + ' library books. Opening a book that is already in the library does not use a new title.';
+}
 function openNewBookModal(prefillTitle) {
+  const blocked = creationsLeft() === 0;
   const m = KUI.modal(
     '<h3>Summarise a new book</h3>' +
-    '<p class="sub">This writes a fresh summary and uses one of your ' + LIMITS.pro + ' summaries.</p>' +
+    '<p class="sub">' + newTitleBlurb() + '</p>' +
     '<label class="label" for="nb-title">Book title</label>' +
     '<input class="input" id="nb-title" autocomplete="off" placeholder="e.g. Papillon">' +
     '<div class="suggest" id="nb-suggest" hidden></div>' +
@@ -1297,11 +1343,12 @@ function openNewBookModal(prefillTitle) {
   const titleIn = m.el.querySelector('#nb-title'), authorIn = m.el.querySelector('#nb-author');
   const sugg = m.el.querySelector('#nb-suggest'), warn = m.el.querySelector('#nb-warn'), go = m.el.querySelector('#nb-go');
   m.el.querySelector('[data-cancel]').onclick = m.close;
+  if (blocked) { go.disabled = true; go.textContent = 'No new titles left'; }
   if (prefillTitle) titleIn.value = prefillTitle;
   let acknowledged = false, timer = null;
 
   titleIn.addEventListener('input', () => {
-    acknowledged = false; warn.hidden = true; go.textContent = 'Generate summary';
+    acknowledged = false; warn.hidden = true; if (!blocked) go.textContent = 'Generate summary';
     clearTimeout(timer);
     const q = titleIn.value.trim();
     if (q.length < 3) { sugg.hidden = true; return; }
@@ -1316,13 +1363,14 @@ function openNewBookModal(prefillTitle) {
       } catch (e) { sugg.hidden = true; }
     }, 300);
   });
-  authorIn.addEventListener('input', () => { acknowledged = false; warn.hidden = true; go.textContent = 'Generate summary'; });
+  authorIn.addEventListener('input', () => { acknowledged = false; warn.hidden = true; if (!blocked) go.textContent = 'Generate summary'; });
   sugg.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     titleIn.value = b.dataset.t; authorIn.value = b.dataset.a; sugg.hidden = true; acknowledged = true;
   });
 
   async function submit() {
+    if (blocked) return;
     const title = titleIn.value.trim(), author = authorIn.value.trim();
     warn.hidden = true;
     if (!title) { titleIn.focus(); return; }

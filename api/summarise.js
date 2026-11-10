@@ -97,17 +97,20 @@ async function checkForDuplicate(title, author, newKey) {
   }
 }
 
-// Returns the new row's id (or the existing row's id if a concurrent request saved the same book first).
+// Returns { id, created }. created is true only when this call inserted a new catalogue row.
+// A concurrent request that saved the same book first comes back as created:false, so it is
+// not charged against the new-title cap.
 async function saveToSupabase(title, author, key, html, plain, words) {
   await checkForDuplicate(title, author, key);
   const r = await K.sb('/rest/v1/summaries', {
     method: 'POST', prefer: 'return=representation',
     body: { title, author, lookup_key: key, html, plain, words: JSON.stringify(words) }
   });
-  if (r.ok && Array.isArray(r.data) && r.data[0]) return r.data[0].id;
+  if (r.ok && Array.isArray(r.data) && r.data[0] && r.data[0].id != null) return { id: r.data[0].id, created: true };
   console.error('Supabase insert failed:', r.status, JSON.stringify(r.data).slice(0, 200));
   const again = await K.sb('/rest/v1/summaries?select=id&lookup_key=eq.' + encodeURIComponent(key) + '&limit=1');
-  return again.ok && again.data && again.data[0] ? again.data[0].id : null;
+  const id = again.ok && again.data && again.data[0] ? again.data[0].id : null;
+  return { id, created: false };
 }
 
 async function patchWordsById(id, words) {
@@ -350,6 +353,9 @@ module.exports = async (req, res) => {
   if (!K.canGenerateAudio(ctx)) {   // Pro or admin only
     return res.status(403).json({ code: 'pro_required', error: 'Writing new summaries is a Pro feature.' });
   }
+
+  // Library allowance (downloads_used / LIMITS) stays as it is. The new-title cap is a second check.
+  let reservation = null;
   if (!ctx.admin) {
     const profile = await K.getProfile(ctx.user.id);
     const limit = K.limitFor(ctx.tier);
@@ -357,7 +363,11 @@ module.exports = async (req, res) => {
     if (used >= limit) {
       return res.status(403).json({ code: 'limit', error: 'You have used all ' + limit + ' of your summaries.', quota: { used, limit, tier: ctx.tier } });
     }
+    reservation = await K.reserveTitleCreation(ctx.user.id, { title, author, lookupKey: makeKey(title, author) });
+    if (!reservation.ok) return K.fail(res, reservation);
     if (K.rateLimited('gensum:' + ctx.user.id, 10, 60 * 60 * 1000)) {
+      await K.releaseTitleCreation(reservation.id);
+      reservation = null;
       return res.status(429).json({ error: 'Too many new summaries this hour. Try again later.' });
     }
   }
@@ -374,6 +384,7 @@ module.exports = async (req, res) => {
 
     if (!anthropicRes.ok) {
       const err = await anthropicRes.json();
+      if (reservation) { await K.releaseTitleCreation(reservation.id); reservation = null; }
       return res.status(500).json({ error: err.error?.message || 'Anthropic API error' });
     }
 
@@ -461,11 +472,19 @@ module.exports = async (req, res) => {
     const problems = K.summaryProblems(plain, html);
     if (stopReason !== 'end_turn' || problems.includes('too_short') || problems.includes('abrupt_end')) {
       console.error('[summarise] incomplete summary NOT saved:', title, 'stop_reason=' + stopReason, problems.join(','));
+      if (reservation) { await K.releaseTitleCreation(reservation.id); reservation = null; }
       res.write('data: ' + JSON.stringify({ error: 'The summary was cut short, so it was not saved. Please try again.' }) + '\n\n');
       return res.end();
     }
 
-    const savedId = await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => { console.error('Supabase save failed:', e.message); return null; });
+    const saved = await saveToSupabase(title, author, saveKey, html, plain, words).catch(e => { console.error('Supabase save failed:', e.message); return null; });
+    const savedId = saved && saved.id;
+    if (reservation) {
+      // Keep the log row only when this request inserted a new catalogue title.
+      if (saved && saved.created) await K.confirmTitleCreation(reservation.id, savedId);
+      else await K.releaseTitleCreation(reservation.id);
+      reservation = null;
+    }
 
     // ── Categories + synopsis ─────────────────────────────────────────────────
     if (savedId) {
@@ -484,6 +503,7 @@ module.exports = async (req, res) => {
     }
 
     // ── Charge the user's allowance (adds the book to their library) ──────────
+    // This is the 200-book library allowance, not the new-title cap.
     let quota = null;
     if (savedId) {
       try {
@@ -491,11 +511,16 @@ module.exports = async (req, res) => {
         quota = acc.quota || null;
       } catch (e) { console.warn('accessBook failed:', e.message); }
     }
+    let creations = null;
+    if (!ctx.admin && ctx.user) {
+      try { creations = await K.creationQuota(ctx.user.id); } catch (e) { creations = null; }
+    }
 
-    res.write('data: ' + JSON.stringify({ done: true, id: savedId || null, html, plain, words, source: 'generated', quota }) + '\n\n');
+    res.write('data: ' + JSON.stringify({ done: true, id: savedId || null, html, plain, words, source: 'generated', quota, creations }) + '\n\n');
     res.end();
 
   } catch(err) {
+    if (reservation) { await K.releaseTitleCreation(reservation.id); reservation = null; }
     if (res.headersSent) {
       res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
       res.end();

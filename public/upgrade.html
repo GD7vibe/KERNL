@@ -36,19 +36,50 @@
 </header>
 <main class="wrap narrow page">
   <h1>KERNL Pro</h1>
-  <p class="muted">For people who read a lot.</p>
+  <p class="muted">For people who read a lot. &pound;20 a year, bought in the KERNL iOS app.</p>
   <div class="card pad" style="margin-top:22px">
     <div class="price">&pound;20 <span class="faint" style="font-size:1rem;font-weight:400">a year</span></div>
     <ul class="list">
-      <li><span data-icon="check"></span>200 summaries a year (free accounts get 36)</li>
+      <li><span data-icon="check"></span>200 library books a year (free accounts get 36)</li>
+      <li><span data-icon="check"></span>10 new titles a year, written when a book is not in the library yet</li>
       <li><span data-icon="check"></span>Audio for every book, made on demand</li>
-      <li><span data-icon="check"></span>Summaries of books that are not in the library yet</li>
       <li><span data-icon="check"></span>Share audio by email or WhatsApp</li>
     </ul>
-    <div class="note warn" style="margin-top:22px">Online payment is not switched on yet. To get Pro now, email <a href="mailto:duffgaryduff@hotmail.com?subject=KERNL%20Pro"><b>duffgaryduff@hotmail.com</b></a> from the address you signed up with.</div>
-    <div style="margin-top:20px"><a class="btn primary" href="mailto:duffgaryduff@hotmail.com?subject=KERNL%20Pro">Email to get Pro</a></div>
+    <div class="note" style="margin-top:22px">Pro is purchased in the iOS app. This website cannot take payment. If you have already subscribed, open KERNL on your iPhone and restore purchases. The new-title allowance is separate from the 200 library books, and it renews on a rolling 12 months.</div>
+    <div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:10px">
+      <button class="btn primary" id="iap-buy" type="button">Get Pro in the iOS app</button>
+      <button class="btn" id="iap-restore" type="button">Restore purchases</button>
+    </div>
+    <p class="muted" id="iap-note" hidden style="margin-top:14px;line-height:1.55"></p>
+    <p class="muted" style="margin-top:18px">Questions? Email <a href="mailto:duffgaryduff@hotmail.com">duffgaryduff@hotmail.com</a>.</p>
   </div>
 </main>
+<script>
+// Product id for the annual subscription in App Store Connect: com.kernl.pro.annual (£20 a year).
+// The website cannot complete a purchase. A future iOS shell sets window.KernlNative.purchasePro
+// and window.KernlNative.restorePro. Those should obtain a StoreKit 2 signed transaction and POST
+// it to /api/apple-verify with the signed-in user's access token:
+//   { signedTransaction, transactionId }
+// Replacing window.KERNL_IAP.purchase / .restore has the same effect.
+function kernlIapNote() {
+  var note = document.getElementById('iap-note');
+  note.hidden = false;
+  note.textContent = 'Pro is £20 a year in the KERNL iOS app. This page cannot take payment or restore an App Store purchase.';
+}
+window.KERNL_IAP = {
+  productId: 'com.kernl.pro.annual',
+  purchase: function () {
+    if (window.KernlNative && typeof window.KernlNative.purchasePro === 'function') return window.KernlNative.purchasePro(window.KERNL_IAP.productId);
+    kernlIapNote();
+  },
+  restore: function () {
+    if (window.KernlNative && typeof window.KernlNative.restorePro === 'function') return window.KernlNative.restorePro();
+    kernlIapNote();
+  }
+};
+document.getElementById('iap-buy').addEventListener('click', function () { window.KERNL_IAP.purchase(); });
+document.getElementById('iap-restore').addEventListener('click', function () { window.KERNL_IAP.restore(); });
+</script>
 <footer class="footer"><div class="wrap"><span>&copy; KERNL &mdash; Read less. Know more.</span><span><a href="/privacy.html">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms.html">Terms</a></span></div></footer>
 </body>
 </html>
