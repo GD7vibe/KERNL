@@ -584,11 +584,10 @@ function hideReader() {
   document.body.style.overflow = _genreOpen ? 'hidden' : '';
   hideLayer('reader', () => { currentSummary = null; _waFile = null; });
   if (_returnToLibrary) {
-    // Opened from My library: go back to it (one more step back restores it exactly as it was left).
-    // Wait for the last progress save to finish first, so My library reads the new place.
+    // Opened from My library. Load that page again, after the last save has finished.
+    // history.back() would show the copy the phone kept in memory, still with the old percentages.
     _returnToLibrary = false;
-    const cameFromLibrary = (document.referrer || '').indexOf(window.location.origin + '/account') === 0;
-    const go = () => { if (cameFromLibrary && history.length > 1) history.back(); else window.location.replace('/account.html'); };
+    const go = () => { window.location.replace('/account.html'); };
     const pending = _progSave;
     if (pending) Promise.race([pending, new Promise(r => setTimeout(r, 1500))]).then(go);
     else setTimeout(go, 250);
@@ -782,6 +781,12 @@ function saveProgress(done) {
   _prog.pos = done ? 0 : body.pos; _prog.dur = body.dur;
   if (done) { _prog.pct = 100; _prog.listens = (_prog.listens || 0) + 1; _prog.finished = true; }
   else _prog.pct = Math.max(_prog.pct || 0, Math.min(100, Math.round((Math.min(body.pos, body.dur) / body.dur) * 100)));
+  // My library reads this the moment it is shown, so the card can update before the network round trip.
+  try {
+    sessionStorage.setItem('kernl_listen', JSON.stringify({
+      id: String(_prog.id), pct: _prog.pct || 0, listens: _prog.listens || 0, finished: !!_prog.finished, at: Date.now()
+    }));
+  } catch (e) { /* private mode */ }
   _progSave = apiHeaders().then(h => fetch('/api/progress', { method: 'POST', headers: h, body: JSON.stringify(body), keepalive: true })).catch(() => {});
   return _progSave;
 }
