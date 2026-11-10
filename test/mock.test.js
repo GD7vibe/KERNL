@@ -200,6 +200,20 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
   assert.strictEqual(r.code, 404); assert.strictEqual(db.anthropic || 0, before); console.log('ok unknown id is a 404, never a generation');
   r = await call(sum, { body: { id: '7; drop table', title: 'x' }, token: 'tokP' });
   assert.notStrictEqual(r.code, 200); console.log('ok malformed id ignored');
+  {
+    const uid = '233a9309-e125-41e6-af7e-ce4826d24d0a';
+    db.summaries.push({ id: uid, title: 'UUID Book', author: 'Tester', lookup_key: 'uuid book||tester||nospoilers', plain: STOIC, html: '<p>uuid</p>', words: '[{"word":"uuid","definition":"an id"}]' });
+    const paid = db.anthropic || 0, paidX = db.xai || 0;
+    r = await call(sum, { body: { id: uid.toUpperCase(), title: 'Wrong Title On Purpose', author: 'Nobody' }, token: 'tokP' });
+    assert.strictEqual(r.code, 200); assert.strictEqual(r.body.id, uid); assert.strictEqual(r.body.html, '<p>uuid</p>');
+    assert.strictEqual(db.anthropic || 0, paid, 'opening a book by its id paid for a new summary');
+    assert.strictEqual(db.xai || 0, paidX, 'opening a book by its id paid for audio');
+    r = await call(sum, { body: { id: uid + ';drop', title: 'No Such Title' }, token: 'tokP' });
+    assert.strictEqual(r.code, 404); assert.strictEqual(db.anthropic || 0, paid);
+    db.summaries = db.summaries.filter(x => x.id !== uid);
+    db.user_library = db.user_library.filter(x => String(x.summary_id) !== uid);
+    console.log('ok a real book id (UUID) opens that exact book and never writes a new one');
+  }
   r = await call(sum, { body: { title: 'Brand New Book', author: 'Someone', generate: true }, token: 'tokP' });
   assert.strictEqual(db.anthropic, before + 1, 'pro generate:true should reach the writer'); console.log('ok only pro + generate:true writes a new summary');
   r = await call(sum, { body: { title: 'Brand New Book', author: 'Someone', generate: true }, token: 'tokA' });
@@ -240,6 +254,17 @@ const call = async (h, { method = 'POST', body, query, token } = {}) => { const 
     r = await post('tokB', { id: 2, pos: 10, dur: 600 }); assert.notStrictEqual(r.code, 200);       // someone else's book
     r = await get('tokA', 2); assert.strictEqual(r.body.listens, 2);
     console.log('ok progress: only your own library books, bad input refused');
+    const uid = '233a9309-e125-41e6-af7e-ce4826d24d0a';
+    db.user_library.push({ user_id: 'u1', summary_id: uid, listen_pct: 0, listens: 0 });
+    r = await post('tokA', { id: uid.toUpperCase(), pos: 25, dur: 100 });
+    assert.strictEqual(r.code, 200); assert.strictEqual(r.body.pct, 25);
+    r = await get('tokA', uid); assert.strictEqual(r.body.pos, 25); assert.strictEqual(r.body.pct, 25);
+    r = await post('tokA', { id: uid + ';drop', pos: 10, dur: 100 }); assert.strictEqual(r.code, 400);
+    r = await post('tokB', { id: uid, pos: 10, dur: 100 }); assert.strictEqual(r.code, 404);
+    r = await get('tokA', uid); assert.strictEqual(r.body.pos, 25); assert.strictEqual(r.body.pct, 25);
+    const row = db.user_library.find(x => x.user_id === 'u1' && x.summary_id === uid);
+    assert.strictEqual(row.listen_pos, 25); assert.strictEqual(row.listen_pct, 25); assert.ok(row.last_listened_at);
+    console.log('ok progress: a real book id (UUID) is saved on that library row');
   }
 
   // ── Book-open audit (read-only; Pro/admin only) ──

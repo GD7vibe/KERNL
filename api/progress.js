@@ -16,8 +16,10 @@ module.exports = async (req, res) => {
     if (ctx.tier === 'guest') return res.status(403).json({ code: 'signup_required', error: 'Create a free account to keep your place on every device.' });
 
     const body = req.method === 'POST' ? (req.body || {}) : {};
-    const id = String((req.method === 'GET' ? (req.query || {}).id : body.id) ?? '');
-    if (!/^\d{1,12}$/.test(id)) return res.status(400).json({ error: 'id required' });
+    // Live book ids are UUIDs. A digits-only check rejected every real id, so no
+    // progress was ever written. Integers are still accepted (the test suite).
+    const id = K.bookId(req.method === 'GET' ? (req.query || {}).id : body.id);
+    if (!id) return res.status(400).json({ error: 'id required' });
 
     const where = 'user_id=eq.' + encodeURIComponent(ctx.user.id) + '&summary_id=eq.' + id;
     const got = await K.sb('/rest/v1/user_library?select=' + COLS + '&' + where + '&order=id.asc&limit=1');
